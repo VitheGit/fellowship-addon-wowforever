@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.1.0"
+ns.VERSION = "0.1.1"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -179,7 +179,10 @@ ns.Listen("EVENTS_ADDED", function(fid, added, live)
         return
     end
     for _, e in ipairs(added) do
-        if e.a ~= ns.me then
+        if e.a == ns.me then
+            -- show your own chat lines too, like a sent whisper, so /fsay always gives feedback
+            if e.k == "C" and ns.settings.echoChat then ns.Print(ns.FormatEvent(e)) end
+        else
             if e.k == "C" and ns.settings.echoChat then
                 ns.Print(ns.FormatEvent(e))
             elseif (e.k == "A" or e.k == "M") and ns.settings.echoAchievements then

@@ -282,7 +282,20 @@ function Sync:PostChat(text)
         return
     end
     text = ns.Truncate(text, 255)
-    self:Publish("C", { text })
+    if not self:Publish("C", { text }) then return end
+    if not self.hintShown then
+        local others, onlineCount = otherMembers(ns.Store:ActiveId()), 0
+        for _, name in ipairs(others) do
+            if online[ns.Key(name)] then onlineCount = onlineCount + 1 end
+        end
+        if #others == 0 then
+            self.hintShown = true
+            ns.Print("You're the only member so far. Invite friends with /fs invite <player>; they'll see this history when they join.")
+        elseif onlineCount == 0 then
+            self.hintShown = true
+            ns.Print("Nobody else is online right now. Your message is saved and members will get it when they log in.")
+        end
+    end
 end
 
 ---------------------------------------------------------------------------
