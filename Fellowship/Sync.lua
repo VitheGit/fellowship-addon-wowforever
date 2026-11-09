@@ -7,7 +7,7 @@
 --   INV fid proto name                           invitation
 --   ACC fid proto                                invitation accepted
 --   DEC fid proto reason                         invitation declined
---   PI  fid proto                                presence ping (a bounce means they logged off)
+--   PI  fid proto | level zone                   presence ping + where I am (a bounce means they logged off)
 --
 -- Catch-up: whenever two members meet (login, periodic ping, new member) they swap HI
 -- vectors; each side REQuests only the ranges it is missing. Because every member keeps
@@ -18,6 +18,8 @@ ns.Sync = Sync
 
 local S
 local online = {}        -- key -> true (seen) / false (whisper bounced)
+local status = {}        -- key -> { level, zone } from members who share their location
+ns.memberStatus = status
 local pendingReq = {}    -- fid -> author -> GetTime() expiry
 local pendingInvites = {} -- invitee key -> { fid, expires }
 ns.online = online
@@ -85,6 +87,8 @@ function Sync:Init()
     C_Timer.After(20, function() Sync:EnsureRoles() Sync:CheckAdminOffer() end)
     C_Timer.NewTicker(HELLO_INTERVAL, function() Sync:HelloAll() end)
     C_Timer.NewTicker(PING_INTERVAL, function() Sync:PingOnline() end)
+    ns.On("ZONE_CHANGED_NEW_AREA", function() Sync:QueueStatus() end)
+    ns.On("PLAYER_LEVEL_UP", function() Sync:QueueStatus() end)
 end
 
 function Sync:IsOnline(name)
@@ -123,12 +127,46 @@ end
 
 -- Cheap check that members we think are online still are: if they logged off,
 -- the whisper bounces and Comm marks them offline.
+local function pingRecords(fid)
+    local rec = { header("PI", fid) }
+    if ns.settings.shareLocation then
+        rec[2] = { UnitLevel and UnitLevel("player") or "", (GetZoneText and GetZoneText()) or "" }
+    end
+    return rec
+end
+
+function Sync:Ping(fid, target)
+    send(target, pingRecords(fid))
+end
+
 function Sync:PingOnline()
     local f, fid = ns.Store:Active()
     if not f or f.pendingFrom then return end
     for _, name in ipairs(otherMembers(fid)) do
-        if online[ns.Key(name)] then send(name, { header("PI", fid) }) end
+        if online[ns.Key(name)] then self:Ping(fid, name) end
     end
+end
+
+-- zone/level changed: tell online members soon (debounced)
+local statusQueued = false
+function Sync:QueueStatus()
+    if statusQueued then return end
+    statusQueued = true
+    C_Timer.After(3, function()
+        statusQueued = false
+        Sync:PingOnline()
+    end)
+end
+
+function Sync:OnPing(sender, records)
+    local r = records[2]
+    local key = ns.Key(sender)
+    if r and (tonumber(r[1]) or (r[2] and r[2] ~= "")) then
+        status[key] = { level = tonumber(r[1]), zone = r[2] ~= "" and r[2] or nil }
+    else
+        status[key] = nil
+    end
+    ns.Fire("STATUS", key)
 end
 
 function Sync:HelloAll()
@@ -165,6 +203,7 @@ function Sync:OnHello(sender, fid, f, wantReply, records)
     if #wants > 1 then send(sender, wants) end
     if classesChanged then ns.Fire("PRESENCE") end -- repaint names
     if wantReply then self:Hello(fid, sender, false) end
+    self:Ping(fid, sender) -- share where I am
 end
 
 function Sync:OnRequest(sender, fid, records)
@@ -276,6 +315,8 @@ function Sync:OnMessage(sender, records)
         self:OnRequest(sender, fid, records)
     elseif typ == "EV" then
         self:OnEvents(fid, h[4] == "1", records)
+    elseif typ == "PI" then
+        self:OnPing(sender, records)
     elseif typ == "FL" then
         self:OnFloor(fid, records)
     end
@@ -566,8 +607,15 @@ function Sync:MemberList(fid)
             local seen = ns.Store:GetSeen(m.name) or ns.Store:LastActive(fid, m.name)
             status = "|cff9d9d9d[Offline]|r" .. (seen and (" |cff808080last seen " .. ns.Ago(seen) .. "|r") or "")
         end
+        local where
+        local st = isMe and { level = UnitLevel and UnitLevel("player"), zone = GetZoneText and GetZoneText() }
+            or (on and ns.memberStatus[key])
+        if st and (st.level or st.zone) then
+            where = (st.level and ("Level " .. st.level) or "") .. ((st.level and st.zone) and ", " or "")
+                .. (st.zone and ns.Escape(st.zone) or "")
+        end
         list[#list + 1] = { key = key, name = m.name, since = m.since, role = m.role, online = on, status = status,
-            roleLabel = ns.ROLE_LABEL[m.role] or "Member" }
+            roleLabel = ns.ROLE_LABEL[m.role] or "Member", where = where }
     end
     table.sort(list, function(a, b)
         if a.online ~= b.online then return a.online end
@@ -587,6 +635,7 @@ function Sync:PrintMembers()
     local list, onlineCount = self:MemberList(fid)
     ns.Print(string.format("%s: %d of %d online", ns.Escape(f.name), onlineCount, #list))
     for _, m in ipairs(list) do
-        ns.Output("  " .. m.status .. "  " .. ns.ColorName(m.name) .. "  |cffffd100" .. m.roleLabel .. "|r")
+        ns.Output("  " .. m.status .. "  " .. ns.ColorName(m.name) .. "  |cffffd100" .. m.roleLabel .. "|r"
+            .. (m.where and ("  |cffcccccc" .. m.where .. "|r") or ""))
     end
 end

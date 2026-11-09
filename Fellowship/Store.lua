@@ -49,6 +49,11 @@ function Store:Init()
     local db = FellowshipDB
     db.version = db.version or 1
     db.settings = db.settings or {}
+    if db.settings.echoAchievements ~= nil then -- v0.1-0.6 had one switch for achievements and levels
+        db.settings.showAchievements = db.settings.echoAchievements
+        db.settings.showLevels = db.settings.echoAchievements
+        db.settings.echoAchievements = nil
+    end
     for k, v in pairs(ns.defaults) do
         if db.settings[k] == nil then db.settings[k] = v end
     end

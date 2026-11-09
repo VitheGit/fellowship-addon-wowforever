@@ -5,7 +5,12 @@ achievement feed that **persists**, so anyone who was offline can open the windo
 and read everything they missed.
 
 - Private chat between fellowship members (`/fs hello!`)
-- Achievements and level-ups are shared automatically
+- Shared automatically: achievements, level-ups, new mounts/pets/toys, Rare-or-better loot
+  (each person picks Rare, Epic or Legendary as their minimum), dungeon and raid completions
+  (including keystone level), and deaths (in red, with what killed you)
+- Online/offline notices, plus each member's zone and level in the Members tab
+- A settings window (`/fship settings` or the Settings button) to choose what you share and
+  what you see, for every kind of announcement
 - Full history saved on every member's machine; when you log in, whoever is online
   fills in what you missed, even if the original author is offline now
 - "New since you were last here" divider and a login summary
@@ -47,7 +52,7 @@ Everyone in the group needs the addon installed.
 | `/fship sync` | Ask online members for anything you missed right now |
 | `/fship color <hex>` | Change the chat text color (default sea green `4fd1b5`; `/fship color reset`) |
 | `/fship tab` | Show/hide Fellowship messages in the chat tab you are typing in (`/fship tab 2`, `/fship tab reset`). You can also right-click a chat tab and tick **Show Fellowship** |
-| `/fship echo` / `/fship levels` | Toggle chat echo in the main chat frame / level-up sharing |
+| `/fship settings` | Open the settings window |
 
 ## Roles
 

@@ -264,6 +264,97 @@ test("members show Online/Offline, and logouts are noticed within a minute", fun
     assert(not anna:logContains("SYSTEM: No player named"), "ping bounce leaked into chat")
 end)
 
+local function lastLine(c) local h = c:history(); return h[#h] end
+local function showsInChat(c, text) return c:logContains(text) end
+
+test("announcements: mounts, pets, toys, loot, dungeons, raids and deaths", function()
+    local w, anna, bob = setup()
+    local A = anna.ns.Announce
+    anna:fire("NEW_MOUNT_ADDED", 7); w:advance(2)
+    assert(showsInChat(bob, "learned a new mount: |cff71d5ff|Hspell:1007"), "mount")
+    anna:fire("NEW_PET_ADDED", "BattlePet-1"); w:advance(2)
+    assert(showsInChat(bob, "added a new pet: [Mechanical Squirrel]"), "pet")
+    anna:fire("NEW_TOY_ADDED", 1234); w:advance(2)
+    assert(showsInChat(bob, "added a new toy: [Toy 1234]"), "toy")
+    -- loot: blue is shared, bob's default only shows Epic+
+    anna:fire("CHAT_MSG_LOOT", "You receive loot: |cff0070dd|Hitem:100:3::|h[Blue Sword]|h|r.")
+    anna:fire("CHAT_MSG_LOOT", "You receive loot: |cffa335ee|Hitem:200:4::|h[Purple Staff]|h|rx2.")
+    anna:fire("CHAT_MSG_LOOT", "You receive loot: |cff1eff00|Hitem:300:2::|h[Green Junk]|h|r.")
+    anna:fire("CHAT_MSG_LOOT", "Bob receives loot: |cffa335ee|Hitem:400:4::|h[Not Yours]|h|r.")
+    w:advance(3)
+    eq(count(bob, "M"), 5, "mount, pet, toy + 2 loot stored")
+    assert(not showsInChat(bob, "Blue Sword"), "rare shown below bob's minimum")
+    assert(showsInChat(bob, "looted |cffa335ee|Hitem:200:4::|h[Purple Staff]|h|r"), "epic not shown")
+    bob.ns.settings.lootMinQuality = 3
+    local blue = bob.ns.Store:Sorted(bob.ns.Store:ActiveId())
+    local found = false
+    for _, e in ipairs(blue) do if e.d[3] == "Blue Sword" then found = bob.ns.Announce.ShouldShow(e) end end
+    assert(found, "rare not shown after lowering minimum")
+    -- dungeon: only the final boss counts, once
+    anna.instance = { name = "Deadmines", type = "party", difficulty = "Heroic", id = 36, bosses = { 11, 12, 13 } }
+    anna:fire("ENCOUNTER_END", 11, "Boss 1", 2, 5, 1); w:advance(1)
+    anna:fire("ENCOUNTER_END", 13, "Boss 3", 2, 5, 0); w:advance(1) -- wipe
+    eq(count(bob, "M"), 5, "posted before the final boss died")
+    anna:fire("ENCOUNTER_END", 13, "Boss 3", 2, 5, 1)
+    anna:fire("ENCOUNTER_END", 13, "Boss 3", 2, 5, 1); w:advance(2)
+    assert(showsInChat(bob, "completed Deadmines (Heroic)"), "dungeon completion")
+    eq(count(bob, "M"), 6, "dungeon posted twice")
+    anna:fire("CHALLENGE_MODE_COMPLETED"); w:advance(2)
+    assert(showsInChat(bob, "at +15, in time!"), "keystone")
+    anna.instance = { name = "Molten Core", type = "raid", difficulty = "Mythic", id = 409, bosses = { 21, 22 } }
+    anna:fire("ZONE_CHANGED_NEW_AREA")
+    anna:fire("ENCOUNTER_END", 22, "Ragnaros", 16, 20, 1); w:advance(2)
+    assert(showsInChat(bob, "cleared Molten Core (Mythic)"), "raid")
+    -- death in red, with killer
+    anna.instance = nil
+    anna.cleu = { 0, "SWING_DAMAGE", false, "Creature-1", "Hogger", 0, 0, "Player-Anna" }
+    anna:fire("COMBAT_LOG_EVENT_UNFILTERED")
+    anna:fire("PLAYER_DEAD"); w:advance(2)
+    assert(showsInChat(bob, "|cffff4040 was killed by Hogger in Elwynn Forest|r"), "death")
+end)
+
+test("announcements: share and show settings", function()
+    local w, anna, bob = setup()
+    anna.ns.settings.shareDeaths = false
+    anna:fire("PLAYER_DEAD"); w:advance(2)
+    eq(count(bob, "M"), 0, "death shared while sharing off")
+    bob.ns.settings.showLevels = false
+    anna.ns.Achievements:OnLevelUp(61); w:advance(2)
+    eq(count(bob, "M"), 1, "level stored")
+    assert(not showsInChat(bob, "reached level 61"), "hidden level still echoed")
+    -- the settings window drives the same switches
+    bob:slash("/fship settings")
+    local cb = bob.ns.UI.settingsChecks.showLevels
+    eq(cb:GetChecked(), false)
+    cb:SetChecked(true); cb:Click()
+    eq(bob.ns.settings.showLevels, true)
+    anna.ns.Achievements:OnLevelUp(62); w:advance(2)
+    assert(showsInChat(bob, "reached level 62"), "level not shown after re-enabling")
+    anna.ns.Achievements:OnEarned(5, false); w:advance(2)
+    assert(showsInChat(bob, "earned"), "achievement")
+end)
+
+test("online/offline notices and zone/level in the member list", function()
+    local w, anna, bob, cara = setup()
+    w:advance(30)
+    cara.zone = "Stormwind City"; cara.level = 42
+    cara:fire("ZONE_CHANGED_NEW_AREA"); w:advance(5)
+    local list = anna.ns.Sync:MemberList(anna.ns.Store:ActiveId())
+    local where
+    for _, m in ipairs(list) do if m.name == "Cara-Area52" then where = m.where end end
+    eq(where, "Level 42, Stormwind City")
+    cara:logout(); w:advance(70)
+    assert(anna:logContains("Cara|r |cff9d9d9dwent offline."), "no offline notice")
+    cara:login(); w:advance(10)
+    assert(anna:logContains("Cara|r |cff33ff99came online."), "no online notice")
+    assert(not cara:logContains("came online"), "login spam for the person logging in")
+    bob.ns.settings.shareLocation = false
+    bob.ns.Sync:PingOnline(); w:advance(2)
+    for _, m in ipairs(anna.ns.Sync:MemberList(anna.ns.Store:ActiveId())) do
+        if m.name == "Bob-Silvermoon" then eq(m.where, nil, "bob's location still shown") end
+    end
+end)
+
 test("live chat reaches online members and is echoed to their chat frame", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hey all, dungeon tonight?")

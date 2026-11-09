@@ -6,7 +6,7 @@ World.__index = World
 
 local ADDON_DIR = (arg and arg[0] and arg[0]:match("^(.*)/tests/")) or "."
 ADDON_DIR = ADDON_DIR .. "/Fellowship/"
-local FILES = { "Core.lua", "Serializer.lua", "Store.lua", "Comm.lua", "Sync.lua", "Achievements.lua", "Menu.lua", "UI.lua" }
+local FILES = { "Core.lua", "Serializer.lua", "Store.lua", "Comm.lua", "Sync.lua", "Announce.lua", "Menu.lua", "UI.lua" }
 
 local function deepcopy(v)
     if type(v) ~= "table" then
@@ -62,6 +62,9 @@ local function newStub()
         AddMessage = function(self, m) self._lines = self._lines or {}; table.insert(self._lines, m) end,
         Clear = function(self) self._lines = {} end,
         CreateFontString = function() return newStub() end,
+        SetChecked = function(self, v) self._checked = v end,
+        GetChecked = function(self) return self._checked end,
+        Click = function(self) if self._scripts.OnClick then self._scripts.OnClick(self) end end,
         CreateTexture = function() return newStub() end,
     }
     return setmetatable(stub, { __index = function(_, k) return methods[k] or function() end end })
@@ -125,6 +128,33 @@ function Client:login()
         UnitExists = function(unit) return client.units[unit] ~= nil end,
         UnitIsPlayer = function(unit) return client.units[unit] and client.units[unit].player end,
         UnitFactionGroup = function(unit) if unit == "player" then return "Alliance" end return client.units[unit] and client.units[unit].faction end,
+        UnitLevel = function() return client.level or 60 end,
+        UnitGUID = function(unit) return unit == "player" and ("Player-" .. client.name) or nil end,
+        GetZoneText = function() return client.zone or "Elwynn Forest" end,
+        LOOT_ITEM_SELF = "You receive loot: %s.",
+        LOOT_ITEM_SELF_MULTIPLE = "You receive loot: %sx%d.",
+        LOOT_ITEM_PUSHED_SELF = "You receive item: %s.",
+        ITEM_QUALITY_COLORS = { [3] = { hex = "|cff0070dd" }, [4] = { hex = "|cffa335ee" }, [5] = { hex = "|cffff8000" } },
+        C_Item = { GetItemQualityByID = function(link) local q = tonumber(link:match("|cff%x+|Hitem:%d+:(%d)")); return q end },
+        GetItemInfo = function(id) return "Item " .. tostring(id), nil, nil end,
+        C_MountJournal = { GetMountInfoByID = function(id) return "Mount " .. id, 1000 + id end },
+        C_PetJournal = { GetPetInfoByPetID = function() return 1, nil, 1, 0, 0, 0, false, "Mechanical Squirrel" end },
+        C_ToyBox = { GetToyInfo = function(id) return id, "Toy " .. id end },
+        C_Spell = { GetSpellLink = function(id) return "|cff71d5ff|Hspell:" .. id .. "|h[Mount spell]|h|r" end },
+        GetInstanceInfo = function()
+            local i = client.instance
+            if not i then return client.zone or "Elwynn Forest", "none", 0, "", 5, 0, false, 0 end
+            return i.name, i.type, i.difficultyID or 1, i.difficulty or "Normal", 5, 0, false, i.id or 99
+        end,
+        C_Map = { GetBestMapForUnit = function() return client.instance and 500 or 1 end },
+        EJ_GetInstanceForMap = function(mapID) return mapID == 500 and 77 or 0 end,
+        EJ_GetEncounterInfoByIndex = function(i)
+            local bosses = client.instance and client.instance.bosses or {}
+            if not bosses[i] then return nil end
+            return "Boss " .. i, "", 0, 0, "", 77, bosses[i], 0
+        end,
+        C_ChallengeMode = { GetChallengeCompletionInfo = function() return { level = 15, onTime = true } end },
+        CombatLogGetCurrentEventInfo = function() return unpack(client.cleu or {}) end,
         UnitClass = function() return client.class or "Hunter", (client.class or "HUNTER"):upper(), 3 end,
         RAID_CLASS_COLORS = { HUNTER = { r = 0.67, g = 0.83, b = 0.45, colorStr = "ffaad372" } },
         GetNormalizedRealmName = function() return client.realm end,

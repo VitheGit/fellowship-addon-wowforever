@@ -81,7 +81,7 @@ function UI:Build()
     end)
 
     -- Tabs
-    local tabs = { { "chat", "Chat" }, { "achievements", "Achievements" }, { "members", "Members" } }
+    local tabs = { { "chat", "Chat" }, { "achievements", "Activity" }, { "members", "Members" } }
     for i, t in ipairs(tabs) do
         local b = makeButton(frame, t[2], 110, function() UI:SelectTab(t[1]) end)
         b:SetPoint("TOPLEFT", 12 + (i - 1) * 114, -28)
@@ -106,7 +106,10 @@ function UI:Build()
     chat.input:SetPoint("BOTTOMRIGHT", -4, 4)
     panels.chat = chat
 
-    -- Achievements
+    local settingsButton = makeButton(frame, "Settings", 90, function() UI:ToggleSettings() end)
+    settingsButton:SetPoint("TOPRIGHT", -12, -28)
+
+    -- Activity: achievements, level-ups, collections, loot, dungeons, deaths
     local ach = panel()
     ach.log = makeLog(ach)
     ach.log:SetPoint("TOPLEFT", 4, -4)
@@ -205,6 +208,134 @@ function UI:IsShown()
     return frame ~= nil and frame:IsShown()
 end
 
+---------------------------------------------------------------------------
+-- Settings window
+---------------------------------------------------------------------------
+local settingsFrame
+UI.settingsChecks = {}
+
+UI.SETTINGS_ROWS = {
+    { "Chat messages (in your chat tabs)", nil, "echoChat" },
+    { "Achievements", "shareAchievements", "showAchievements" },
+    { "Level ups", "shareLevels", "showLevels" },
+    { "New mounts, pets and toys", "shareCollections", "showCollections" },
+    { "Loot (Rare or better)", "shareLoot", "showLoot" },
+    { "Dungeon and raid completions", "shareInstances", "showInstances" },
+    { "Deaths", "shareDeaths", "showDeaths" },
+    { "Online / offline notices", nil, "showPresence" },
+    { "Zone and level (Members tab)", "shareLocation", nil },
+}
+
+local QUALITY = {
+    { 3, "Rare", "ff0070dd" },
+    { 4, "Epic", "ffa335ee" },
+    { 5, "Legendary", "ffff8000" },
+}
+
+local function qualityLabel()
+    local q = ns.settings.lootMinQuality or 4
+    for _, entry in ipairs(QUALITY) do
+        if entry[1] == q then return "|c" .. entry[3] .. entry[2] .. "|r and better" end
+    end
+    return "Epic and better"
+end
+
+function UI:BuildSettings()
+    if settingsFrame then return end
+    local f = CreateFrame("Frame", "FellowshipSettingsFrame", UIParent, "BasicFrameTemplateWithInset")
+    settingsFrame = f
+    f:SetSize(470, 450)
+    f:SetPoint("CENTER", 40, -20)
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f:SetClampedToScreen(true)
+    f:SetFrameStrata("DIALOG")
+    f:Hide()
+    table.insert(UISpecialFrames, "FellowshipSettingsFrame")
+
+    local title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    title:SetPoint("TOP", 0, -6)
+    title:SetText("Fellowship Settings")
+
+    local function label(text, x, y, font)
+        local fs = f:CreateFontString(nil, "OVERLAY", font or "GameFontHighlightSmall")
+        fs:SetPoint("TOPLEFT", x, y)
+        fs:SetText(text)
+        return fs
+    end
+
+    local SHARE_X, SHOW_X = 300, 380
+    label("|cffffd100Announcements|r", 20, -36, "GameFontNormal")
+    label("Share mine", SHARE_X - 8, -38)
+    label("Show others'", SHOW_X - 12, -38)
+
+    local function check(key, x, y)
+        local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+        cb:SetSize(24, 24)
+        cb:SetPoint("TOPLEFT", x, y + 5)
+        cb:SetScript("OnClick", function(self)
+            ns.settings[key] = self:GetChecked() and true or false
+            UI:QueueRefresh()
+        end)
+        UI.settingsChecks[key] = cb
+        return cb
+    end
+
+    local y = -60
+    for _, row in ipairs(UI.SETTINGS_ROWS) do
+        label(row[1], 24, y)
+        if row[2] then check(row[2], SHARE_X + 14, y) end
+        if row[3] then check(row[3], SHOW_X + 14, y) end
+        y = y - 26
+    end
+
+    y = y - 8
+    label("Loot to show:", 24, y - 4)
+    f.quality = makeButton(f, qualityLabel(), 170, function(self)
+        local q = ns.settings.lootMinQuality or 4
+        q = q + 1
+        if q > 5 then q = 3 end
+        ns.settings.lootMinQuality = q
+        self:SetText(qualityLabel())
+        UI:QueueRefresh()
+    end)
+    f.quality:SetPoint("TOPLEFT", 150, y)
+
+    y = y - 32
+    label("Chat text color:", 24, y - 4)
+    f.color = makeInput(f, 7, function(text) ns.HandleSlash("color " .. text); UI:RefreshSettings() end)
+    f.color:SetPoint("TOPLEFT", 156, y)
+    f.color:SetWidth(80)
+    f.colorPreview = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    f.colorPreview:SetPoint("LEFT", f.color, "RIGHT", 10, 0)
+    f.colorReset = makeButton(f, "Reset", 60, function() ns.HandleSlash("color reset"); UI:RefreshSettings() end)
+    f.colorReset:SetPoint("TOPRIGHT", -20, y)
+
+    y = y - 34
+    local tip = label("|cff808080To pick which chat tabs show Fellowship, right-click a chat tab and tick\n"
+        .. "\"Show Fellowship\" (or type /fship tab in that tab). \"Share mine\" controls what your\n"
+        .. "friends see from you; \"Show others'\" controls what you see.|r", 20, y)
+    tip:SetJustifyH("LEFT")
+
+    f:SetScript("OnShow", function() UI:RefreshSettings() end)
+end
+
+function UI:RefreshSettings()
+    if not settingsFrame then return end
+    for key, cb in pairs(self.settingsChecks) do cb:SetChecked(ns.settings[key] and true or false) end
+    settingsFrame.quality:SetText(qualityLabel())
+    settingsFrame.color:SetText(ns.TextColor())
+    settingsFrame.colorPreview:SetText("|cff" .. ns.TextColor() .. "Hello, fellowship!|r")
+end
+
+function UI:ToggleSettings()
+    self:BuildSettings()
+    if settingsFrame:IsShown() then settingsFrame:Hide() else settingsFrame:Show() end
+end
+
 function UI:Toggle()
     self:Build()
     if frame:IsShown() then frame:Hide() else frame:Show() end
@@ -257,8 +388,9 @@ local function renderMembers(log, fid)
     end
     log:AddMessage(string.format("|cffffd100%d of %d online|r", onlineCount, #list))
     for _, m in ipairs(list) do
-        log:AddMessage(string.format("%s  %s  |cffffd100%s|r   |cff808080member since %s, %d achievements shared|r",
-            m.status, ns.ColorName(m.name), m.roleLabel, date("%b %d %Y", m.since), achievementCounts[m.name] or 0))
+        log:AddMessage(string.format("%s  %s  |cffffd100%s|r%s   |cff808080member since %s, %d achievements shared|r",
+            m.status, ns.ColorName(m.name), m.roleLabel, m.where and ("  |cffcccccc" .. m.where .. "|r") or "",
+            date("%b %d %Y", m.since), achievementCounts[m.name] or 0))
     end
     log:ScrollToTop()
 end
@@ -286,9 +418,9 @@ function UI:Refresh()
     local p = panels[activeTab]
     p:Show()
     if activeTab == "chat" then
-        renderFeed(p.log, fid, function() return true end)
+        renderFeed(p.log, fid, function(e) return ns.Announce.ShouldShow(e) end)
     elseif activeTab == "achievements" then
-        renderFeed(p.log, fid, function(e) return e.k == "A" or e.k == "M" end)
+        renderFeed(p.log, fid, function(e) return (e.k == "A" or e.k == "M") and ns.Announce.ShouldShow(e) end)
     else
         renderMembers(p.log, fid)
     end

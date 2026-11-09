@@ -3,18 +3,28 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.6.1"
+ns.VERSION = "0.7.0"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
 ns.defaults = {
-    echoChat = true,         -- print live fellowship chat into the main chat frame
-    echoAchievements = true, -- print live achievements into the main chat frame
-    shareLevels = true,      -- share level-ups as milestones
-    maxEvents = 3000,        -- history kept per fellowship (membership events are never pruned)
-    maxAgeDays = 180,        -- history older than this is pruned at login
-    backfillLimit = 500,
-    textColor = "4fd1b5",    -- chat text color (sea green; distinct from guild, party, whisper, BNet...)     -- max events per author sent in one catch-up request
+    -- chat
+    echoChat = true,          -- print fellowship chat into chat windows
+    textColor = "4fd1b5",     -- chat text color (sea green; distinct from guild, party, whisper, BNet...)
+    -- announcements: share = post my own, show = see other members'
+    shareAchievements = true, showAchievements = true,
+    shareLevels = true,       showLevels = true,
+    shareCollections = true,  showCollections = true,  -- new mounts, pets, toys
+    shareLoot = true,         showLoot = true,
+    lootMinQuality = 4,       -- show loot of this quality or better (3 Rare, 4 Epic, 5 Legendary)
+    shareInstances = true,    showInstances = true,    -- dungeon and raid completions
+    shareDeaths = true,       showDeaths = true,
+    showPresence = true,      -- "Bob came online / went offline"
+    shareLocation = true,     -- zone and level in other members' Members tab
+    -- storage
+    maxEvents = 3000,         -- history kept per fellowship (membership events are never pruned)
+    maxAgeDays = 180,         -- history older than this is pruned at login
+    backfillLimit = 500,      -- max events per author sent in one catch-up request
 }
 
 ---------------------------------------------------------------------------
@@ -229,8 +239,34 @@ function ns.FormatEvent(e)
         return who .. " earned " .. (link or ("[" .. ns.Escape(d[2] or "?") .. "]"))
             .. ((pts and pts > 0) and (" (" .. pts .. " pts)") or "")
     elseif e.k == "M" then
-        if d[1] == "level" then
+        local sub = d[1]
+        if sub == "level" then
             return who .. " reached level " .. (tonumber(d[2]) or "?") .. "!"
+        elseif sub == "mount" then
+            local spellID = tonumber(d[3])
+            local getLink = (C_Spell and C_Spell.GetSpellLink) or GetSpellLink
+            local link = spellID and getLink and getLink(spellID)
+            return who .. " learned a new mount: " .. (link or ("[" .. ns.Escape(d[2]) .. "]"))
+        elseif sub == "pet" then
+            return who .. " added a new pet: [" .. ns.Escape(d[2]) .. "]"
+        elseif sub == "toy" then
+            local itemID = tonumber(d[3])
+            local link = itemID and GetItemInfo and select(2, GetItemInfo(itemID))
+            return who .. " added a new toy: " .. (link or ("[" .. ns.Escape(d[2]) .. "]"))
+        elseif sub == "loot" then
+            return who .. " looted " .. ns.Announce.ItemLink(d[2], d[3], d[4])
+        elseif sub == "dungeon" or sub == "raid" then
+            local diff = (d[3] and d[3] ~= "") and (" (" .. ns.Escape(d[3]) .. ")") or ""
+            local key = ""
+            if tonumber(d[4]) then
+                key = " at +" .. tonumber(d[4]) .. (d[5] == "1" and ", in time!" or (d[5] == "0" and ", over time" or ""))
+            end
+            return who .. (sub == "raid" and " cleared " or " completed ") .. ns.Escape(d[2]) .. diff .. key
+        elseif sub == "death" then
+            local RED = "|cffff4040"
+            local killer = (d[2] and d[2] ~= "") and (" by " .. ns.Escape(d[2])) or ""
+            local zone = (d[3] and d[3] ~= "") and (" in " .. ns.Escape(d[3])) or ""
+            return who .. RED .. " was killed" .. killer .. zone .. "|r"
         end
         return who .. " hit a milestone: " .. ns.Escape(d[2])
     elseif e.k == "N" then
@@ -294,13 +330,23 @@ ns.Listen("EVENTS_ADDED", function(fid, added, live)
         else
             if e.k == "C" and ns.settings.echoChat then
                 ns.Echo(ns.FormatEvent(e) or "")
-            elseif (e.k == "A" or e.k == "M") and ns.settings.echoAchievements then
-                ns.Echo(ns.FormatEvent(e) or "")
+            elseif e.k == "A" or e.k == "M" then
+                if ns.Announce.ShouldShow(e) then ns.Echo(ns.FormatEvent(e) or "") end
             elseif ns.MEMBERSHIP_KINDS[e.k] then
                 ns.Echo(ns.FormatEvent(e) or "")
             end
         end
     end
+end)
+
+-- "Bob came online" / "Bob went offline" (skipped for a moment after login, when everyone shows up at once)
+local loginTime
+ns.Listen("PRESENCE", function(key, isOnline)
+    if not key or not ns.settings.showPresence or not loginTime or GetTime() - loginTime < 20 then return end
+    local f, fid = ns.Store:Active()
+    local m = f and ns.Store:Roster(fid)[key]
+    if not m or key == ns.meKey then return end
+    ns.Echo(ns.ColorName(m.name) .. (isOnline and " |cff33ff99came online.|r" or " |cff9d9d9dwent offline.|r"))
 end)
 
 ---------------------------------------------------------------------------
@@ -314,13 +360,14 @@ ns.On("PLAYER_LOGIN", function()
     local name, realm = UnitFullName("player")
     if not realm or realm == "" then realm = GetNormalizedRealmName() end
     ns.me = name .. "-" .. realm
+    loginTime = GetTime()
     ns.meKey = ns.me:lower()
     ns.Store:InitCharacter()
     local _, classToken = UnitClass("player")
     ns.Store:SetClass(ns.me, classToken)
     ns.Comm:Init()
     ns.Sync:Init()
-    ns.Achievements:Init()
+    ns.Announce:Init()
     ns.UI:Init()
     ns.Menu:Init()
     ns.Menu:InitChatTab()
@@ -351,7 +398,7 @@ local HELP = {
     "|cffffd100/fship sync|r - ask online members for anything you missed",
     "|cffffd100/fship color <hex>|r - change the chat text color (/fship color reset for default)",
     "|cffffd100/fship tab|r - show/hide Fellowship in the chat tab you're typing in (or right-click a chat tab)",
-    "|cffffd100/fship echo|r, |cffffd100/fship levels|r - toggle chat echo / level-up sharing",
+    "|cffffd100/fship settings|r - choose what gets shared and shown",
 }
 
 function ns.HandleSlash(input)
@@ -416,6 +463,8 @@ function ns.HandleSlash(input)
     elseif cmd == "echo" then
         ns.settings.echoChat = not ns.settings.echoChat
         ns.Print("Chat echo " .. (ns.settings.echoChat and "on" or "off") .. ".")
+    elseif cmd == "settings" or cmd == "config" or cmd == "options" then
+        ns.UI:ToggleSettings()
     elseif cmd == "levels" then
         ns.settings.shareLevels = not ns.settings.shareLevels
         ns.Print("Level-up sharing " .. (ns.settings.shareLevels and "on" or "off") .. ".")
