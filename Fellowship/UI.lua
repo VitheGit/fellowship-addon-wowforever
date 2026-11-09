@@ -151,9 +151,9 @@ end
 
 function UI:Init()
     StaticPopupDialogs["FELLOWSHIP_INVITE"] = {
-        text = "%s invites you to join the fellowship \"%s\".",
-        button1 = ACCEPT or "Accept",
-        button2 = DECLINE or "Decline",
+        text = "%s has invited you to the Fellowship [%s]",
+        button1 = YES or "Yes",
+        button2 = NO or "No",
         OnAccept = function(_, data) ns.Sync:AcceptInvite(data) end,
         OnCancel = function(_, data, reason)
             if reason ~= "override" then ns.Sync:DeclineInvite(data) end
@@ -178,7 +178,9 @@ function UI:Init()
 end
 
 function UI:ShowInvite(data)
-    StaticPopup_Show("FELLOWSHIP_INVITE", ns.Short(data.from), ns.Escape(data.name), data)
+    StaticPopup_Show("FELLOWSHIP_INVITE", ns.ColorName(data.from), ns.Escape(data.name), data)
+    if PlaySound and SOUNDKIT and SOUNDKIT.IG_PLAYER_INVITE then PlaySound(SOUNDKIT.IG_PLAYER_INVITE) end
+    ns.Print(ns.ColorName(data.from) .. " has invited you to the Fellowship [" .. ns.Escape(data.name) .. "].")
 end
 
 function UI:IsShown()
