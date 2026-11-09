@@ -363,6 +363,29 @@ test("no protected events are registered (avoids 'blocked from an action' popups
     end
 end)
 
+test("Members tab lists every member and the title count matches", function()
+    local w, anna, bob, cara = setup()
+    anna:slash("/fs")
+    anna.ns.UI:SelectTab("members")
+    -- find the members font string: the one whose text has the online count
+    local found
+    for _, f in ipairs(anna.frames) do
+        local list = rawget(f, "list")
+        if type(list) == "table" and type(list._text) == "string" and list._text:find("online") then
+            found = list._text
+        end
+    end
+    assert(found, "members text not found")
+    assert(found:find("3 of 3 online", 1, true), found)
+    for _, n in ipairs({ "Anna", "Bob", "Cara" }) do assert(found:find(n .. "|r", 1, true), n .. " missing: " .. found) end
+    local title
+    for _, f in ipairs(anna.frames) do
+        local t = rawget(f, "title")
+        if type(t) == "table" and type(t._text) == "string" and t._text:find("online") then title = t._text end
+    end
+    assert(title and title:find("3 of 3 online", 1, true), tostring(title))
+end)
+
 test("live chat reaches online members and is echoed to their chat frame", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hey all, dungeon tonight?")

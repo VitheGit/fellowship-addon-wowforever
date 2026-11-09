@@ -118,9 +118,14 @@ function UI:Build()
 
     -- Members
     local mem = panel()
-    mem.log = makeLog(mem)
-    mem.log:SetPoint("TOPLEFT", 4, -4)
-    mem.log:SetPoint("BOTTOMRIGHT", -4, 34)
+    -- A plain top-anchored text block: a ScrollingMessageFrame is bottom-anchored and
+    -- "scroll to top" on a short list hides everything but the first line.
+    mem.list = mem:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    mem.list:SetPoint("TOPLEFT", 8, -8)
+    mem.list:SetPoint("BOTTOMRIGHT", -8, 38)
+    mem.list:SetJustifyH("LEFT")
+    mem.list:SetJustifyV("TOP")
+    mem.list:SetSpacing(3)
     mem.input = makeInput(mem, 64, function(text) ns.Sync:Invite(text) end)
     mem.input:SetPoint("BOTTOMLEFT", 8, 4)
     mem.input:SetWidth(220)
@@ -379,20 +384,20 @@ local function renderFeed(log, fid, filter)
     log:ScrollToBottom()
 end
 
-local function renderMembers(log, fid)
-    log:Clear()
+local function renderMembers(fs, fid)
     local list, onlineCount = ns.Sync:MemberList(fid)
     local achievementCounts = {}
     for _, e in ipairs(ns.Store:Sorted(fid)) do
         if e.k == "A" then achievementCounts[e.a] = (achievementCounts[e.a] or 0) + 1 end
     end
-    log:AddMessage(string.format("|cffffd100%d of %d online|r", onlineCount, #list))
+    local lines = { string.format("|cffffd100%d of %d online|r", onlineCount, #list), " " }
     for _, m in ipairs(list) do
-        log:AddMessage(string.format("%s  %s  |cffffd100%s|r%s   |cff808080member since %s, %d achievements shared|r",
-            m.status, ns.ColorName(m.name), m.roleLabel, m.where and ("  |cffcccccc" .. m.where .. "|r") or "",
-            date("%b %d %Y", m.since), achievementCounts[m.name] or 0))
+        lines[#lines + 1] = string.format("%s  %s  |cffffd100%s|r", m.status, ns.ColorName(m.name), m.roleLabel)
+        local achievements = achievementCounts[m.name] or 0
+        lines[#lines + 1] = string.format("      |cffaaaaaa%smember since %s, %d achievement%s shared|r",
+            m.where and (m.where .. "  -  ") or "", date("%b %d %Y", m.since), achievements, achievements == 1 and "" or "s")
     end
-    log:ScrollToTop()
+    fs:SetText(table.concat(lines, "\n"))
 end
 
 function UI:Refresh()
@@ -408,12 +413,9 @@ function UI:Refresh()
     for name, b in pairs(tabButtons) do
         if name == activeTab then b:Disable() else b:Enable() end
     end
-    local onlineCount = 0
-    for key in pairs(ns.Store:Roster(fid)) do
-        if key ~= ns.meKey and ns.online[key] then onlineCount = onlineCount + 1 end
-    end
+    local members, onlineCount = ns.Sync:MemberList(fid) -- same count as the Members tab (includes you)
     frame.title:SetText(ns.Escape(f.name) .. (f.pendingFrom and "  (joining...)" or
-        string.format("  |cff808080(%d online)|r", onlineCount)))
+        string.format("  |cff808080(%d of %d online)|r", onlineCount, #members)))
 
     local p = panels[activeTab]
     p:Show()
@@ -422,6 +424,6 @@ function UI:Refresh()
     elseif activeTab == "achievements" then
         renderFeed(p.log, fid, function(e) return (e.k == "A" or e.k == "M") and ns.Announce.ShouldShow(e) end)
     else
-        renderMembers(p.log, fid)
+        renderMembers(p.list, fid)
     end
 end
