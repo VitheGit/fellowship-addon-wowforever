@@ -34,9 +34,7 @@ Copy the `Fellowship` folder into your WoW Forever AddOns folder:
 
 Everyone in the group needs the addon installed.
 
-> **Interface version:** `Fellowship.toc` uses `## Interface: 16001` for game version
-> 1.60.1. If the AddOns list shows Fellowship as "out of date", run
-> `/dump (select(4, GetBuildInfo()))` in game and put that number in the `.toc`.
+> Built for WoW Forever 1.60.1 (`## Interface: 16001`).
 
 ## Use
 
