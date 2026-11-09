@@ -7,7 +7,7 @@ and read everything they missed.
 - Private chat between fellowship members (`/fs hello!`)
 - Shared automatically: achievements, level-ups, new mounts/pets/toys, Rare-or-better loot
   (each person picks Rare, Epic or Legendary as their minimum), dungeon and raid completions
-  (including keystone level), and deaths (in red, with what killed you)
+  (including keystone level), and deaths (in red, with the zone)
 - Online/offline notices, plus each member's zone and level in the Members tab
 - A settings window (`/fship settings` or the Settings button) to choose what you share and
   what you see, for every kind of announcement

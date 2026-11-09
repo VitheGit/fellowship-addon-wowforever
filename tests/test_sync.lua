@@ -307,10 +307,8 @@ test("announcements: mounts, pets, toys, loot, dungeons, raids and deaths", func
     assert(showsInChat(bob, "cleared Molten Core (Mythic)"), "raid")
     -- death in red, with killer
     anna.instance = nil
-    anna.cleu = { 0, "SWING_DAMAGE", false, "Creature-1", "Hogger", 0, 0, "Player-Anna" }
-    anna:fire("COMBAT_LOG_EVENT_UNFILTERED")
     anna:fire("PLAYER_DEAD"); w:advance(2)
-    assert(showsInChat(bob, "|cffff4040 was killed by Hogger in Elwynn Forest|r"), "death")
+    assert(showsInChat(bob, "|cffff4040 was killed in Elwynn Forest|r"), "death")
 end)
 
 test("announcements: share and show settings", function()
@@ -352,6 +350,16 @@ test("online/offline notices and zone/level in the member list", function()
     bob.ns.Sync:PingOnline(); w:advance(2)
     for _, m in ipairs(anna.ns.Sync:MemberList(anna.ns.Store:ActiveId())) do
         if m.name == "Bob-Silvermoon" then eq(m.where, nil, "bob's location still shown") end
+    end
+end)
+
+test("no protected events are registered (avoids 'blocked from an action' popups)", function()
+    local w = World.new()
+    local c = w:client("Solo"); c:login()
+    for _, f in ipairs(c.frames) do
+        for ev in pairs(f._events) do
+            assert(ev ~= "COMBAT_LOG_EVENT_UNFILTERED", "registers the combat log")
+        end
     end
 end)
 

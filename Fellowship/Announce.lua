@@ -218,22 +218,12 @@ end
 ---------------------------------------------------------------------------
 -- Deaths
 ---------------------------------------------------------------------------
-local lastAttacker, lastAttackTime
-
-function A:OnCombatLog()
-    if not CombatLogGetCurrentEventInfo then return end
-    local _, sub, _, _, sourceName, _, _, destGUID = CombatLogGetCurrentEventInfo()
-    if destGUID ~= UnitGUID("player") or not sourceName then return end
-    if sub:find("_DAMAGE$") or sub == "SWING_DAMAGE" or sub == "ENVIRONMENTAL_DAMAGE" then
-        lastAttacker, lastAttackTime = sourceName, GetTime()
-    end
-end
-
+-- Note: we deliberately don't read the combat log to name the killer. On current Mainline
+-- clients registering COMBAT_LOG_EVENT_UNFILTERED is a protected action and triggers the
+-- "Fellowship has been blocked from an action only available to the Blizzard UI" popup.
+-- The killer field stays in the format (empty) so it can be filled in later.
 function A:OnDeath()
-    local killer = ""
-    if lastAttacker and lastAttackTime and GetTime() - lastAttackTime < 10 then killer = lastAttacker end
-    lastAttacker = nil
-    share("death", { "death", killer, (GetZoneText and GetZoneText()) or "" })
+    share("death", { "death", "", (GetZoneText and GetZoneText()) or "" })
 end
 
 ---------------------------------------------------------------------------
@@ -248,6 +238,4 @@ function A:Init()
     ns.On("CHALLENGE_MODE_COMPLETED", function() A:OnChallengeCompleted() end)
     ns.On("ZONE_CHANGED_NEW_AREA", function() A:OnZoneChanged() end)
     ns.On("PLAYER_DEAD", function() A:OnDeath() end)
-    -- the combat log may be unavailable to addons on some clients; deaths still post without a killer
-    pcall(ns.On, "COMBAT_LOG_EVENT_UNFILTERED", function() A:OnCombatLog() end)
 end
