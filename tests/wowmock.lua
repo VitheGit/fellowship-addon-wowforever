@@ -226,6 +226,8 @@ function Client:login()
     base.SELECTED_CHAT_FRAME = base.ChatFrame1
     setmetatable(env, { __index = base })
     env._G = env
+    local acct = self.accountOf
+    if acct and acct.saved then self.saved = acct.saved end
     if self.saved then env.FellowshipDB = deepcopy(self.saved) end
     local ns = {}
     for _, file in ipairs(FILES) do
@@ -262,9 +264,16 @@ function Client:system(msg)
     table.insert(self.log, "SYSTEM: " .. msg)
 end
 
+-- Make `other` a character on the same WoW account (they share SavedVariables).
+function Client:sameAccountAs(other)
+    self.accountOf = other
+    other.accountOf = other
+end
+
 function Client:logout()
     self:fire("PLAYER_LOGOUT")
     self.saved = deepcopy(self.env.FellowshipDB)
+    if self.accountOf then self.accountOf.saved = self.saved end
     self.online = false
     self.session = self.session + 1 -- kills pending timers
 end

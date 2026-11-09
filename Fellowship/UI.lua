@@ -394,16 +394,19 @@ end
 
 local function renderMembers(fs, fid)
     local list, onlineCount = ns.Sync:MemberList(fid)
-    local achievementCounts = {}
-    for _, e in ipairs(ns.Store:Sorted(fid)) do
-        if e.k == "A" then achievementCounts[e.a] = (achievementCounts[e.a] or 0) + 1 end
-    end
     local lines = { string.format("|cffffd100%d of %d online|r", onlineCount, #list), " " }
     for _, m in ipairs(list) do
-        lines[#lines + 1] = string.format("%s  %s  |cffffd100%s|r", m.status, ns.ColorName(m.name), m.roleLabel)
-        local achievements = achievementCounts[m.name] or 0
-        lines[#lines + 1] = string.format("      |cffaaaaaa%smember since %s, %d achievement%s shared|r",
-            m.where and (m.where .. "  -  ") or "", date("%b %d %Y", m.since), achievements, achievements == 1 and "" or "s")
+        lines[#lines + 1] = string.format("%s  %s  |cffffd100%s|r", m.status, m.display, m.roleLabel)
+        local alts = ""
+        if #m.chars > 1 then
+            local names = {}
+            for _, n in ipairs(m.chars) do names[#names + 1] = ns.Short(n) end
+            table.sort(names)
+            alts = "characters: " .. table.concat(names, ", ") .. "  -  "
+        end
+        lines[#lines + 1] = string.format("      |cffaaaaaa%s%smember since %s, %d achievement%s shared|r",
+            m.where and (m.where .. "  -  ") or "", alts, date("%b %d %Y", m.since), m.achievements,
+            m.achievements == 1 and "" or "s")
     end
     fs:SetText(table.concat(lines, "\n"))
 end

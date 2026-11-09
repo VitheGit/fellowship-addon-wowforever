@@ -23,7 +23,10 @@ ns.Store = Store
 -- Membership/role events: never pruned, replayed to compute the roster.
 --   N founded  J joined  L left  K removed  V roles switched on
 --   R set role (inviter/member)  T admin offer  X admin offer accepted  W admin offer declined
-local MEMBERSHIP = { N = true, J = true, L = true, K = true, V = true, R = true, T = true, X = true, W = true }
+--   Q "this character belongs to account <id>" (with the account's secret code)
+--   Y an alt joins through its account (same id + secret code)
+local MEMBERSHIP = { N = true, J = true, L = true, K = true, V = true, R = true, T = true, X = true, W = true,
+    Q = true, Y = true }
 local KINDS = { C = true, A = true, M = true }
 for k in pairs(MEMBERSHIP) do KINDS[k] = true end
 ns.MEMBERSHIP_KINDS = MEMBERSHIP
@@ -61,6 +64,20 @@ function Store:Init()
     db.chars = db.chars or {}
     db.classes = db.classes or {} -- ["Name-Realm"] = "HUNTER", learned from members
     db.seen = db.seen or {}       -- ["Name-Realm"] = server time we last heard from them
+    -- This WoW account's identity in fellowships: the id is shared with members, and so is the
+    -- secret code, which is what lets an alt on this account join without an invite.
+    if type(db.account) ~= "table" or not db.account.id then
+        local function rand(n)
+            local chars, out = "abcdefghijklmnopqrstuvwxyz0123456789", {}
+            for i = 1, n do
+                local k = math.random(1, #chars)
+                out[i] = chars:sub(k, k)
+            end
+            return table.concat(out)
+        end
+        db.account = { id = "a" .. rand(11), secret = rand(16) }
+    end
+    ns.account = db.account
     self.db = db
     ns.settings = db.settings
 end
@@ -100,12 +117,11 @@ function Store:Create(fid, name, pendingFrom)
     return f
 end
 
--- The current character leaves. History is deleted unless an alt on this account still uses it.
+-- This account leaves: every character on it stops using the fellowship and its history is deleted.
 function Store:Forget(fid)
-    if self.char.fid == fid then self.char.fid = nil end
-    self.char.lastRead[fid] = nil
     for _, c in pairs(self.db.chars) do
-        if c.fid == fid then return end
+        if c.fid == fid then c.fid = nil end
+        if c.lastRead then c.lastRead[fid] = nil end
     end
     self.db.fellowships[fid] = nil
     cache[fid] = nil
@@ -227,49 +243,71 @@ end
 
 -- Membership and roles are derived by replaying the membership events in time order,
 -- so every member computes the same answer from the same history.
--- Returns roster ({ [key] = { name, since, role = "admin"|"inviter"|"member" } }), admin name, state.
--- state = { founder, rolesOn, offer = { target, author, seq, t } or nil }
-local function successor(roster)
-    local best
-    for _, m in pairs(roster) do
-        local rank = (m.role == "inviter") and 0 or 1
-        if not best or rank < best.rank or (rank == best.rank and (m.since < best.m.since
-            or (m.since == best.m.since and m.name < best.m.name))) then
-            best = { m = m, rank = rank }
-        end
-    end
-    return best and best.m.name
-end
+--
+-- Members are *accounts*. A character joins through J (invite) or Y (an alt of a member
+-- account); Q ties a character to its account id, merging characters that were invited
+-- separately. Roles, Admin, leaving and removal all apply to the whole account.
+--
+-- Returns:
+--   roster: { [charKey] = { name, since, role, account = acctKey, main = account's main name } }
+--   admin:  the Admin account's main character name
+--   state:  { founder, rolesOn, accounts = { [acctKey] = acct }, adminAccount, offer }
+--           acct = { key, secret, main, since, role, chars = { name, ... } }
+--           offer = { target = acctKey, targetName, author, seq, t }
+local RANK = { admin = 3, inviter = 2, member = 1 }
 
 function Store:Roster(fid)
     local c = C(fid)
     if c.roster then return c.roster, c.admin, c.state end
-    local roster, admin = {}, nil
-    local state = { rolesOn = false }
-    local function key(n) return n and n:lower() end
-    local function setAdmin(name)
-        if admin and roster[key(admin)] then roster[key(admin)].role = "inviter" end
-        admin = name
-        if name and roster[key(name)] then roster[key(name)].role = "admin" end
+    local accounts, charAcct = {}, {}  -- acctKey -> acct, charKey -> acctKey
+    local state = { rolesOn = false, accounts = accounts }
+    local adminKey
+    local function lower(n) return n and n:lower() end
+    local function acctOf(name) return name and charAcct[lower(name)] end
+    local function addChar(acct, name)
+        charAcct[lower(name)] = acct.key
+        acct.chars[#acct.chars + 1] = name
     end
-    local function removed(name)
-        roster[key(name)] = nil
+    local function newAccount(name, t)
+        local acct = { key = "char:" .. lower(name), main = name, since = t, role = "member", chars = {} }
+        accounts[acct.key] = acct
+        addChar(acct, name)
+        return acct
+    end
+    local function removeAccount(key)
+        local acct = accounts[key]
+        if not acct then return end
+        for _, n in ipairs(acct.chars) do charAcct[lower(n)] = nil end
+        accounts[key] = nil
         local o = state.offer
-        if o and (key(o.target) == key(name) or key(o.author) == key(name)) then state.offer = nil end
-        if admin and key(admin) == key(name) then
-            admin = nil
-            setAdmin(successor(roster))
+        if o and (o.target == key or acctOf(o.author) == nil) then state.offer = nil end
+        if adminKey == key then
+            adminKey = nil
+            local best
+            for _, a in pairs(accounts) do
+                if not best or RANK[a.role] > RANK[best.role] or (RANK[a.role] == RANK[best.role]
+                    and (a.since < best.since or (a.since == best.since and a.main < best.main))) then
+                    best = a
+                end
+            end
+            if best then adminKey = best.key; best.role = "admin" end
         end
     end
+    local function setAdmin(key)
+        if adminKey and accounts[adminKey] then accounts[adminKey].role = "inviter" end
+        adminKey = key
+        if accounts[key] then accounts[key].role = "admin" end
+    end
+    local function isAdmin(name) return adminKey ~= nil and acctOf(name) == adminKey end
     local function canInvite(name)
-        local m = roster[key(name)]
-        if not m then return false end
-        return not state.rolesOn or m.role == "admin" or m.role == "inviter"
+        local acct = accounts[acctOf(name) or ""]
+        if not acct then return false end
+        return not state.rolesOn or acct.role == "admin" or acct.role == "inviter"
     end
     local function offerMatches(e)
         local o = state.offer
-        return o and key(o.target) == key(e.a) and o.author == e.d[1] and tostring(o.seq) == e.d[2]
-            and admin == o.author
+        return o and acctOf(e.a) == o.target and o.author == e.d[1] and tostring(o.seq) == e.d[2]
+            and isAdmin(o.author)
     end
 
     for _, e in ipairs(self:Sorted(fid)) do
@@ -277,45 +315,79 @@ function Store:Roster(fid)
         if k == "N" then
             if not state.founder then
                 state.founder = e.a
-                roster[key(e.a)] = { name = e.a, since = e.t, role = "member" }
-                setAdmin(e.a)
+                setAdmin(newAccount(e.a, e.t).key)
             end
         elseif k == "J" then
             local who = d[1]
-            if who and who ~= "" and canInvite(e.a) and not roster[key(who)] then
-                roster[key(who)] = { name = who, since = e.t, role = "member" }
-            end
+            if who and who ~= "" and canInvite(e.a) and not acctOf(who) then newAccount(who, e.t) end
         elseif k == "L" then
-            if roster[key(e.a)] then removed(e.a) end
+            local key = acctOf(e.a)
+            if key then removeAccount(key) end
         elseif k == "K" then
-            local who = d[1]
-            if who and e.a == admin and roster[key(who)] and key(who) ~= key(admin) then removed(who) end
+            local key = acctOf(d[1])
+            if key and isAdmin(e.a) and key ~= adminKey then removeAccount(key) end
         elseif k == "V" then
-            if e.a == admin then state.rolesOn = true end
+            if isAdmin(e.a) then state.rolesOn = true end
         elseif k == "R" then
-            local who, role = d[1], d[2]
-            local m = who and roster[key(who)]
-            if e.a == admin and m and m.role ~= "admin" and (role == "inviter" or role == "member") then
-                m.role = role
+            local key, role = acctOf(d[1]), d[2]
+            local acct = key and accounts[key]
+            if isAdmin(e.a) and acct and key ~= adminKey and (role == "inviter" or role == "member") then
+                acct.role = role
             end
         elseif k == "T" then
-            local who = d[1]
-            if e.a == admin then
-                if who and who ~= "" and roster[key(who)] and key(who) ~= key(admin) then
-                    state.offer = { target = roster[key(who)].name, author = e.a, seq = e.s, t = e.t }
+            if isAdmin(e.a) then
+                local key = acctOf(d[1])
+                if key and key ~= adminKey then
+                    state.offer = { target = key, targetName = accounts[key].main, author = e.a, seq = e.s, t = e.t }
                 else
                     state.offer = nil
                 end
             end
         elseif k == "X" then
             if offerMatches(e) then
+                local key = state.offer.target
                 state.offer = nil
-                setAdmin(e.a)
+                setAdmin(key)
             end
         elseif k == "W" then
             if offerMatches(e) then state.offer = nil end
+        elseif k == "Q" then
+            local id, secret = d[1], d[2]
+            local fromKey = acctOf(e.a)
+            local from = fromKey and accounts[fromKey]
+            if from and id and id ~= "" and secret and secret ~= "" and fromKey:sub(1, 5) == "char:" then
+                local into = accounts[id]
+                if into and into.secret == secret then
+                    -- merge a separately invited character into its account
+                    for _, n in ipairs(from.chars) do addChar(into, n) end
+                    if RANK[from.role] > RANK[into.role] then into.role = from.role end
+                    if from.since < into.since then into.since, into.main = from.since, from.main end
+                    accounts[fromKey] = nil
+                    if adminKey == fromKey then adminKey = id end
+                    if state.offer and state.offer.target == fromKey then state.offer.target = id end
+                elseif not into then
+                    accounts[fromKey] = nil
+                    from.key, from.secret = id, secret
+                    accounts[id] = from
+                    for _, n in ipairs(from.chars) do charAcct[lower(n)] = id end
+                    if adminKey == fromKey then adminKey = id end
+                    if state.offer and state.offer.target == fromKey then state.offer.target = id end
+                end
+            end
+        elseif k == "Y" then
+            local acct = accounts[d[1] or ""]
+            if acct and acct.secret and acct.secret == d[2] and not acctOf(e.a) then addChar(acct, e.a) end
         end
     end
+
+    local roster = {}
+    for key, acct in pairs(accounts) do
+        for _, n in ipairs(acct.chars) do
+            roster[lower(n)] = { name = n, since = acct.since, role = acct.role, account = key, main = acct.main }
+        end
+    end
+    state.adminAccount = adminKey
+    local admin = adminKey and accounts[adminKey] and accounts[adminKey].main
     c.roster, c.admin, c.state = roster, admin, state
     return roster, admin, state
 end
@@ -323,6 +395,18 @@ end
 function Store:Role(fid, name)
     local m = self:Roster(fid)[ns.Key(name)]
     return m and m.role
+end
+
+function Store:IsAdmin(fid, name)
+    local m = self:Roster(fid)[ns.Key(name)]
+    return m ~= nil and m.role == "admin"
+end
+
+-- Are these two characters on the same member account?
+function Store:SameAccount(fid, a, b)
+    local roster = self:Roster(fid)
+    local ma, mb = roster[ns.Key(a)], roster[ns.Key(b)]
+    return ma ~= nil and mb ~= nil and ma.account == mb.account
 end
 
 function Store:CanInvite(fid, name)

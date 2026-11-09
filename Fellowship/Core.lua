@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.8.1"
+ns.VERSION = "0.9.0"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -218,6 +218,19 @@ function ns.ClassColorHex(token)
     return FALLBACK_CLASS_COLORS[token]
 end
 
+-- "Bradalt (Brad)": a character's name, plus its account's main name when it's an alt.
+function ns.WhoName(name, main)
+    if not main then
+        local f, fid = ns.Store:Active()
+        local m = f and ns.Store:Roster(fid)[ns.Key(name)]
+        main = m and m.main
+    end
+    if main and ns.Key(main) ~= ns.Key(name) then
+        return ns.ColorName(name) .. " |cff808080(" .. ns.Short(main) .. ")|r"
+    end
+    return ns.ColorName(name)
+end
+
 -- Short name in the member's class color (gold if we don't know their class yet).
 function ns.ColorName(full)
     local hex = ns.ClassColorHex(ns.Store:GetClass(full))
@@ -231,7 +244,7 @@ function ns.TextColor()
 end
 
 function ns.FormatEvent(e)
-    local who = ns.ColorName(e.a)
+    local who = ns.WhoName(e.a)
     local d = e.d or {}
     if e.k == "C" then
         return who .. ": |cff" .. ns.TextColor() .. ns.Escape(d[1]) .. "|r"
@@ -294,8 +307,10 @@ function ns.FormatEvent(e)
         return GREY .. ns.Short(e.a) .. " accepted and is now the Admin|r"
     elseif e.k == "W" then
         return GREY .. ns.Short(e.a) .. " declined the Admin offer|r"
-    elseif e.k == "V" then
-        return nil -- internal: roles switched on
+    elseif e.k == "V" or e.k == "Q" then
+        return nil -- internal: roles switched on / character tied to its account
+    elseif e.k == "Y" then
+        return GREY .. ns.Short(e.a) .. " joined as an alt|r"
     end
     return GREY .. "?|r"
 end

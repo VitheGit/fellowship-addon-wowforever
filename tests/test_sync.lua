@@ -410,6 +410,82 @@ test("minimap button: left-click opens the window, right-click menu has Settings
     eq(c.ns.settings.minimapAngle, 45)
 end)
 
+local function accounts(c)
+    local _, _, state = c.ns.Store:Roster(c.ns.Store:ActiveId())
+    local n = 0
+    for _ in pairs(state.accounts) do n = n + 1 end
+    return n
+end
+
+test("accounts: an alt joins automatically and shares its main's role", function()
+    local w, anna, bob, cara = setup()
+    local bobalt = w:client("Bobalt"); bobalt:sameAccountAs(bob)
+    anna:slash("/fship promote bob"); w:advance(2)
+    bob:logout(); w:advance(5)
+    bobalt:login(); w:advance(30)
+    assert(bobalt.ns.Store:ActiveId(), "alt did not auto-join")
+    assert(bobalt:logContains("joined Friday Night Crew with the rest of your account"))
+    for _, c in ipairs({ anna, cara, bobalt }) do
+        assert(c.ns.Store:SameAccount(c.ns.Store:ActiveId(), "Bob-Silvermoon", "Bobalt-Silvermoon"), c.name .. " not linked")
+        eq(accounts(c), 3, c.name .. " account count")
+        eq(c.ns.Store:Role(c.ns.Store:ActiveId(), "Bobalt-Silvermoon"), "inviter", c.name .. " alt role")
+    end
+    bobalt:slash("/fs hi from my alt"); w:advance(2)
+    assert(anna:logContains("Bobalt|r |cff808080(Bob)|r: "), "alt name not shown with main")
+    local list, n = anna.ns.Sync:MemberList(anna.ns.Store:ActiveId())
+    eq(#list, 3); eq(n, 3, "bob's account counts as online via the alt")
+    sameHistory(anna, bobalt)
+end)
+
+test("accounts: leaving on an alt takes the whole account out", function()
+    local w, anna, bob, cara = setup()
+    local bobalt = w:client("Bobalt"); bobalt:sameAccountAs(bob)
+    bob:logout(); bobalt:login(); w:advance(30)
+    bobalt:slash("/fship leave"); w:advance(3)
+    for _, c in ipairs({ anna, cara }) do
+        assert(not c.ns.Store:IsMember(c.ns.Store:ActiveId(), "Bob-Silvermoon"), "main still a member")
+        assert(not c.ns.Store:IsMember(c.ns.Store:ActiveId(), "Bobalt-Silvermoon"), "alt still a member")
+    end
+    bobalt:logout(); bob:login(); w:advance(30)
+    eq(bob.ns.Store:ActiveId(), nil, "main still thinks it's in")
+end)
+
+test("accounts: separately invited characters merge; wrong codes are rejected", function()
+    local w, anna, bob, cara = setup()
+    local dan, danalt = w:client("Dan"), w:client("Danalt")
+    dan:login(); w:advance(1)
+    -- Danalt is on Dan's account but (like an older version) was invited on its own
+    danalt.saved = { account = { id = dan.env.FellowshipDB.account.id, secret = dan.env.FellowshipDB.account.secret } }
+    anna:slash("/fship invite dan"); w:advance(1); dan:acceptPopup("FELLOWSHIP_INVITE"); w:advance(30)
+    dan:logout(); danalt:login(); w:advance(1)
+    anna:slash("/fship invite danalt"); w:advance(1); danalt:acceptPopup("FELLOWSHIP_INVITE"); w:advance(60)
+    assert(anna.ns.Store:SameAccount(anna.ns.Store:ActiveId(), "Dan-Silvermoon", "Danalt-Silvermoon"), "not merged")
+    eq(accounts(anna), 4)
+    -- an outsider who knows the account id but not the secret can't link in
+    local eve = w:client("Eve"); eve:login(); w:advance(1)
+    local fid = anna.ns.Store:ActiveId()
+    local S = eve.ns.Serializer
+    eve.env.C_ChatInfo.SendAddonMessage("Fellowship", "1:1:1:" .. S.Encode({ { "LNK", fid, "1" },
+        { "Eve-Silvermoon", 1, 0, "Y", dan.saved.account.id, "wrongsecret" } }), "WHISPER", "Anna")
+    w:advance(2)
+    assert(not anna.ns.Store:IsMember(fid, "Eve-Silvermoon"), "eve linked in with a wrong secret")
+end)
+
+test("accounts: Admin offer can be accepted on an alt", function()
+    local w, anna, bob, cara = setup()
+    local bobalt = w:client("Bobalt"); bobalt:sameAccountAs(bob)
+    bob:logout(); w:advance(2)
+    anna:slash("/fship admin bob"); w:advance(2)
+    bobalt:login(); w:advance(40)
+    assert(bobalt:acceptPopup("FELLOWSHIP_ADMIN_OFFER"), "alt didn't get the admin offer")
+    w:advance(5)
+    for _, c in ipairs({ anna, cara, bobalt }) do
+        local fid = c.ns.Store:ActiveId()
+        assert(c.ns.Store:IsAdmin(fid, "Bob-Silvermoon") and c.ns.Store:IsAdmin(fid, "Bobalt-Silvermoon"), c.name)
+        eq(c.ns.Store:Role(fid, "Anna-Silvermoon"), "inviter")
+    end
+end)
+
 test("live chat reaches online members and is echoed to their chat frame", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hey all, dungeon tonight?")

@@ -35,6 +35,8 @@ Each event is `(author, seq, time, kind, fields...)`. `seq` counts up per author
 | `T` | Admin offers the Admin role (`""` cancels) | member |
 | `X` | offer accepted: author becomes Admin, old Admin becomes Inviter | offer author, offer seq |
 | `W` | offer declined | offer author, offer seq |
+| `Q` | this character belongs to account `id` | account id, account secret |
+| `Y` | an alt joins through its account | account id, account secret |
 | `C` | chat | text |
 | `A` | achievement | id, name, points |
 | `M` | milestone | "level", level |
@@ -50,6 +52,17 @@ appears, the longest-standing Inviter (else Member) takes over.
 
 For each author every member tracks a **high-water mark** (hwm): the highest `n` such
 that events `1..n` are all present. The vector of hwms is a compact "what I have".
+
+### Accounts
+
+Members are WoW accounts. Each account's SavedVariables hold a random account id and
+secret. A member character publishes `Q` (id + secret) once it's in, so every member
+learns the secret. When another character on that account logs in, it sees the
+fellowship in the shared SavedVariables, publishes `Y` with the same id + secret, and
+sends it ahead of its `HI` in an `LNK` message; members check the secret before
+trusting it. Characters invited separately before this existed merge into one account
+when both publish `Q`. Roles, Admin, `L` and `K` apply to the whole account. The secret
+is only ever sent to members, so outsiders can't join as someone's "alt".
 
 ## Protocol
 
@@ -89,8 +102,9 @@ pruned. Pruning raises a per-author `floor` so peers stop asking for removed eve
 
 ## Known limits / ideas
 
-- One fellowship per character (alts on the same account share storage, but each
-  alt is invited separately).
+- One fellowship per account.
+- A member removed while offline only finds out when their own data says so; other
+  members ignore them, but their copy isn't cleaned up until they leave themselves.
 - Catch-up only happens when you overlap online with a member who has the history.
 - Ideas: toast popups for achievements, multiple fellowships,
   sharing guild-wide or account-wide achievements as an option.

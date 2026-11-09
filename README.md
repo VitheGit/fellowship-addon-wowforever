@@ -20,6 +20,8 @@ and read everything they missed.
 - Right-click a player (portrait, party/raid frame, name in chat) and pick "Invite to Fellowship"
 - Choose which chat tabs show Fellowship messages, like Guild or Party
 - Minimap button: left-click opens Fellowship, right-click for a menu (Settings), drag to move
+- Membership is per WoW account: log into an alt or a brand-new character and it joins your
+  fellowship automatically, with the same role
 - Works across realms (invite `Name-Realm`)
 
 ## Install
@@ -63,6 +65,9 @@ Everyone in the group needs the addon installed.
   fellowship; pass Admin first.
 - **Inviter**: can invite people.
 - **Member**: everyone who joins starts here. Can chat and share achievements.
+
+Roles belong to the whole WoW account, so all of a member's characters share them. Leaving
+or being removed also applies to the whole account.
 
 Passing Admin asks the other player to accept. If they're offline they're asked the next
 time they log in. Once they accept, the old Admin becomes an Inviter.
