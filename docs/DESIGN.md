@@ -44,7 +44,7 @@ that events `1..n` are all present. The vector of hwms is a compact "what I have
 
 | Message | Records | Purpose |
 | --- | --- | --- |
-| `HI fid 1 wantReply` | `author hwm`... | presence and summary |
+| `HI fid 1 wantReply` | `author hwm class`... | presence, summary and class colors |
 | `REQ fid 1` | `author fromSeq`... | ask for events after `fromSeq` |
 | `EV fid 1 live` | event... | events (`live=1` when just created) |
 | `FL fid 1` | `author floor`... | "I pruned up to `floor`, don't wait for those" |

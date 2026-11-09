@@ -2,7 +2,7 @@
 ## Title: Fellowship
 ## Notes: Private chat and achievement feed for small friend groups, with offline catch-up.
 ## Author: Brad
-## Version: 0.1.1
+## Version: 0.2.0
 ## SavedVariables: FellowshipDB
 ## AddonCompartmentFunc: Fellowship_OnAddonCompartmentClick
 

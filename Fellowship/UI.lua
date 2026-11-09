@@ -247,8 +247,8 @@ local function renderMembers(log, fid)
         elseif ns.online[m.key] then status = "|cff33ff99online|r"
         else status = "|cff9d9d9doffline|r" end
         local last = ns.Store:LastActive(fid, m.name)
-        log:AddMessage(string.format("|cffffd100%s|r%s  %s   |cff808080member since %s, %d achievements shared%s|r",
-            ns.Short(m.name), m.name == founder and " (founder)" or "", status,
+        log:AddMessage(string.format("%s%s  %s   |cff808080member since %s, %d achievements shared%s|r",
+            ns.ColorName(m.name), m.name == founder and " (founder)" or "", status,
             date("%b %d %Y", m.since), achievementCounts[m.name] or 0,
             last and (", last active " .. ns.TimeStamp(last)) or ""))
     end

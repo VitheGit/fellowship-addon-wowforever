@@ -116,6 +116,8 @@ function Client:login()
         GetTime = function() return world.time end,
         GetServerTime = function() return world.epoch + math.floor(world.time) end,
         UnitFullName = function() return client.name, client.realm end,
+        UnitClass = function() return client.class or "Hunter", (client.class or "HUNTER"):upper(), 3 end,
+        RAID_CLASS_COLORS = { HUNTER = { r = 0.67, g = 0.83, b = 0.45, colorStr = "ffaad372" } },
         GetNormalizedRealmName = function() return client.realm end,
         CreateFrame = function() local f = newStub(); f._shown = true; table.insert(client.frames, f); return f end,
         UIParent = newStub(), ChatFontNormal = newStub(),

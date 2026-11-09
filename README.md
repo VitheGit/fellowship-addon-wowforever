@@ -11,6 +11,7 @@ and read everything they missed.
 - "New since you were last here" divider and a login summary
   ("While you were away: 12 messages and 3 achievements")
 - Members tab with online status, founder, achievements shared and last activity
+- Names shown in class colors (works with class-color addons too)
 - Works across realms (invite `Name-Realm`)
 
 ## Install

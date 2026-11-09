@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.1.1"
+ns.VERSION = "0.2.0"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -124,8 +124,33 @@ end
 
 local GOLD, GREY = "|cffffd100", "|cff9d9d9d"
 
+-- Standard class colors, used if the game's own table isn't available.
+local FALLBACK_CLASS_COLORS = {
+    WARRIOR = "ffc69b6d", PALADIN = "fff48cba", HUNTER = "ffaad372", ROGUE = "fffff468",
+    PRIEST = "ffffffff", DEATHKNIGHT = "ffc41e3a", SHAMAN = "ff0070dd", MAGE = "ff3fc7eb",
+    WARLOCK = "ff8788ee", MONK = "ff00ff98", DRUID = "ffff7c0a", DEMONHUNTER = "ffa330c9",
+    EVOKER = "ff33937f",
+}
+
+function ns.ClassColorHex(token)
+    if not token then return nil end
+    -- CUSTOM_CLASS_COLORS is the convention used by class-color addons
+    local c = (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[token]) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[token])
+    if c then
+        if c.colorStr then return c.colorStr end
+        if c.r then return string.format("ff%02x%02x%02x", c.r * 255, c.g * 255, c.b * 255) end
+    end
+    return FALLBACK_CLASS_COLORS[token]
+end
+
+-- Short name in the member's class color (gold if we don't know their class yet).
+function ns.ColorName(full)
+    local hex = ns.ClassColorHex(ns.Store:GetClass(full))
+    return (hex and ("|c" .. hex) or GOLD) .. ns.Short(full) .. "|r"
+end
+
 function ns.FormatEvent(e)
-    local who = GOLD .. ns.Short(e.a) .. "|r"
+    local who = ns.ColorName(e.a)
     local d = e.d or {}
     if e.k == "C" then
         return who .. ": " .. ns.Escape(d[1])
@@ -207,6 +232,8 @@ ns.On("PLAYER_LOGIN", function()
     ns.me = name .. "-" .. realm
     ns.meKey = ns.me:lower()
     ns.Store:InitCharacter()
+    local _, classToken = UnitClass("player")
+    ns.Store:SetClass(ns.me, classToken)
     ns.Comm:Init()
     ns.Sync:Init()
     ns.Achievements:Init()

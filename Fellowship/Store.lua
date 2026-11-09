@@ -50,6 +50,7 @@ function Store:Init()
     end
     db.fellowships = db.fellowships or {}
     db.chars = db.chars or {}
+    db.classes = db.classes or {} -- ["Name-Realm"] = "HUNTER", learned from members
     self.db = db
     ns.settings = db.settings
 end
@@ -242,6 +243,17 @@ end
 
 function Store:IsMember(fid, name)
     return self:Roster(fid)[ns.Key(name)] ~= nil
+end
+
+function Store:GetClass(name)
+    return name and self.db and self.db.classes[name]
+end
+
+function Store:SetClass(name, token)
+    if type(name) ~= "string" or type(token) ~= "string" then return false end
+    if not token:match("^%u+$") or #token > 20 or self.db.classes[name] == token then return false end
+    self.db.classes[name] = token
+    return true
 end
 
 function Store:LastRead(fid)

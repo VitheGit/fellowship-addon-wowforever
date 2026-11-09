@@ -108,8 +108,11 @@ function Sync:Hello(fid, target, wantReply)
     if not f then return end
     local rec = { header("HI", fid, wantReply and "1" or "0") }
     for author, h in pairs(f.hwm) do
-        if h > 0 then rec[#rec + 1] = { author, h } end
+        if h > 0 or author == ns.me then
+            rec[#rec + 1] = { author, h, ns.Store:GetClass(author) }
+        end
     end
+    if not f.hwm[ns.me] then rec[#rec + 1] = { ns.me, 0, ns.Store:GetClass(ns.me) } end
     send(target, rec)
 end
 
@@ -128,8 +131,14 @@ function Sync:OnHello(sender, fid, f, wantReply, records)
     pendingReq[fid] = pendingReq[fid] or {}
     local pend = pendingReq[fid]
     local wants = { header("REQ", fid) }
+    local classesChanged = false
     for i = 2, #records do
         local author, theirs = records[i][1], tonumber(records[i][2])
+        local class = records[i][3]
+        -- the sender is the authority on their own class; otherwise only fill gaps
+        if author and class and class ~= "" and (ns.Key(author) == ns.Key(sender) or not ns.Store:GetClass(author)) then
+            if ns.Store:SetClass(author, class) then classesChanged = true end
+        end
         if author and author ~= "" and theirs then
             local mine = f.hwm[author] or 0
             if theirs > mine and not (pend[author] and pend[author] > now) then
@@ -139,6 +148,7 @@ function Sync:OnHello(sender, fid, f, wantReply, records)
         end
     end
     if #wants > 1 then send(sender, wants) end
+    if classesChanged then ns.Fire("PRESENCE") end -- repaint names
     if wantReply then self:Hello(fid, sender, false) end
 end
 
