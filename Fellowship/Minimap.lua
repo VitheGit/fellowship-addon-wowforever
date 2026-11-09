@@ -4,7 +4,8 @@ local _, ns = ...
 local MB = {}
 ns.MinimapButton = MB
 
-MB.ICON = "Interface\\Icons\\Ability_Warrior_SwordandBoard" -- a shield with a sword across it
+-- Custom emblem (Media/icon.tga, drawn by tools/make_icon.py): a sea-green shield with a gold "F".
+MB.ICON = "Interface\\AddOns\\Fellowship\\Media\\icon"
 
 local button
 
@@ -94,10 +95,9 @@ function MB:Build()
     bg:SetPoint("TOPLEFT", 7, -5)
 
     local icon = button:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(17, 17)
+    icon:SetSize(20, 20)
     icon:SetTexture(MB.ICON)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    icon:SetPoint("TOPLEFT", 7, -6)
+    icon:SetPoint("TOPLEFT", 6, -5)
 
     local border = button:CreateTexture(nil, "OVERLAY")
     border:SetSize(53, 53)
