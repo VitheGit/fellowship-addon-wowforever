@@ -234,6 +234,36 @@ function Sync:AutoJoinAlt()
     end
 end
 
+-- Someone who used to be a member (removed or left while offline) says hello. We don't trust
+-- them, but we send them the membership history they're missing so their own client sees
+-- the removal and cleans up.
+local toldFormer = {}
+
+function Sync:TellFormerMember(sender, fid, records)
+    local key = ns.Key(sender)
+    if toldFormer[key] and toldFormer[key] > GetTime() then return end
+    local f = ns.Store:Get(fid)
+    local wasMember = false
+    for _, e in ipairs(ns.Store:Sorted(fid)) do
+        if ns.Key(e.a) == key or (e.k == "J" and ns.Key(e.d[1]) == key) then
+            wasMember = true
+            break
+        end
+    end
+    if not wasMember then return end
+    toldFormer[key] = GetTime() + 300
+    local theirs = {}
+    for i = 2, #records do
+        local author, h = records[i][1], tonumber(records[i][2])
+        if author and h then theirs[author] = h end
+    end
+    local missing = {}
+    for _, e in ipairs(ns.Store:Sorted(fid)) do
+        if ns.MEMBERSHIP_KINDS[e.k] and e.s > (theirs[e.a] or 0) then missing[#missing + 1] = e end
+    end
+    if #missing > 0 then sendEvents(sender, fid, missing, false, true) end
+end
+
 function Sync:OnLink(sender, fid, records)
     local r = records[2]
     if not r then return end
@@ -379,7 +409,10 @@ function Sync:OnMessage(sender, records)
     local f = ns.Store:Get(fid)
     if not f or ns.Store:ActiveId() ~= fid then return end
     if typ == "LNK" then return self:OnLink(sender, fid, records) end
-    if not self:Trusted(fid, f, key) then return end
+    if not self:Trusted(fid, f, key) then
+        if typ == "HI" then self:TellFormerMember(sender, fid, records) end
+        return
+    end
     self:MarkOnline(key)
     ns.Store:SetSeen(sender)
 

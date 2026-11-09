@@ -91,7 +91,9 @@ inviter publishes a `J` event; the newcomer then downloads the whole log from th
 inviter and says `HI` to everyone else once it sees itself in the roster.
 
 **Trust:** messages are only accepted from current roster members (plus the inviter
-while joining). User text is escaped (`|` becomes `||`) before display.
+while joining). If a former member (removed or left while offline) says `HI`, members
+don't trust it, but reply once with the membership events it's missing, so its client
+sees the removal and cleans up. User text is escaped (`|` becomes `||`) before display.
 
 ## Persistence and pruning
 
@@ -103,8 +105,6 @@ pruned. Pruning raises a per-author `floor` so peers stop asking for removed eve
 ## Known limits / ideas
 
 - One fellowship per account.
-- A member removed while offline only finds out when their own data says so; other
-  members ignore them, but their copy isn't cleaned up until they leave themselves.
 - Catch-up only happens when you overlap online with a member who has the history.
 - Ideas: toast popups for achievements, multiple fellowships,
   sharing guild-wide or account-wide achievements as an option.

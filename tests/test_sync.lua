@@ -486,6 +486,20 @@ test("accounts: Admin offer can be accepted on an alt", function()
     end
 end)
 
+test("a member removed while offline finds out when they log back in", function()
+    local w, anna, bob, cara = setup()
+    -- make it harder: Admin changes hands while Cara is away, then the new Admin removes her
+    cara:logout(); w:advance(5)
+    anna:slash("/fship admin bob"); w:advance(2)
+    assert(bob:acceptPopup("FELLOWSHIP_ADMIN_OFFER")); w:advance(2)
+    bob:slash("/fship remove cara-Area52"); w:advance(2)
+    anna:slash("/fs secret plans"); w:advance(2)
+    cara:login(); w:advance(30)
+    eq(cara.ns.Store:ActiveId(), nil, "cara still thinks she's a member")
+    assert(cara:logContains("no longer a member"), "cara wasn't told")
+    for _, line in ipairs(cara:history()) do assert(not line:find("secret plans"), "removed member got new chat") end
+end)
+
 test("live chat reaches online members and is echoed to their chat frame", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hey all, dungeon tonight?")
