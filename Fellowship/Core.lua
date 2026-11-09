@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.9.3"
+ns.VERSION = "0.9.4"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -154,21 +154,29 @@ function ns.Truncate(s, max)
     return s:sub(1, n)
 end
 
--- "bob" -> "Bob-Realm", "bob-Area52" -> "Bob-Area52"
+-- WoW Forever characters have a first and a last name, and names are unique without a realm.
+-- The game reports them in several shapes: UnitFullName gives ("Vithe", "Valestrider"),
+-- addon-message senders look like "Vithe Valestrider", and whispers accept "Vithe-Valestrider".
+-- Every shape becomes the one canonical form "Vithe-Valestrider"; a realm, if present, is dropped.
 function ns.NormalizeName(name)
     if type(name) ~= "string" then return nil end
-    name = name:gsub("[%s%c]", "")
+    name = name:gsub("%c", ""):gsub("^%s+", ""):gsub("%s+$", "")
     if name == "" then return nil end
-    local short, realm = name:match("^([^%-]+)%-(.+)$")
-    if not short then
-        short, realm = name, GetNormalizedRealmName()
+    -- "First Last-Realm" or "First-Last-Realm": the trailing part is a realm
+    local base, tail = name:match("^(.-)%-([^%-]*)$")
+    if base and base:find("[%s%-]") then name = base end
+    name = name:gsub("%s*%-%s*", "-"):gsub("%s+", "-")
+    if not name:find("-", 1, true) then
+        -- "VitheValestrider" (no separator): split at the second capital
+        local first, last = name:match("^(%u[^%u]+)(%u.*)$")
+        if first then name = first .. "-" .. last end
     end
-    local b = short:byte(1)
-    if b and b < 128 then
-        short = short:sub(1, 1):upper() .. short:sub(2):lower()
-    end
-    if not realm or realm == "" then return short end
-    return short .. "-" .. realm
+    -- capitalise each part ("valtri-brinkforge" -> "Valtri-Brinkforge"); leave non-ASCII alone
+    name = name:gsub("([^%-])([^%-]*)", function(a, b)
+        if a:byte() < 128 then a = a:upper() end
+        return a .. b
+    end)
+    return name
 end
 
 -- Case-insensitive lookup key for a character name.
@@ -177,9 +185,10 @@ function ns.Key(name)
     return n and n:lower() or ""
 end
 
+-- "Vithe-Valestrider" -> "Vithe Valestrider", as the game shows it
 function ns.Short(full)
     if not full then return "?" end
-    return (full:match("^[^%-]+")) or full
+    return (tostring(full):gsub("%-", " "))
 end
 
 -- Neutralise WoW escape sequences in user-supplied text.
@@ -381,11 +390,10 @@ ns.On("ADDON_LOADED", function(name)
 end)
 
 ns.On("PLAYER_LOGIN", function()
-    local name, realm = UnitFullName("player")
-    if not realm or realm == "" then realm = GetNormalizedRealmName() end
-    ns.me = name .. "-" .. realm
+    local first, last = UnitFullName("player")
+    ns.me = ns.NormalizeName(last and last ~= "" and (first .. "-" .. last) or first)
     loginTime = GetTime()
-    ns.meKey = ns.me:lower()
+    ns.meKey = ns.Key(ns.me)
     ns.Store:InitCharacter()
     local _, classToken = UnitClass("player")
     ns.Store:SetClass(ns.me, classToken)
@@ -413,7 +421,7 @@ local HELP = {
     "|cffffd100/fs <message>|r - talk to your fellowship",
     "|cffffd100/fs|r or |cffffd100/fship|r - open the Fellowship window",
     "|cffffd100/fship create <name>|r - start a new fellowship",
-    "|cffffd100/fship invite <player>|r - invite someone (they need Fellowship installed)",
+    "|cffffd100/fship invite <first> <last>|r - invite someone by full name (they need Fellowship installed)",
     "|cffffd100/fship who|r - list members and who is online",
     "|cffffd100/fship leave|r - leave your fellowship",
     "|cffffd100/fship remove <player>|r - remove a member (Admin only)",

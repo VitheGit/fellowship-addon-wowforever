@@ -81,9 +81,10 @@ function World:client(name, realm)
     return c
 end
 
-function World:find(target, realm)
-    local full = target:find("-", 1, true) and target or (target .. "-" .. realm)
-    return self.clients[full:lower()]
+-- WoW Forever style: every character is "First Last" (here: name + realm-as-last-name),
+-- unique world-wide. Whispers accept "First-Last" or "First Last"; nothing else resolves.
+function World:find(target)
+    return self.clients[(target:gsub("%s+", "-")):lower()]
 end
 
 function Client:fire(event, ...)
@@ -196,10 +197,13 @@ function Client:login()
                 if b.tokens < 1 then world.throttled = (world.throttled or 0) + 1; return 3 end
                 b.tokens = b.tokens - 1
                 world.sent = (world.sent or 0) + 1
-                local from = client.full
+                -- senders arrive as "First Last" (configurable to test other shapes)
+                local style = world.senderStyle or "space"
+                local from = style == "space" and (client.name .. " " .. client.realm)
+                    or style == "camel" and (client.name .. client.realm) or client.full
                 if world.dropper and world.dropper(from, target, text) then return 0 end
                 world:schedule(world.time + 0.05, function()
-                    local dest = world:find(target, client.realm)
+                    local dest = world:find(target)
                     if dest and dest.online then
                         dest:fire("CHAT_MSG_ADDON", prefix, text, channel, from)
                     elseif client.online then

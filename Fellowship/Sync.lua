@@ -514,7 +514,11 @@ function Sync:Invite(target)
     end
     local name = ns.NormalizeName(ns.Trim(target))
     if not name then
-        ns.Print("Usage: /fship invite <player> or <player-realm>")
+        ns.Print("Usage: /fship invite <first name> <last name>")
+        return
+    end
+    if not name:find("-", 1, true) then
+        ns.Print("Use their full name, like /fship invite " .. ns.Escape(ns.Short(name)) .. " Lastname (or right-click them).")
         return
     end
     local key = ns.Key(name)
@@ -806,14 +810,14 @@ function Sync:MemberList(fid)
     local mine = myAccountKey(fid)
     local achievements = {}
     for _, e in ipairs(ns.Store:Sorted(fid)) do
-        if e.k == "A" then achievements[e.a:lower()] = (achievements[e.a:lower()] or 0) + 1 end
+        if e.k == "A" then achievements[ns.Key(e.a)] = (achievements[ns.Key(e.a)] or 0) + 1 end
     end
     local list = {}
     for key, acct in pairs(state.accounts) do
         local isMe = key == mine
         local shown, on, seen, count = acct.main, isMe, nil, 0
         for _, n in ipairs(acct.chars) do
-            local k = n:lower()
+            local k = ns.Key(n)
             count = count + (achievements[k] or 0)
             if isMe and k == ns.meKey then shown = n
             elseif not isMe and online[k] == true and not on then shown, on = n, true end
@@ -828,12 +832,12 @@ function Sync:MemberList(fid)
         end
         local where
         local st = isMe and { level = UnitLevel and UnitLevel("player"), zone = GetZoneText and GetZoneText() }
-            or (on and ns.memberStatus[shown:lower()])
+            or (on and ns.memberStatus[ns.Key(shown)])
         if st and (st.level or st.zone) then
             where = (st.level and ("Level " .. st.level) or "") .. ((st.level and st.zone) and ", " or "")
                 .. (st.zone and ns.Escape(st.zone) or "")
         end
-        list[#list + 1] = { key = shown:lower(), account = key, name = shown, main = acct.main, chars = acct.chars,
+        list[#list + 1] = { key = ns.Key(shown), account = key, name = shown, main = acct.main, chars = acct.chars,
             since = acct.since, role = acct.role, online = on, status = status, where = where,
             achievements = count, roleLabel = ns.ROLE_LABEL[acct.role] or "Member",
             display = ns.WhoName(shown, acct.main) }

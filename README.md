@@ -43,7 +43,7 @@ Everyone in the group needs the addon installed.
 | `/fs <message>` | Talk to your fellowship |
 | `/fs` or `/fship` | Open or close the Fellowship window (also in the addon compartment menu) |
 | `/fship create <name>` | Start a fellowship |
-| `/fship invite <player>` | Invite someone (`Name` or `Name-Realm`) |
+| `/fship invite <first> <last>` | Invite someone by their full name, e.g. `/fship invite Valtri Brinkforge` |
 | `/fship who` | List members and who is online |
 | `/fship leave` | Leave (your copy of the history is deleted) |
 | `/fship remove <player>` | Remove a member (Admin only) |

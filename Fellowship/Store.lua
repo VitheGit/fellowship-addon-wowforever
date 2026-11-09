@@ -262,7 +262,7 @@ function Store:Roster(fid)
     local accounts, charAcct = {}, {}  -- acctKey -> acct, charKey -> acctKey
     local state = { rolesOn = false, accounts = accounts }
     local adminKey
-    local function lower(n) return n and n:lower() end
+    local function lower(n) return n and ns.Key(n) end
     local function acctOf(name) return name and charAcct[lower(name)] end
     local function addChar(acct, name)
         charAcct[lower(name)] = acct.key
@@ -421,19 +421,20 @@ function Store:IsMember(fid, name)
 end
 
 function Store:SetSeen(name)
-    if self.db and name then self.db.seen[name] = ns.Now() end
+    if self.db and name then self.db.seen[ns.Key(name)] = ns.Now() end
 end
 
 function Store:GetSeen(name)
-    return name and self.db and self.db.seen[name]
+    return name and self.db and (self.db.seen[ns.Key(name)] or self.db.seen[name])
 end
 
 function Store:GetClass(name)
-    return name and self.db and self.db.classes[name]
+    return name and self.db and (self.db.classes[ns.Key(name)] or self.db.classes[name])
 end
 
 function Store:SetClass(name, token)
     if type(name) ~= "string" or type(token) ~= "string" then return false end
+    name = ns.Key(name)
     if not token:match("^%u+$") or #token > 20 or self.db.classes[name] == token then return false end
     self.db.classes[name] = token
     return true
