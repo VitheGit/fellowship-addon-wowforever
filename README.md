@@ -40,6 +40,7 @@ Everyone in the group needs the addon installed.
 | `/fs leave` | Leave (your copy of the history is deleted) |
 | `/fs remove <player>` | Remove a member (founder only) |
 | `/fs sync` | Ask online members for anything you missed right now |
+| `/fs color <hex>` | Change the chat text color (default sea green `4fd1b5`; `/fs color reset`) |
 | `/fs echo` / `/fs levels` | Toggle chat echo in the main chat frame / level-up sharing |
 
 ## How offline catch-up works

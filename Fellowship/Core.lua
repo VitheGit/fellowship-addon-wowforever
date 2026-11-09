@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.2.0"
+ns.VERSION = "0.2.1"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -13,7 +13,8 @@ ns.defaults = {
     shareLevels = true,      -- share level-ups as milestones
     maxEvents = 3000,        -- history kept per fellowship (membership events are never pruned)
     maxAgeDays = 180,        -- history older than this is pruned at login
-    backfillLimit = 500,     -- max events per author sent in one catch-up request
+    backfillLimit = 500,
+    textColor = "4fd1b5",    -- chat text color (sea green; distinct from guild, party, whisper, BNet...)     -- max events per author sent in one catch-up request
 }
 
 ---------------------------------------------------------------------------
@@ -149,11 +150,17 @@ function ns.ColorName(full)
     return (hex and ("|c" .. hex) or GOLD) .. ns.Short(full) .. "|r"
 end
 
+function ns.TextColor()
+    local c = ns.settings and ns.settings.textColor
+    if type(c) == "string" and c:match("^%x%x%x%x%x%x$") then return c end
+    return ns.defaults.textColor
+end
+
 function ns.FormatEvent(e)
     local who = ns.ColorName(e.a)
     local d = e.d or {}
     if e.k == "C" then
-        return who .. ": " .. ns.Escape(d[1])
+        return who .. ": |cff" .. ns.TextColor() .. ns.Escape(d[1]) .. "|r"
     elseif e.k == "A" then
         local id = tonumber(d[1])
         local link = id and GetAchievementLink and GetAchievementLink(id)
@@ -260,6 +267,7 @@ local HELP = {
     "|cffffd100/fs leave|r - leave your fellowship",
     "|cffffd100/fs remove <player>|r - remove a member (founder only)",
     "|cffffd100/fs sync|r - ask online members for anything you missed",
+    "|cffffd100/fs color <hex>|r - change the chat text color (/fs color reset for default)",
     "|cffffd100/fs echo|r, |cffffd100/fs levels|r - toggle chat echo / level-up sharing",
 }
 
@@ -283,6 +291,18 @@ function ns.HandleSlash(input)
         ns.Print("Asking online members for anything you missed.")
     elseif cmd == "say" then
         ns.Sync:PostChat(rest)
+    elseif cmd == "color" or cmd == "colour" then
+        local hex = rest:gsub("^#", ""):lower()
+        if hex == "reset" or hex == "" then
+            ns.settings.textColor = ns.defaults.textColor
+        elseif hex:match("^%x%x%x%x%x%x$") then
+            ns.settings.textColor = hex
+        else
+            ns.Print("Usage: /fs color <hex like 4fd1b5> or /fs color reset")
+            return
+        end
+        ns.Print("|cff" .. ns.TextColor() .. "Fellowship chat will look like this.|r")
+        if ns.UI then ns.UI:QueueRefresh() end
     elseif cmd == "echo" then
         ns.settings.echoChat = not ns.settings.echoChat
         ns.Print("Chat echo " .. (ns.settings.echoChat and "on" or "off") .. ".")
