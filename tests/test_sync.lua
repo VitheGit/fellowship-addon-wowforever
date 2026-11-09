@@ -164,9 +164,85 @@ test("Fellowship can be moved to another chat tab", function()
     -- with no tabs selected, chat is silent but command replies still show in the main window
     bob:slash("/fship tab 2")
     bob:slash("/fship who")
-    assert(bob:logContains("Anna-Silvermoon"), "who output lost")
+    assert(bob:logContains("Anna|r [Admin]"), "who output lost")
     bob:slash("/fship tab reset")
     eq(bob.ns.ChatFrameSet()[1], true)
+end)
+
+local function canInvite(c) return c.ns.Store:CanInvite(c.ns.Store:ActiveId(), c.ns.me) end
+local function role(c, name) return c.ns.Store:Role(c.ns.Store:ActiveId(), name) end
+local function admin(c) local _, a = c.ns.Store:Roster(c.ns.Store:ActiveId()); return a end
+
+test("roles: invitees are Members; Admin can promote and demote Inviters", function()
+    local w, anna, bob, cara = setup()
+    eq(role(anna, "Anna-Silvermoon"), "admin")
+    eq(role(anna, "Bob-Silvermoon"), "member")
+    assert(not canInvite(bob), "member should not invite")
+    local dan = w:client("Dan"); dan:login(); w:advance(1)
+    bob:slash("/fship invite dan"); w:advance(2)
+    eq(#dan.popups, 0, "member's invite went out")
+    assert(bob:logContains("Only the Admin"), "no explanation")
+    bob:slash("/fship promote cara-Area52")
+    w:advance(2)
+    eq(role(cara, "Cara-Area52"), "member", "non-admin promoted someone")
+    anna:slash("/fship promote bob")
+    w:advance(2)
+    eq(role(cara, "Bob-Silvermoon"), "inviter", "cara sees bob as inviter")
+    assert(canInvite(bob))
+    bob:slash("/fship invite dan"); w:advance(1)
+    assert(dan:acceptPopup("FELLOWSHIP_INVITE"), "inviter's invite failed"); w:advance(30)
+    eq(role(anna, "Dan-Silvermoon"), "member")
+    anna:slash("/fship demote bob"); w:advance(2)
+    assert(not canInvite(bob), "demoted bob still invites")
+    sameHistory(anna, dan)
+end)
+
+test("roles: passing Admin needs the new Admin to accept, even after logging in later", function()
+    local w, anna, bob, cara = setup()
+    bob:slash("/fship admin cara-Area52"); w:advance(2)
+    eq(#cara.popups, 0, "non-admin made an offer")
+    anna:slash("/fship admin cara-Area52"); w:advance(2)
+    eq(cara.popups[1] and cara.popups[1].which, "FELLOWSHIP_ADMIN_OFFER", "no admin popup")
+    -- Cara says No
+    local p = table.remove(cara.popups, 1)
+    cara.env.StaticPopupDialogs.FELLOWSHIP_ADMIN_OFFER.OnCancel(nil, p.data, "clicked")
+    w:advance(2)
+    eq(admin(anna), "Anna-Silvermoon")
+    assert(anna:logContains("declined the Admin offer"))
+    -- offer again while Cara is offline; she answers when she logs back in
+    cara:logout(); w:advance(5)
+    anna:slash("/fship admin cara-Area52"); w:advance(5)
+    anna:slash("/fship leave")
+    assert(anna:logContains("Pass Admin to someone first"), "admin allowed to leave")
+    cara:login(); w:advance(60)
+    assert(cara:acceptPopup("FELLOWSHIP_ADMIN_OFFER"), "no popup after login")
+    w:advance(5)
+    for _, c in ipairs({ anna, bob, cara }) do
+        eq(admin(c), "Cara-Area52", c.name .. " admin")
+        eq(role(c, "Anna-Silvermoon"), "inviter", c.name .. " old admin role")
+    end
+    anna:slash("/fship remove bob"); w:advance(2)
+    assert(bob.ns.Store:ActiveId(), "old admin could still remove")
+    anna:slash("/fship leave"); w:advance(2)
+    eq(anna.ns.Store:ActiveId(), nil, "anna could not leave after passing admin")
+end)
+
+test("roles: Admin leaving with nobody else, and fellowships from before roles", function()
+    local w, anna, bob, cara = setup()
+    -- turn this into a pre-roles fellowship by stripping the V event from everyone's saved data
+    for _, c in ipairs({ anna, bob, cara }) do c:logout() end
+    for _, c in ipairs({ anna, bob, cara }) do
+        for _, f in pairs(c.saved.fellowships) do
+            for _, evs in pairs(f.events) do
+                for s, e in pairs(evs) do if e.k == "V" then e.k = "C"; e.d = { "(was V)" } end end
+            end
+        end
+    end
+    bob:login(); w:advance(1)
+    assert(canInvite(bob), "legacy: every member could invite")
+    anna:login(); w:advance(40) -- anna's client switches roles on
+    assert(not canInvite(bob), "roles not switched on")
+    eq(admin(bob), "Anna-Silvermoon")
 end)
 
 test("live chat reaches online members and is echoed to their chat frame", function()

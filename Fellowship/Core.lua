@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.5.0"
+ns.VERSION = "0.6.0"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -89,6 +89,7 @@ end
 
 -- Fellowship chat/achievement lines: only to windows that have Fellowship turned on.
 function ns.Echo(msg)
+    if not msg or msg == "" then return end
     for _, f in ipairs(ns.OutputFrames()) do f:AddMessage(PREFIX_TAG .. tostring(msg)) end
 end
 
@@ -232,6 +233,22 @@ function ns.FormatEvent(e)
         return GREY .. ns.Short(e.a) .. " left the fellowship|r"
     elseif e.k == "K" then
         return GREY .. ns.Short(e.a) .. " removed " .. ns.Short(d[1]) .. "|r"
+    elseif e.k == "R" then
+        if d[2] == "inviter" then
+            return GREY .. ns.Short(e.a) .. " made " .. ns.Short(d[1]) .. " an Inviter (can invite people)|r"
+        end
+        return GREY .. ns.Short(e.a) .. " made " .. ns.Short(d[1]) .. " a Member|r"
+    elseif e.k == "T" then
+        if d[1] and d[1] ~= "" then
+            return GREY .. ns.Short(e.a) .. " offered Admin to " .. ns.Short(d[1]) .. "|r"
+        end
+        return GREY .. ns.Short(e.a) .. " cancelled the Admin offer|r"
+    elseif e.k == "X" then
+        return GREY .. ns.Short(e.a) .. " accepted and is now the Admin|r"
+    elseif e.k == "W" then
+        return GREY .. ns.Short(e.a) .. " declined the Admin offer|r"
+    elseif e.k == "V" then
+        return nil -- internal: roles switched on
     end
     return GREY .. "?|r"
 end
@@ -265,14 +282,14 @@ ns.Listen("EVENTS_ADDED", function(fid, added, live)
     for _, e in ipairs(added) do
         if e.a == ns.me then
             -- show your own chat lines too, like a sent whisper, so /fsay always gives feedback
-            if e.k == "C" and ns.settings.echoChat then ns.Echo(ns.FormatEvent(e)) end
+            if e.k == "C" and ns.settings.echoChat then ns.Echo(ns.FormatEvent(e) or "") end
         else
             if e.k == "C" and ns.settings.echoChat then
-                ns.Echo(ns.FormatEvent(e))
+                ns.Echo(ns.FormatEvent(e) or "")
             elseif (e.k == "A" or e.k == "M") and ns.settings.echoAchievements then
-                ns.Echo(ns.FormatEvent(e))
+                ns.Echo(ns.FormatEvent(e) or "")
             elseif ns.MEMBERSHIP_KINDS[e.k] then
-                ns.Echo(ns.FormatEvent(e))
+                ns.Echo(ns.FormatEvent(e) or "")
             end
         end
     end
@@ -319,7 +336,10 @@ local HELP = {
     "|cffffd100/fship invite <player>|r - invite someone (they need Fellowship installed)",
     "|cffffd100/fship who|r - list members and who is online",
     "|cffffd100/fship leave|r - leave your fellowship",
-    "|cffffd100/fship remove <player>|r - remove a member (founder only)",
+    "|cffffd100/fship remove <player>|r - remove a member (Admin only)",
+    "|cffffd100/fship promote <player>|r - let a member invite people (Admin only)",
+    "|cffffd100/fship demote <player>|r - make an Inviter a regular Member again (Admin only)",
+    "|cffffd100/fship admin <player>|r - pass Admin to someone; they must accept (/fship admin cancel)",
     "|cffffd100/fship sync|r - ask online members for anything you missed",
     "|cffffd100/fship color <hex>|r - change the chat text color (/fship color reset for default)",
     "|cffffd100/fship tab|r - show/hide Fellowship in the chat tab you're typing in (or right-click a chat tab)",
@@ -339,6 +359,12 @@ function ns.HandleSlash(input)
         ns.Sync:Leave()
     elseif cmd == "remove" or cmd == "kick" then
         ns.Sync:Remove(rest)
+    elseif cmd == "promote" or cmd == "inviter" then
+        ns.Sync:SetRole(rest, "inviter")
+    elseif cmd == "demote" or cmd == "member" then
+        ns.Sync:SetRole(rest, "member")
+    elseif cmd == "admin" then
+        ns.Sync:OfferAdmin(rest)
     elseif cmd == "who" or cmd == "members" then
         ns.Sync:PrintMembers()
     elseif cmd == "sync" then

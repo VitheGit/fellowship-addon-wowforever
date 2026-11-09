@@ -40,11 +40,25 @@ Everyone in the group needs the addon installed.
 | `/fship invite <player>` | Invite someone (`Name` or `Name-Realm`) |
 | `/fship who` | List members and who is online |
 | `/fship leave` | Leave (your copy of the history is deleted) |
-| `/fship remove <player>` | Remove a member (founder only) |
+| `/fship remove <player>` | Remove a member (Admin only) |
+| `/fship promote <player>` | Make a member an Inviter, so they can invite people (Admin only) |
+| `/fship demote <player>` | Make an Inviter a regular Member again (Admin only) |
+| `/fship admin <player>` | Offer Admin to someone; they get a Yes/No pop-up (Admin only, `/fship admin cancel`) |
 | `/fship sync` | Ask online members for anything you missed right now |
 | `/fship color <hex>` | Change the chat text color (default sea green `4fd1b5`; `/fship color reset`) |
 | `/fship tab` | Show/hide Fellowship messages in the chat tab you are typing in (`/fship tab 2`, `/fship tab reset`). You can also right-click a chat tab and tick **Show Fellowship** |
 | `/fship echo` / `/fship levels` | Toggle chat echo in the main chat frame / level-up sharing |
+
+## Roles
+
+- **Admin**: whoever created the fellowship, until they pass it on. Can invite, remove,
+  promote/demote and pass Admin. The Admin can't leave while others are in the
+  fellowship; pass Admin first.
+- **Inviter**: can invite people.
+- **Member**: everyone who joins starts here. Can chat and share achievements.
+
+Passing Admin asks the other player to accept. If they're offline they're asked the next
+time they log in. Once they accept, the old Admin becomes an Inviter.
 
 ## How offline catch-up works
 

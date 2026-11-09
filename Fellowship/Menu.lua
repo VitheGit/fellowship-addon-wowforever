@@ -39,7 +39,7 @@ end
 function M:ShouldShow(target)
     local f, fid = ns.Store:Active()
     if not target or not f or f.pendingFrom then return false end
-    if ns.Key(target) == ns.meKey then return false end
+    if ns.Key(target) == ns.meKey or not ns.Store:CanInvite(fid, ns.me) then return false end
     return not ns.Store:IsMember(fid, target)
 end
 

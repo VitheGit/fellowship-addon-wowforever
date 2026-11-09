@@ -162,6 +162,18 @@ function UI:Init()
         whileDead = true,
         hideOnEscape = true,
     }
+    StaticPopupDialogs["FELLOWSHIP_ADMIN_OFFER"] = {
+        text = "%s wants to make you the Admin of the Fellowship [%s]. Do you accept?",
+        button1 = YES or "Yes",
+        button2 = NO or "No",
+        OnAccept = function(_, data) ns.Sync:AnswerAdminOffer(data, true) end,
+        OnCancel = function(_, data, reason)
+            if reason == "clicked" then ns.Sync:AnswerAdminOffer(data, false) end
+        end,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = false,
+    }
     StaticPopupDialogs["FELLOWSHIP_LEAVE"] = {
         text = "Leave your fellowship? Your copy of its history will be deleted.",
         button1 = YES or "Yes",
@@ -181,6 +193,12 @@ function UI:ShowInvite(data)
     StaticPopup_Show("FELLOWSHIP_INVITE", ns.ColorName(data.from), ns.Escape(data.name), data)
     if PlaySound and SOUNDKIT and SOUNDKIT.IG_PLAYER_INVITE then PlaySound(SOUNDKIT.IG_PLAYER_INVITE) end
     ns.Print(ns.ColorName(data.from) .. " has invited you to the Fellowship [" .. ns.Escape(data.name) .. "].")
+end
+
+function UI:ShowAdminOffer(data)
+    StaticPopup_Show("FELLOWSHIP_ADMIN_OFFER", ns.ColorName(data.from), ns.Escape(data.name), data)
+    if PlaySound and SOUNDKIT and SOUNDKIT.IG_PLAYER_INVITE then PlaySound(SOUNDKIT.IG_PLAYER_INVITE) end
+    ns.Print(ns.ColorName(data.from) .. " wants to make you the Admin of [" .. ns.Escape(data.name) .. "].")
 end
 
 function UI:IsShown()
@@ -206,10 +224,6 @@ function UI:QueueRefresh()
     end)
 end
 
-local function line(e)
-    return TIME_COLOR .. ns.TimeStamp(e.t) .. "|r  " .. ns.FormatEvent(e)
-end
-
 local function renderFeed(log, fid, filter)
     log:Clear()
     local events = ns.Store:Sorted(fid)
@@ -225,7 +239,8 @@ local function renderFeed(log, fid, filter)
             log:AddMessage(NEW_DIVIDER)
             divided = true
         end
-        log:AddMessage(line(e))
+        local text = ns.FormatEvent(e)
+        if text then log:AddMessage(TIME_COLOR .. ns.TimeStamp(e.t) .. "|r  " .. text) end
     end
     if #shown == 0 then
         log:AddMessage(TIME_COLOR .. "Nothing here yet.|r")
@@ -235,9 +250,9 @@ end
 
 local function renderMembers(log, fid)
     log:Clear()
-    local roster, founder = ns.Store:Roster(fid)
+    local roster = ns.Store:Roster(fid)
     local list = {}
-    for key, m in pairs(roster) do list[#list + 1] = { key = key, name = m.name, since = m.since } end
+    for key, m in pairs(roster) do list[#list + 1] = { key = key, name = m.name, since = m.since, role = m.role } end
     table.sort(list, function(a, b) return a.name < b.name end)
     local achievementCounts = {}
     for _, e in ipairs(ns.Store:Sorted(fid)) do
@@ -250,7 +265,7 @@ local function renderMembers(log, fid)
         else status = "|cff9d9d9doffline|r" end
         local last = ns.Store:LastActive(fid, m.name)
         log:AddMessage(string.format("%s%s  %s   |cff808080member since %s, %d achievements shared%s|r",
-            ns.ColorName(m.name), m.name == founder and " (founder)" or "", status,
+            ns.ColorName(m.name), " |cffffd100[" .. (ns.ROLE_LABEL[m.role] or "Member") .. "]|r", status,
             date("%b %d %Y", m.since), achievementCounts[m.name] or 0,
             last and (", last active " .. ns.TimeStamp(last)) or ""))
     end

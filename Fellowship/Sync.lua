@@ -79,6 +79,8 @@ end
 function Sync:Init()
     S = ns.Serializer
     C_Timer.After(4, function() Sync:HelloAll() end)
+    -- after catching up: switch roles on for fellowships made before roles existed
+    C_Timer.After(20, function() Sync:EnsureRoles() Sync:CheckAdminOffer() end)
     C_Timer.NewTicker(HELLO_INTERVAL, function() Sync:HelloAll() end)
 end
 
@@ -220,6 +222,7 @@ function Sync:OnRosterChanged(fid, added)
         ns.Fire("FELLOWSHIP_CHANGED")
         return
     end
+    self:CheckAdminOffer()
     for _, e in ipairs(added) do
         -- say hi to brand-new members so they can sync with us too
         if e.k == "J" and e.a ~= ns.me and e.d[1] and ns.Key(e.d[1]) ~= ns.meKey then
@@ -267,10 +270,10 @@ end
 ---------------------------------------------------------------------------
 -- Publishing
 ---------------------------------------------------------------------------
-function Sync:Publish(kind, data)
+function Sync:Publish(kind, data, minTime)
     local f, fid = ns.Store:Active()
     if not f or f.pendingFrom then return nil end
-    local e = ns.Store:NewLocalEvent(fid, kind, data)
+    local e = ns.Store:NewLocalEvent(fid, kind, data, minTime)
     if not e then return nil end
     for _, name in ipairs(otherMembers(fid)) do
         if online[ns.Key(name)] then sendEvents(name, fid, { e }, true, false) end
@@ -324,6 +327,7 @@ function Sync:Create(name)
     local fid = ns.me .. ":" .. ns.Now()
     ns.Store:Create(fid, name)
     self:Publish("N", { name })
+    self:Publish("V", {})
     ns.Print("Created " .. ns.Escape(name) .. ". Invite friends with /fship invite <player>.")
     ns.Fire("FELLOWSHIP_CHANGED")
 end
@@ -332,6 +336,11 @@ function Sync:Invite(target)
     local f, fid = ns.Store:Active()
     if not f or f.pendingFrom then
         ns.Print("You need to be in a fellowship to invite people.")
+        return
+    end
+    if not ns.Store:CanInvite(fid, ns.me) then
+        local _, admin = ns.Store:Roster(fid)
+        ns.Print("Only the Admin (" .. ns.Short(admin) .. ") and Inviters can invite people.")
         return
     end
     local name = ns.NormalizeName(ns.Trim(target))
@@ -376,7 +385,7 @@ function Sync:OnAccept(sender, fid)
     local p = pendingInvites[key]
     if not p or p.fid ~= fid or p.expires < GetTime() then return end
     pendingInvites[key] = nil
-    if ns.Store:ActiveId() ~= fid then return end
+    if ns.Store:ActiveId() ~= fid or not ns.Store:CanInvite(fid, ns.me) then return end
     self:MarkOnline(key)
     self:Publish("J", { sender })
 end
@@ -399,7 +408,16 @@ function Sync:Leave()
         ns.Print("You're not in a fellowship.")
         return
     end
-    if not f.pendingFrom then self:Publish("L", {}) end
+    if not f.pendingFrom then
+        local roster, admin = ns.Store:Roster(fid)
+        local others = 0
+        for k in pairs(roster) do if k ~= ns.meKey then others = others + 1 end end
+        if admin == ns.me and others > 0 then
+            ns.Print("You're the Admin. Pass Admin to someone first with /fship admin <player>.")
+            return
+        end
+        self:Publish("L", {})
+    end
     -- Publishing "L" normally forgets the fellowship via OnRosterChanged; make sure either way.
     if ns.Store:ActiveId() == fid then
         ns.Store:Forget(fid)
@@ -411,9 +429,9 @@ end
 function Sync:Remove(target)
     local f, fid = ns.Store:Active()
     if not f then return end
-    local roster, founder = ns.Store:Roster(fid)
-    if founder ~= ns.me then
-        ns.Print("Only the founder (" .. ns.Short(founder) .. ") can remove members.")
+    local roster, admin = ns.Store:Roster(fid)
+    if admin ~= ns.me then
+        ns.Print("Only the Admin (" .. ns.Short(admin) .. ") can remove members.")
         return
     end
     local m = roster[ns.Key(ns.Trim(target))]
@@ -427,13 +445,106 @@ function Sync:Remove(target)
     end
 end
 
+---------------------------------------------------------------------------
+-- Roles
+---------------------------------------------------------------------------
+ns.ROLE_LABEL = { admin = "Admin", inviter = "Inviter", member = "Member" }
+
+-- Returns fid, roster, member entry for `target` if I'm the Admin; prints why not otherwise.
+local function adminTarget(target)
+    local f, fid = ns.Store:Active()
+    if not f or f.pendingFrom then
+        ns.Print("You're not in a fellowship.")
+        return nil
+    end
+    local roster, admin = ns.Store:Roster(fid)
+    if admin ~= ns.me then
+        ns.Print("Only the Admin (" .. ns.Short(admin) .. ") can do that.")
+        return nil
+    end
+    local m = roster[ns.Key(ns.Trim(target))]
+    if not m then
+        ns.Print("No such member: " .. ns.Escape(target))
+        return nil
+    end
+    if ns.Key(m.name) == ns.meKey then
+        ns.Print("That's you.")
+        return nil
+    end
+    return fid, roster, m
+end
+
+function Sync:EnsureRoles()
+    local f, fid = ns.Store:Active()
+    if not f or f.pendingFrom then return end
+    local _, admin, state = ns.Store:Roster(fid)
+    if admin == ns.me and not state.rolesOn then self:Publish("V", {}) end
+end
+
+function Sync:SetRole(target, role)
+    local fid, _, m = adminTarget(target)
+    if not fid then return end
+    if m.role == role then
+        ns.Print(ns.Short(m.name) .. " is already " .. (role == "inviter" and "an Inviter" or "a Member") .. ".")
+        return
+    end
+    self:EnsureRoles()
+    self:Publish("R", { m.name, role })
+end
+
+function Sync:OfferAdmin(target)
+    if ns.Trim(target):lower() == "cancel" then
+        local f, fid = ns.Store:Active()
+        if not f then return end
+        local _, admin, state = ns.Store:Roster(fid)
+        if admin ~= ns.me or not state.offer then
+            ns.Print("There's no Admin offer to cancel.")
+            return
+        end
+        self:Publish("T", { "" })
+        return
+    end
+    local fid, _, m = adminTarget(target)
+    if not fid then return end
+    self:Publish("T", { m.name })
+    ns.Print("Asked " .. ns.ColorName(m.name) .. " to become Admin. You stay Admin until they accept"
+        .. (online[ns.Key(m.name)] and "." or "; they'll be asked next time they log in."))
+end
+
+local promptedOffers = {}
+
+function Sync:CheckAdminOffer()
+    local f, fid = ns.Store:Active()
+    if not f or f.pendingFrom then return end
+    local _, _, state = ns.Store:Roster(fid)
+    local o = state.offer
+    if not o or ns.Key(o.target) ~= ns.meKey then return end
+    local id = o.author .. "#" .. o.seq
+    if promptedOffers[id] then return end
+    promptedOffers[id] = true
+    ns.UI:ShowAdminOffer({ fid = fid, name = f.name, from = o.author, seq = o.seq, t = o.t })
+end
+
+function Sync:AnswerAdminOffer(data, accept)
+    local f, fid = ns.Store:Active()
+    if not f or fid ~= data.fid then return end
+    local _, _, state = ns.Store:Roster(fid)
+    local o = state.offer
+    if not o or o.author ~= data.from or o.seq ~= data.seq or ns.Key(o.target) ~= ns.meKey then
+        ns.Print("That Admin offer is no longer open.")
+        return
+    end
+    -- record after the offer, even if clocks tick within the same second
+    self:Publish(accept and "X" or "W", { o.author, tostring(o.seq) }, o.t + 1)
+end
+
 function Sync:PrintMembers()
     local f, fid = ns.Store:Active()
     if not f then
         ns.Print("You're not in a fellowship.")
         return
     end
-    local roster, founder = ns.Store:Roster(fid)
+    local roster, admin = ns.Store:Roster(fid)
     ns.Print(ns.Escape(f.name) .. " members:")
     local names = {}
     for _, m in pairs(roster) do names[#names + 1] = m.name end
@@ -443,6 +554,7 @@ function Sync:PrintMembers()
         if ns.Key(n) == ns.meKey then status = "|cff33ff99you|r"
         elseif online[ns.Key(n)] then status = "|cff33ff99online|r"
         else status = "|cff9d9d9doffline|r" end
-        ns.Output("  " .. n .. " - " .. status .. (n == founder and " (founder)" or ""))
+        local m = roster[ns.Key(n)]
+        ns.Output("  " .. ns.ColorName(n) .. " [" .. (ns.ROLE_LABEL[m.role] or "Member") .. "] - " .. status)
     end
 end

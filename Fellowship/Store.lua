@@ -20,8 +20,12 @@ local _, ns = ...
 local Store = {}
 ns.Store = Store
 
-local MEMBERSHIP = { N = true, J = true, L = true, K = true }
-local KINDS = { N = true, J = true, L = true, K = true, C = true, A = true, M = true }
+-- Membership/role events: never pruned, replayed to compute the roster.
+--   N founded  J joined  L left  K removed  V roles switched on
+--   R set role (inviter/member)  T admin offer  X admin offer accepted  W admin offer declined
+local MEMBERSHIP = { N = true, J = true, L = true, K = true, V = true, R = true, T = true, X = true, W = true }
+local KINDS = { C = true, A = true, M = true }
+for k in pairs(MEMBERSHIP) do KINDS[k] = true end
 ns.MEMBERSHIP_KINDS = MEMBERSHIP
 ns.EVENT_KINDS = KINDS
 
@@ -37,7 +41,7 @@ end
 local function invalidate(fid, membership)
     local c = C(fid)
     c.sorted = nil
-    if membership then c.roster = nil; c.founder = nil end
+    if membership then c.roster = nil; c.admin = nil; c.state = nil end
 end
 
 function Store:Init()
@@ -139,7 +143,7 @@ function Store:AddEvent(fid, e)
     return true
 end
 
-function Store:NewLocalEvent(fid, kind, data)
+function Store:NewLocalEvent(fid, kind, data, minTime)
     local f = self:Get(fid)
     if not f then return nil end
     local me = ns.me
@@ -147,7 +151,7 @@ function Store:NewLocalEvent(fid, kind, data)
     for s in pairs(f.events[me] or {}) do
         if s > max then max = s end
     end
-    local e = { a = me, s = max + 1, t = ns.Now(), k = kind, d = data or {} }
+    local e = { a = me, s = max + 1, t = math.max(ns.Now(), minTime or 0), k = kind, d = data or {} }
     if not self:AddEvent(fid, e) then return nil end
     e.d = f.events[me][e.s].d
     return e
@@ -215,30 +219,111 @@ function Store:Sorted(fid)
     return list
 end
 
--- Membership is derived by replaying N/J/L/K events in time order.
--- Returns roster ({ [key] = { name, since } }), founder name.
-function Store:Roster(fid)
-    local c = C(fid)
-    if c.roster then return c.roster, c.founder end
-    local roster, founder = {}, nil
-    for _, e in ipairs(self:Sorted(fid)) do
-        if e.k == "N" then
-            founder = founder or e.a
-            roster[e.a:lower()] = { name = e.a, since = e.t }
-        elseif e.k == "J" then
-            local who = e.d[1]
-            if who and who ~= "" and roster[e.a:lower()] then
-                roster[who:lower()] = { name = who, since = e.t }
-            end
-        elseif e.k == "L" then
-            roster[e.a:lower()] = nil
-        elseif e.k == "K" then
-            local who = e.d[1]
-            if who and e.a == founder then roster[who:lower()] = nil end
+-- Membership and roles are derived by replaying the membership events in time order,
+-- so every member computes the same answer from the same history.
+-- Returns roster ({ [key] = { name, since, role = "admin"|"inviter"|"member" } }), admin name, state.
+-- state = { founder, rolesOn, offer = { target, author, seq, t } or nil }
+local function successor(roster)
+    local best
+    for _, m in pairs(roster) do
+        local rank = (m.role == "inviter") and 0 or 1
+        if not best or rank < best.rank or (rank == best.rank and (m.since < best.m.since
+            or (m.since == best.m.since and m.name < best.m.name))) then
+            best = { m = m, rank = rank }
         end
     end
-    c.roster, c.founder = roster, founder
-    return roster, founder
+    return best and best.m.name
+end
+
+function Store:Roster(fid)
+    local c = C(fid)
+    if c.roster then return c.roster, c.admin, c.state end
+    local roster, admin = {}, nil
+    local state = { rolesOn = false }
+    local function key(n) return n and n:lower() end
+    local function setAdmin(name)
+        if admin and roster[key(admin)] then roster[key(admin)].role = "inviter" end
+        admin = name
+        if name and roster[key(name)] then roster[key(name)].role = "admin" end
+    end
+    local function removed(name)
+        roster[key(name)] = nil
+        local o = state.offer
+        if o and (key(o.target) == key(name) or key(o.author) == key(name)) then state.offer = nil end
+        if admin and key(admin) == key(name) then
+            admin = nil
+            setAdmin(successor(roster))
+        end
+    end
+    local function canInvite(name)
+        local m = roster[key(name)]
+        if not m then return false end
+        return not state.rolesOn or m.role == "admin" or m.role == "inviter"
+    end
+    local function offerMatches(e)
+        local o = state.offer
+        return o and key(o.target) == key(e.a) and o.author == e.d[1] and tostring(o.seq) == e.d[2]
+            and admin == o.author
+    end
+
+    for _, e in ipairs(self:Sorted(fid)) do
+        local k, d = e.k, e.d
+        if k == "N" then
+            if not state.founder then
+                state.founder = e.a
+                roster[key(e.a)] = { name = e.a, since = e.t, role = "member" }
+                setAdmin(e.a)
+            end
+        elseif k == "J" then
+            local who = d[1]
+            if who and who ~= "" and canInvite(e.a) and not roster[key(who)] then
+                roster[key(who)] = { name = who, since = e.t, role = "member" }
+            end
+        elseif k == "L" then
+            if roster[key(e.a)] then removed(e.a) end
+        elseif k == "K" then
+            local who = d[1]
+            if who and e.a == admin and roster[key(who)] and key(who) ~= key(admin) then removed(who) end
+        elseif k == "V" then
+            if e.a == admin then state.rolesOn = true end
+        elseif k == "R" then
+            local who, role = d[1], d[2]
+            local m = who and roster[key(who)]
+            if e.a == admin and m and m.role ~= "admin" and (role == "inviter" or role == "member") then
+                m.role = role
+            end
+        elseif k == "T" then
+            local who = d[1]
+            if e.a == admin then
+                if who and who ~= "" and roster[key(who)] and key(who) ~= key(admin) then
+                    state.offer = { target = roster[key(who)].name, author = e.a, seq = e.s, t = e.t }
+                else
+                    state.offer = nil
+                end
+            end
+        elseif k == "X" then
+            if offerMatches(e) then
+                state.offer = nil
+                setAdmin(e.a)
+            end
+        elseif k == "W" then
+            if offerMatches(e) then state.offer = nil end
+        end
+    end
+    c.roster, c.admin, c.state = roster, admin, state
+    return roster, admin, state
+end
+
+function Store:Role(fid, name)
+    local m = self:Roster(fid)[ns.Key(name)]
+    return m and m.role
+end
+
+function Store:CanInvite(fid, name)
+    local roster, _, state = self:Roster(fid)
+    local m = roster[ns.Key(name)]
+    if not m then return false end
+    return not state.rolesOn or m.role == "admin" or m.role == "inviter"
 end
 
 function Store:IsMember(fid, name)

@@ -29,13 +29,24 @@ Each event is `(author, seq, time, kind, fields...)`. `seq` counts up per author
 | `N` | fellowship created (author is founder) | name |
 | `J` | member joined (author is the inviter) | new member |
 | `L` | author left | |
-| `K` | member removed (founder only) | member |
+| `K` | member removed (Admin only) | member |
+| `V` | roles switched on (Admin) | |
+| `R` | set role (Admin only) | member, `inviter` or `member` |
+| `T` | Admin offers the Admin role (`""` cancels) | member |
+| `X` | offer accepted: author becomes Admin, old Admin becomes Inviter | offer author, offer seq |
+| `W` | offer declined | offer author, offer seq |
 | `C` | chat | text |
 | `A` | achievement | id, name, points |
 | `M` | milestone | "level", level |
 
-Membership is computed by replaying `N/J/L/K` in time order, so the roster is part of
-the same log and syncs the same way.
+Membership and roles are computed by replaying these events in time order, so the
+roster is part of the same log and syncs the same way, including to members who were
+offline. The founder starts as Admin. Invites (`J`) count only from the Admin or an
+Inviter once roles are on (`V`); fellowships made before roles existed let any member
+invite until the Admin's client publishes `V`. A role change only counts if its author
+was Admin at that point in the history, and an Admin hand-off needs the target's own
+`X` event, so nobody can take Admin without accepting it. If an Admin's `L` ever
+appears, the longest-standing Inviter (else Member) takes over.
 
 For each author every member tracks a **high-water mark** (hwm): the highest `n` such
 that events `1..n` are all present. The vector of hwms is a compact "what I have".
@@ -80,6 +91,5 @@ pruned. Pruning raises a per-author `floor` so peers stop asking for removed eve
 - One fellowship per character (alts on the same account share storage, but each
   alt is invited separately).
 - Catch-up only happens when you overlap online with a member who has the history.
-- Founder leaving means nobody can remove members.
 - Ideas: minimap button, toast popups for achievements, multiple fellowships,
   sharing guild-wide or account-wide achievements as an option.
