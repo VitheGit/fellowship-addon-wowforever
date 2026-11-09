@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.4.1"
+ns.VERSION = "0.5.0"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -58,8 +58,60 @@ end
 ---------------------------------------------------------------------------
 -- Helpers
 ---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+-- Chat window routing: like ticking "Guild" in a chat tab's settings, each chat
+-- window can show or hide Fellowship messages (/fship tab, or right-click the tab).
+---------------------------------------------------------------------------
+local PREFIX_TAG = "|cff66ccff[Fellowship]|r "
+
+function ns.ChatFrameSet()
+    local s = ns.settings
+    if not s then return { [1] = true } end
+    if type(s.chatFrames) ~= "table" then s.chatFrames = { [1] = true } end
+    return s.chatFrames
+end
+
+-- Chat windows that show Fellowship messages (may be empty).
+function ns.OutputFrames()
+    local out = {}
+    for i = 1, (NUM_CHAT_WINDOWS or 10) do
+        local f = _G["ChatFrame" .. i]
+        if f and ns.ChatFrameSet()[i] then out[#out + 1] = f end
+    end
+    return out
+end
+
+function ns.ChatWindowName(i)
+    local name = GetChatWindowInfo and GetChatWindowInfo(i)
+    if not name or name == "" then name = "Chat window " .. i end
+    return name
+end
+
+-- Fellowship chat/achievement lines: only to windows that have Fellowship turned on.
+function ns.Echo(msg)
+    for _, f in ipairs(ns.OutputFrames()) do f:AddMessage(PREFIX_TAG .. tostring(msg)) end
+end
+
+-- Addon notices and command replies: to Fellowship windows, or the main window if none.
+function ns.Output(line)
+    local frames = ns.OutputFrames()
+    if #frames == 0 then frames = { DEFAULT_CHAT_FRAME } end
+    for _, f in ipairs(frames) do f:AddMessage(line) end
+end
+
 function ns.Print(msg)
-    DEFAULT_CHAT_FRAME:AddMessage("|cff66ccff[Fellowship]|r " .. tostring(msg))
+    ns.Output(PREFIX_TAG .. tostring(msg))
+end
+
+function ns.ToggleChatFrame(i)
+    local set = ns.ChatFrameSet()
+    set[i] = (not set[i]) or nil
+    local name = ns.ChatWindowName(i)
+    if set[i] then
+        ns.Print("Fellowship messages will show in " .. name .. ".")
+    else
+        ns.Print("Fellowship messages hidden from " .. name .. ".")
+    end
 end
 
 function ns.Now()
@@ -213,14 +265,14 @@ ns.Listen("EVENTS_ADDED", function(fid, added, live)
     for _, e in ipairs(added) do
         if e.a == ns.me then
             -- show your own chat lines too, like a sent whisper, so /fsay always gives feedback
-            if e.k == "C" and ns.settings.echoChat then ns.Print(ns.FormatEvent(e)) end
+            if e.k == "C" and ns.settings.echoChat then ns.Echo(ns.FormatEvent(e)) end
         else
             if e.k == "C" and ns.settings.echoChat then
-                ns.Print(ns.FormatEvent(e))
+                ns.Echo(ns.FormatEvent(e))
             elseif (e.k == "A" or e.k == "M") and ns.settings.echoAchievements then
-                ns.Print(ns.FormatEvent(e))
+                ns.Echo(ns.FormatEvent(e))
             elseif ns.MEMBERSHIP_KINDS[e.k] then
-                ns.Print(ns.FormatEvent(e))
+                ns.Echo(ns.FormatEvent(e))
             end
         end
     end
@@ -246,6 +298,7 @@ ns.On("PLAYER_LOGIN", function()
     ns.Achievements:Init()
     ns.UI:Init()
     ns.Menu:Init()
+    ns.Menu:InitChatTab()
     ns.ScheduleSummary(15)
 end)
 
@@ -269,6 +322,7 @@ local HELP = {
     "|cffffd100/fship remove <player>|r - remove a member (founder only)",
     "|cffffd100/fship sync|r - ask online members for anything you missed",
     "|cffffd100/fship color <hex>|r - change the chat text color (/fship color reset for default)",
+    "|cffffd100/fship tab|r - show/hide Fellowship in the chat tab you're typing in (or right-click a chat tab)",
     "|cffffd100/fship echo|r, |cffffd100/fship levels|r - toggle chat echo / level-up sharing",
 }
 
@@ -304,6 +358,27 @@ function ns.HandleSlash(input)
         end
         ns.Print("|cff" .. ns.TextColor() .. "Fellowship chat will look like this.|r")
         if ns.UI then ns.UI:QueueRefresh() end
+    elseif cmd == "tab" then
+        local arg = rest:lower()
+        if arg == "reset" then
+            ns.settings.chatFrames = { [1] = true }
+            ns.Print("Fellowship messages reset to show in " .. ns.ChatWindowName(1) .. " only.")
+        else
+            local i = tonumber(arg)
+            if not i then
+                local f = SELECTED_CHAT_FRAME or DEFAULT_CHAT_FRAME
+                i = f and f.GetID and f:GetID()
+            end
+            if not i or i < 1 or not _G["ChatFrame" .. i] then
+                ns.Print("Usage: /fship tab (toggles the chat tab you're typing in), /fship tab <number>, /fship tab reset")
+                return
+            end
+            ns.ToggleChatFrame(i)
+        end
+        local names = {}
+        for idx in pairs(ns.ChatFrameSet()) do names[#names + 1] = ns.ChatWindowName(idx) end
+        table.sort(names)
+        ns.Output("  Showing in: " .. (#names > 0 and table.concat(names, ", ") or "no chat windows (use /fs to read)"))
     elseif cmd == "echo" then
         ns.settings.echoChat = not ns.settings.echoChat
         ns.Print("Chat echo " .. (ns.settings.echoChat and "on" or "off") .. ".")
@@ -312,7 +387,7 @@ function ns.HandleSlash(input)
         ns.Print("Level-up sharing " .. (ns.settings.shareLevels and "on" or "off") .. ".")
     else
         ns.Print("Commands:")
-        for _, line in ipairs(HELP) do DEFAULT_CHAT_FRAME:AddMessage("  " .. line) end
+        for _, line in ipairs(HELP) do ns.Output("  " .. line) end
     end
 end
 

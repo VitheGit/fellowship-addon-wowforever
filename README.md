@@ -13,6 +13,7 @@ and read everything they missed.
 - Members tab with online status, founder, achievements shared and last activity
 - Names shown in class colors (works with class-color addons too)
 - Right-click a player (portrait, party/raid frame, name in chat) and pick "Invite to Fellowship"
+- Choose which chat tabs show Fellowship messages, like Guild or Party
 - Works across realms (invite `Name-Realm`)
 
 ## Install
@@ -42,6 +43,7 @@ Everyone in the group needs the addon installed.
 | `/fship remove <player>` | Remove a member (founder only) |
 | `/fship sync` | Ask online members for anything you missed right now |
 | `/fship color <hex>` | Change the chat text color (default sea green `4fd1b5`; `/fship color reset`) |
+| `/fship tab` | Show/hide Fellowship messages in the chat tab you are typing in (`/fship tab 2`, `/fship tab reset`). You can also right-click a chat tab and tick **Show Fellowship** |
 | `/fship echo` / `/fship levels` | Toggle chat echo in the main chat frame / level-up sharing |
 
 ## How offline catch-up works

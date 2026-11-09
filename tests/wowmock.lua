@@ -135,7 +135,8 @@ function Client:login()
         SetItemRef = function() end, IsShiftKeyDown = function() return false end,
         ACCEPT = "Accept", DECLINE = "Decline", YES = "Yes", NO = "No",
         ERR_CHAT_PLAYER_NOT_FOUND_S = "No player named '%s' is currently playing.",
-        DEFAULT_CHAT_FRAME = { AddMessage = function(_, m) table.insert(client.log, m) end },
+        NUM_CHAT_WINDOWS = 10,
+        GetChatWindowInfo = function(i) return ({ "General", "Fellowship" })[i] end,
         ChatFrame_AddMessageEventFilter = function(event, fn)
             client.filters[event] = client.filters[event] or {}
             table.insert(client.filters[event], fn)
@@ -178,6 +179,11 @@ function Client:login()
             end,
         },
     }
+    client.log2 = {}
+    base.ChatFrame1 = { AddMessage = function(_, m) table.insert(client.log, m) end, GetID = function() return 1 end }
+    base.ChatFrame2 = { AddMessage = function(_, m) table.insert(client.log2, m) end, GetID = function() return 2 end }
+    base.DEFAULT_CHAT_FRAME = base.ChatFrame1
+    base.SELECTED_CHAT_FRAME = base.ChatFrame1
     setmetatable(env, { __index = base })
     env._G = env
     if self.saved then env.FellowshipDB = deepcopy(self.saved) end
@@ -195,14 +201,17 @@ function Client:login()
 end
 
 -- Open a right-click menu; returns the button labels and a click function.
-function Client:openMenu(tag, contextData)
+function Client:openMenu(tag, contextData, owner)
     local buttons = {}
     local root = {
         CreateDivider = function() end,
         CreateTitle = function() end,
         CreateButton = function(_, text, fn) table.insert(buttons, { text = text, fn = fn }) end,
+        CreateCheckbox = function(_, text, isSelected, setSelected)
+            table.insert(buttons, { text = text, checked = isSelected, fn = setSelected })
+        end,
     }
-    for _, fn in ipairs(self.menus[tag] or {}) do fn(nil, root, contextData) end
+    for _, fn in ipairs(self.menus[tag] or {}) do fn(owner, root, contextData) end
     return buttons
 end
 

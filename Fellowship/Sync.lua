@@ -443,6 +443,6 @@ function Sync:PrintMembers()
         if ns.Key(n) == ns.meKey then status = "|cff33ff99you|r"
         elseif online[ns.Key(n)] then status = "|cff33ff99online|r"
         else status = "|cff9d9d9doffline|r" end
-        DEFAULT_CHAT_FRAME:AddMessage("  " .. n .. " - " .. status .. (n == founder and " (founder)" or ""))
+        ns.Output("  " .. n .. " - " .. status .. (n == founder and " (founder)" or ""))
     end
 end

@@ -51,6 +51,23 @@ function M:Modify(owner, rootDescription, contextData)
     rootDescription:CreateButton("Invite to Fellowship", function() ns.Sync:Invite(target) end)
 end
 
+-- Chat tab right-click menu: a "Show Fellowship" checkbox, like the Guild/Party options.
+M.CHAT_TAB_TAGS = { "MENU_FCF_TAB" }
+
+function M:InitChatTab()
+    if not (Menu and Menu.ModifyMenu) then return end
+    for _, tag in ipairs(self.CHAT_TAB_TAGS) do
+        Menu.ModifyMenu(tag, function(owner, rootDescription)
+            local id = owner and owner.GetID and owner:GetID()
+            if not id or not rootDescription.CreateCheckbox then return end
+            rootDescription:CreateDivider()
+            rootDescription:CreateCheckbox("Show Fellowship",
+                function() return ns.ChatFrameSet()[id] == true end,
+                function() ns.ToggleChatFrame(id) end)
+        end)
+    end
+end
+
 function M:Init()
     if not (Menu and Menu.ModifyMenu) then return end -- older menu system: use /fship invite instead
     for _, tag in ipairs(self.TAGS) do

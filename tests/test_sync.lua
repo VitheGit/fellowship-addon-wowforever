@@ -145,6 +145,30 @@ test("right-click 'Invite to Fellowship' on a portrait and in chat", function()
     assert(anna.ns.Store:IsMember(anna.ns.Store:ActiveId(), "Cara-Area52"))
 end)
 
+test("Fellowship can be moved to another chat tab", function()
+    local w, anna, bob = setup()
+    local function in2(c, text) for _, l in ipairs(c.log2) do if l:find(text, 1, true) then return true end end end
+    -- type "/fship tab" while in tab 2: adds tab 2
+    bob.env.SELECTED_CHAT_FRAME = bob.env.ChatFrame2
+    bob:slash("/fship tab")
+    -- right-click tab 1 and untick "Show Fellowship"
+    local b = bob:openMenu("MENU_FCF_TAB", nil, bob.env.ChatFrame1)
+    eq(b[1].text, "Show Fellowship"); eq(b[1].checked(), true)
+    b[1].fn()
+    eq(b[1].checked(), false)
+    local before = #bob.log
+    anna:slash("/fs only in tab two")
+    w:advance(2)
+    assert(in2(bob, "only in tab two"), "not in tab 2")
+    for i = before + 1, #bob.log do assert(not bob.log[i]:find("only in tab two", 1, true), "still in tab 1") end
+    -- with no tabs selected, chat is silent but command replies still show in the main window
+    bob:slash("/fship tab 2")
+    bob:slash("/fship who")
+    assert(bob:logContains("Anna-Silvermoon"), "who output lost")
+    bob:slash("/fship tab reset")
+    eq(bob.ns.ChatFrameSet()[1], true)
+end)
+
 test("live chat reaches online members and is echoed to their chat frame", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hey all, dungeon tonight?")
