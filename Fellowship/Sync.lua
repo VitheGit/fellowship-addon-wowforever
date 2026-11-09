@@ -7,6 +7,7 @@
 --   INV fid proto name                           invitation
 --   ACC fid proto                                invitation accepted
 --   DEC fid proto reason                         invitation declined
+--   PI  fid proto                                presence ping (a bounce means they logged off)
 --
 -- Catch-up: whenever two members meet (login, periodic ping, new member) they swap HI
 -- vectors; each side REQuests only the ranges it is missing. Because every member keeps
@@ -22,6 +23,7 @@ local pendingInvites = {} -- invitee key -> { fid, expires }
 ns.online = online
 
 local HELLO_INTERVAL = 300
+local PING_INTERVAL = 60
 local REQ_TIMEOUT = 60
 
 ---------------------------------------------------------------------------
@@ -82,6 +84,7 @@ function Sync:Init()
     -- after catching up: switch roles on for fellowships made before roles existed
     C_Timer.After(20, function() Sync:EnsureRoles() Sync:CheckAdminOffer() end)
     C_Timer.NewTicker(HELLO_INTERVAL, function() Sync:HelloAll() end)
+    C_Timer.NewTicker(PING_INTERVAL, function() Sync:PingOnline() end)
 end
 
 function Sync:IsOnline(name)
@@ -116,6 +119,16 @@ function Sync:Hello(fid, target, wantReply)
     end
     if not f.hwm[ns.me] then rec[#rec + 1] = { ns.me, 0, ns.Store:GetClass(ns.me) } end
     send(target, rec)
+end
+
+-- Cheap check that members we think are online still are: if they logged off,
+-- the whisper bounces and Comm marks them offline.
+function Sync:PingOnline()
+    local f, fid = ns.Store:Active()
+    if not f or f.pendingFrom then return end
+    for _, name in ipairs(otherMembers(fid)) do
+        if online[ns.Key(name)] then send(name, { header("PI", fid) }) end
+    end
 end
 
 function Sync:HelloAll()
@@ -255,6 +268,7 @@ function Sync:OnMessage(sender, records)
     if not f or ns.Store:ActiveId() ~= fid then return end
     if not self:Trusted(fid, f, key) then return end
     self:MarkOnline(key)
+    ns.Store:SetSeen(sender)
 
     if typ == "HI" then
         self:OnHello(sender, fid, f, h[4] == "1", records)
@@ -538,23 +552,41 @@ function Sync:AnswerAdminOffer(data, accept)
     self:Publish(accept and "X" or "W", { o.author, tostring(o.seq) }, o.t + 1)
 end
 
+-- Members sorted online first, then by name, with display strings.
+function Sync:MemberList(fid)
+    local roster, admin = ns.Store:Roster(fid)
+    local list = {}
+    for key, m in pairs(roster) do
+        local isMe = key == ns.meKey
+        local on = isMe or online[key] == true
+        local status
+        if on then
+            status = "|cff33ff99[Online]|r" .. (isMe and " |cff808080(you)|r" or "")
+        else
+            local seen = ns.Store:GetSeen(m.name) or ns.Store:LastActive(fid, m.name)
+            status = "|cff9d9d9d[Offline]|r" .. (seen and (" |cff808080last seen " .. ns.Ago(seen) .. "|r") or "")
+        end
+        list[#list + 1] = { key = key, name = m.name, since = m.since, role = m.role, online = on, status = status,
+            roleLabel = ns.ROLE_LABEL[m.role] or "Member" }
+    end
+    table.sort(list, function(a, b)
+        if a.online ~= b.online then return a.online end
+        return a.name < b.name
+    end)
+    local count = 0
+    for _, m in ipairs(list) do if m.online then count = count + 1 end end
+    return list, count
+end
+
 function Sync:PrintMembers()
     local f, fid = ns.Store:Active()
     if not f then
         ns.Print("You're not in a fellowship.")
         return
     end
-    local roster, admin = ns.Store:Roster(fid)
-    ns.Print(ns.Escape(f.name) .. " members:")
-    local names = {}
-    for _, m in pairs(roster) do names[#names + 1] = m.name end
-    table.sort(names)
-    for _, n in ipairs(names) do
-        local status
-        if ns.Key(n) == ns.meKey then status = "|cff33ff99you|r"
-        elseif online[ns.Key(n)] then status = "|cff33ff99online|r"
-        else status = "|cff9d9d9doffline|r" end
-        local m = roster[ns.Key(n)]
-        ns.Output("  " .. ns.ColorName(n) .. " [" .. (ns.ROLE_LABEL[m.role] or "Member") .. "] - " .. status)
+    local list, onlineCount = self:MemberList(fid)
+    ns.Print(string.format("%s: %d of %d online", ns.Escape(f.name), onlineCount, #list))
+    for _, m in ipairs(list) do
+        ns.Output("  " .. m.status .. "  " .. ns.ColorName(m.name) .. "  |cffffd100" .. m.roleLabel .. "|r")
     end
 end

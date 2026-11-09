@@ -60,6 +60,7 @@ that events `1..n` are all present. The vector of hwms is a compact "what I have
 | `EV fid 1 live` | event... | events (`live=1` when just created) |
 | `FL fid 1` | `author floor`... | "I pruned up to `floor`, don't wait for those" |
 | `INV fid 1 name` / `ACC` / `DEC reason` | | invitations |
+| `PI fid 1` | | presence ping every 60s to members seen online; a bounce marks them offline |
 
 Records are separated by byte `\30`, fields by `\31`; both are stripped from user text.
 

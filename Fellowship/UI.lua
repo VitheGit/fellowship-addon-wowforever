@@ -250,24 +250,15 @@ end
 
 local function renderMembers(log, fid)
     log:Clear()
-    local roster = ns.Store:Roster(fid)
-    local list = {}
-    for key, m in pairs(roster) do list[#list + 1] = { key = key, name = m.name, since = m.since, role = m.role } end
-    table.sort(list, function(a, b) return a.name < b.name end)
+    local list, onlineCount = ns.Sync:MemberList(fid)
     local achievementCounts = {}
     for _, e in ipairs(ns.Store:Sorted(fid)) do
         if e.k == "A" then achievementCounts[e.a] = (achievementCounts[e.a] or 0) + 1 end
     end
+    log:AddMessage(string.format("|cffffd100%d of %d online|r", onlineCount, #list))
     for _, m in ipairs(list) do
-        local status
-        if m.key == ns.meKey then status = "|cff33ff99you|r"
-        elseif ns.online[m.key] then status = "|cff33ff99online|r"
-        else status = "|cff9d9d9doffline|r" end
-        local last = ns.Store:LastActive(fid, m.name)
-        log:AddMessage(string.format("%s%s  %s   |cff808080member since %s, %d achievements shared%s|r",
-            ns.ColorName(m.name), " |cffffd100[" .. (ns.ROLE_LABEL[m.role] or "Member") .. "]|r", status,
-            date("%b %d %Y", m.since), achievementCounts[m.name] or 0,
-            last and (", last active " .. ns.TimeStamp(last)) or ""))
+        log:AddMessage(string.format("%s  %s  |cffffd100%s|r   |cff808080member since %s, %d achievements shared|r",
+            m.status, ns.ColorName(m.name), m.roleLabel, date("%b %d %Y", m.since), achievementCounts[m.name] or 0))
     end
     log:ScrollToTop()
 end

@@ -10,7 +10,7 @@ and read everything they missed.
   fills in what you missed, even if the original author is offline now
 - "New since you were last here" divider and a login summary
   ("While you were away: 12 messages and 3 achievements")
-- Members tab with online status, founder, achievements shared and last activity
+- Members tab and `/fship who` show who is Online/Offline (with "last seen"), founder, achievements shared and last activity
 - Names shown in class colors (works with class-color addons too)
 - Right-click a player (portrait, party/raid frame, name in chat) and pick "Invite to Fellowship"
 - Choose which chat tabs show Fellowship messages, like Guild or Party

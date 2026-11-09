@@ -55,6 +55,7 @@ function Store:Init()
     db.fellowships = db.fellowships or {}
     db.chars = db.chars or {}
     db.classes = db.classes or {} -- ["Name-Realm"] = "HUNTER", learned from members
+    db.seen = db.seen or {}       -- ["Name-Realm"] = server time we last heard from them
     self.db = db
     ns.settings = db.settings
 end
@@ -328,6 +329,14 @@ end
 
 function Store:IsMember(fid, name)
     return self:Roster(fid)[ns.Key(name)] ~= nil
+end
+
+function Store:SetSeen(name)
+    if self.db and name then self.db.seen[name] = ns.Now() end
+end
+
+function Store:GetSeen(name)
+    return name and self.db and self.db.seen[name]
 end
 
 function Store:GetClass(name)

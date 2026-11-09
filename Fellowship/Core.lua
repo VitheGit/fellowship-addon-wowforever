@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.6.0"
+ns.VERSION = "0.6.1"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -166,6 +166,14 @@ end
 -- Neutralise WoW escape sequences in user-supplied text.
 function ns.Escape(text)
     return (tostring(text or ""):gsub("|", "||"))
+end
+
+function ns.Ago(t)
+    local d = ns.Now() - (t or 0)
+    if d < 60 then return "just now" end
+    if d < 3600 then return math.floor(d / 60) .. "m ago" end
+    if d < 86400 then return math.floor(d / 3600) .. "h ago" end
+    return math.floor(d / 86400) .. "d ago"
 end
 
 function ns.TimeStamp(t)
