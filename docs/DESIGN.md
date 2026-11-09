@@ -92,5 +92,5 @@ pruned. Pruning raises a per-author `floor` so peers stop asking for removed eve
 - One fellowship per character (alts on the same account share storage, but each
   alt is invited separately).
 - Catch-up only happens when you overlap online with a member who has the history.
-- Ideas: minimap button, toast popups for achievements, multiple fellowships,
+- Ideas: toast popups for achievements, multiple fellowships,
   sharing guild-wide or account-wide achievements as an option.

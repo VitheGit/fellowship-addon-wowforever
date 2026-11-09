@@ -249,7 +249,7 @@ function UI:BuildSettings()
     if settingsFrame then return end
     local f = CreateFrame("Frame", "FellowshipSettingsFrame", UIParent, "BasicFrameTemplateWithInset")
     settingsFrame = f
-    f:SetSize(470, 450)
+    f:SetSize(470, 480)
     f:SetPoint("CENTER", 40, -20)
     f:SetMovable(true)
     f:EnableMouse(true)
@@ -319,7 +319,14 @@ function UI:BuildSettings()
     f.colorReset = makeButton(f, "Reset", 60, function() ns.HandleSlash("color reset"); UI:RefreshSettings() end)
     f.colorReset:SetPoint("TOPRIGHT", -20, y)
 
-    y = y - 34
+    y = y - 32
+    f.minimap = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    f.minimap:SetSize(24, 24)
+    f.minimap:SetPoint("TOPLEFT", 20, y + 5)
+    f.minimap:SetScript("OnClick", function(self) ns.MinimapButton:SetShown(self:GetChecked() and true or false) end)
+    label("Show minimap button", 48, y)
+
+    y = y - 30
     local tip = label("|cff808080To pick which chat tabs show Fellowship, right-click a chat tab and tick\n"
         .. "\"Show Fellowship\" (or type /fship tab in that tab). \"Share mine\" controls what your\n"
         .. "friends see from you; \"Show others'\" controls what you see.|r", 20, y)
@@ -332,6 +339,7 @@ function UI:RefreshSettings()
     if not settingsFrame then return end
     for key, cb in pairs(self.settingsChecks) do cb:SetChecked(ns.settings[key] and true or false) end
     settingsFrame.quality:SetText(qualityLabel())
+    settingsFrame.minimap:SetChecked(ns.settings.minimapShow ~= false)
     settingsFrame.color:SetText(ns.TextColor())
     settingsFrame.colorPreview:SetText("|cff" .. ns.TextColor() .. "Hello, fellowship!|r")
 end

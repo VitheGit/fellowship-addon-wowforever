@@ -6,7 +6,7 @@ World.__index = World
 
 local ADDON_DIR = (arg and arg[0] and arg[0]:match("^(.*)/tests/")) or "."
 ADDON_DIR = ADDON_DIR .. "/Fellowship/"
-local FILES = { "Core.lua", "Serializer.lua", "Store.lua", "Comm.lua", "Sync.lua", "Announce.lua", "Menu.lua", "UI.lua" }
+local FILES = { "Core.lua", "Serializer.lua", "Store.lua", "Comm.lua", "Sync.lua", "Announce.lua", "Menu.lua", "Minimap.lua", "UI.lua" }
 
 local function deepcopy(v)
     if type(v) ~= "table" then
@@ -213,6 +213,16 @@ function Client:login()
     base.ChatFrame1 = { AddMessage = function(_, m) table.insert(client.log, m) end, GetID = function() return 1 end }
     base.ChatFrame2 = { AddMessage = function(_, m) table.insert(client.log2, m) end, GetID = function() return 2 end }
     base.DEFAULT_CHAT_FRAME = base.ChatFrame1
+    base.Minimap = newStub()
+    base.GameTooltip = newStub()
+    base.GetCursorPosition = function() return 0, 0 end
+    base.MenuUtil = { CreateContextMenu = function(owner, gen)
+        local items = {}
+        local root = { CreateTitle = function() end,
+            CreateButton = function(_, text, fn) table.insert(items, { text = text, fn = fn }) end }
+        gen(owner, root)
+        client.contextMenu = items
+    end }
     base.SELECTED_CHAT_FRAME = base.ChatFrame1
     setmetatable(env, { __index = base })
     env._G = env

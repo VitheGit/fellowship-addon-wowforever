@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.7.2"
+ns.VERSION = "0.8.0"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -21,6 +21,9 @@ ns.defaults = {
     shareDeaths = true,       showDeaths = true,
     showPresence = true,      -- "Bob came online / went offline"
     shareLocation = true,     -- zone and level in other members' Members tab
+    -- minimap button
+    minimapShow = true,
+    minimapAngle = 210,
     -- storage
     maxEvents = 3000,         -- history kept per fellowship (membership events are never pruned)
     maxAgeDays = 180,         -- history older than this is pruned at login
@@ -371,6 +374,7 @@ ns.On("PLAYER_LOGIN", function()
     ns.UI:Init()
     ns.Menu:Init()
     ns.Menu:InitChatTab()
+    ns.MinimapButton:Init()
     ns.ScheduleSummary(15)
 end)
 
@@ -399,6 +403,7 @@ local HELP = {
     "|cffffd100/fship color <hex>|r - change the chat text color (/fship color reset for default)",
     "|cffffd100/fship tab|r - show/hide Fellowship in the chat tab you're typing in (or right-click a chat tab)",
     "|cffffd100/fship settings|r - choose what gets shared and shown",
+    "|cffffd100/fship minimap|r - show or hide the minimap button",
 }
 
 function ns.HandleSlash(input)
@@ -465,6 +470,9 @@ function ns.HandleSlash(input)
         ns.Print("Chat echo " .. (ns.settings.echoChat and "on" or "off") .. ".")
     elseif cmd == "settings" or cmd == "config" or cmd == "options" then
         ns.UI:ToggleSettings()
+    elseif cmd == "minimap" then
+        ns.MinimapButton:SetShown(not ns.settings.minimapShow)
+        ns.Print("Minimap button " .. (ns.settings.minimapShow and "shown." or "hidden."))
     elseif cmd == "levels" then
         ns.settings.shareLevels = not ns.settings.shareLevels
         ns.Print("Level-up sharing " .. (ns.settings.shareLevels and "on" or "off") .. ".")

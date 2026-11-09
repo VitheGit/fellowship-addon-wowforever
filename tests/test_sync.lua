@@ -386,6 +386,30 @@ test("Members tab lists every member and the title count matches", function()
     assert(title and title:find("3 of 3 online", 1, true), tostring(title))
 end)
 
+test("minimap button: left-click opens the window, right-click menu has Settings", function()
+    local w = World.new()
+    local c = w:client("Solo"); c:login(); w:advance(1)
+    local b = c.ns.MinimapButton.button
+    assert(b and b:IsShown(), "button missing")
+    b._scripts.OnEnter(b) -- tooltip shouldn't error
+    b._scripts.OnClick(b, "LeftButton")
+    assert(c.ns.UI:IsShown(), "window not opened")
+    b._scripts.OnClick(b, "RightButton")
+    eq(c.contextMenu[1].text, "Settings")
+    c.contextMenu[1].fn()
+    local settingsShown = false
+    for _, f in ipairs(c.frames) do if rawget(f, "minimap") and f:IsShown() then settingsShown = true end end
+    assert(settingsShown, "settings window not opened")
+    c.contextMenu[2].fn()
+    assert(not b:IsShown(), "hide from menu failed")
+    c:slash("/fship minimap")
+    assert(b:IsShown(), "slash did not bring it back")
+    -- position survives a relog
+    c.ns.settings.minimapAngle = 45
+    c:logout(); c:login()
+    eq(c.ns.settings.minimapAngle, 45)
+end)
+
 test("live chat reaches online members and is echoed to their chat frame", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hey all, dungeon tonight?")

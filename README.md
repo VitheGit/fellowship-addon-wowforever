@@ -19,6 +19,7 @@ and read everything they missed.
 - Names shown in class colors (works with class-color addons too)
 - Right-click a player (portrait, party/raid frame, name in chat) and pick "Invite to Fellowship"
 - Choose which chat tabs show Fellowship messages, like Guild or Party
+- Minimap button: left-click opens Fellowship, right-click for a menu (Settings), drag to move
 - Works across realms (invite `Name-Realm`)
 
 ## Install
@@ -53,6 +54,7 @@ Everyone in the group needs the addon installed.
 | `/fship color <hex>` | Change the chat text color (default sea green `4fd1b5`; `/fship color reset`) |
 | `/fship tab` | Show/hide Fellowship messages in the chat tab you are typing in (`/fship tab 2`, `/fship tab reset`). You can also right-click a chat tab and tick **Show Fellowship** |
 | `/fship settings` | Open the settings window |
+| `/fship minimap` | Show or hide the minimap button |
 
 ## Roles
 
