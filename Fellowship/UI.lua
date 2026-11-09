@@ -60,7 +60,7 @@ end
 function UI:Build()
     if frame then return end
     frame = CreateFrame("Frame", "FellowshipFrame", UIParent, "BasicFrameTemplateWithInset")
-    frame:SetSize(560, 440)
+    frame:SetSize(660, 440)
     frame:SetPoint("CENTER")
     frame:SetMovable(true)
     frame:EnableMouse(true)
@@ -99,11 +99,30 @@ function UI:Build()
     -- Chat
     local chat = panel()
     chat.log = makeLog(chat)
+    local SIDEBAR = 150
     chat.log:SetPoint("TOPLEFT", 4, -4)
-    chat.log:SetPoint("BOTTOMRIGHT", -4, 34)
+    chat.log:SetPoint("BOTTOMRIGHT", -(SIDEBAR + 10), 34)
     chat.input = makeInput(chat, 255, function(text) ns.Sync:PostChat(text) end)
     chat.input:SetPoint("BOTTOMLEFT", 8, 4)
-    chat.input:SetPoint("BOTTOMRIGHT", -4, 4)
+    chat.input:SetPoint("BOTTOMRIGHT", -(SIDEBAR + 10), 4)
+
+    -- Member list on the right, like the guild window: class color when online, grey when offline.
+    chat.divider = chat:CreateTexture(nil, "ARTWORK")
+    chat.divider:SetColorTexture(1, 1, 1, 0.12)
+    chat.divider:SetWidth(1)
+    chat.divider:SetPoint("TOPRIGHT", -(SIDEBAR + 2), -2)
+    chat.divider:SetPoint("BOTTOMRIGHT", -(SIDEBAR + 2), 2)
+    chat.membersHeader = chat:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    chat.membersHeader:SetPoint("TOPRIGHT", -6, -6)
+    chat.membersHeader:SetWidth(SIDEBAR - 8)
+    chat.membersHeader:SetJustifyH("LEFT")
+    chat.members = chat:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    chat.members:SetPoint("TOPRIGHT", -6, -26)
+    chat.members:SetPoint("BOTTOMRIGHT", -6, 4)
+    chat.members:SetWidth(SIDEBAR - 8)
+    chat.members:SetJustifyH("LEFT")
+    chat.members:SetJustifyV("TOP")
+    chat.members:SetSpacing(4)
     panels.chat = chat
 
     local settingsButton = makeButton(frame, "Settings", 90, function() UI:ToggleSettings() end)
@@ -392,6 +411,26 @@ local function renderFeed(log, fid, filter)
     log:ScrollToBottom()
 end
 
+local function renderSidebar(p, fid)
+    local list, onlineCount = ns.Sync:MemberList(fid)
+    p.membersHeader:SetText(string.format("Members  |cff808080%d/%d|r", onlineCount, #list))
+    local lines = {}
+    for _, m in ipairs(list) do
+        local name
+        if m.online then
+            name = ns.ColorName(m.name)
+            if ns.Key(m.name) ~= ns.Key(m.main) then name = name .. " |cff808080(" .. ns.Short(m.main) .. ")|r" end
+        else
+            name = "|cff6e6e6e" .. ns.Short(m.main) .. "|r"
+        end
+        if m.role == "admin" then
+            name = name .. " |cffffd100*|r"
+        end
+        lines[#lines + 1] = name
+    end
+    p.members:SetText(table.concat(lines, "\n"))
+end
+
 local function renderMembers(fs, fid)
     local list, onlineCount = ns.Sync:MemberList(fid)
     local lines = { string.format("|cffffd100%d of %d online|r", onlineCount, #list), " " }
@@ -432,6 +471,7 @@ function UI:Refresh()
     p:Show()
     if activeTab == "chat" then
         renderFeed(p.log, fid, function(e) return ns.Announce.ShouldShow(e) end)
+        renderSidebar(p, fid)
     elseif activeTab == "achievements" then
         renderFeed(p.log, fid, function(e) return (e.k == "A" or e.k == "M") and ns.Announce.ShouldShow(e) end)
     else

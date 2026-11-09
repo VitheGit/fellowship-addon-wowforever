@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.2
+
+- The chat window now has a member list on the right, like the guild window: online members in their class color (listed first), offline members greyed out, and the Admin marked with a gold *.
+
 ## 0.9.1 (first public release)
 
 Fellowship gives a small group of friends a private chat and a shared adventure feed, with history that catches you up on whatever you missed while offline.

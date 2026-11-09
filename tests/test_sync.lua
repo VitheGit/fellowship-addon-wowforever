@@ -500,6 +500,24 @@ test("a member removed while offline finds out when they log back in", function(
     for _, line in ipairs(cara:history()) do assert(not line:find("secret plans"), "removed member got new chat") end
 end)
 
+test("chat window sidebar: online in class color, offline greyed", function()
+    local w, anna, bob, cara = setup()
+    bob.class = "MAGE"
+    cara:logout(); w:advance(70)
+    anna:slash("/fs")
+    local text, header
+    for _, f in ipairs(anna.frames) do
+        local m = rawget(f, "members")
+        if type(m) == "table" then text = m._text; header = rawget(f, "membersHeader")._text end
+    end
+    assert(text, "no sidebar")
+    eq(header, "Members  |cff8080802/3|r")
+    assert(text:find("|cffaad372Anna|r |cffffd100*|r", 1, true), "admin anna not marked/colored: " .. text)
+    assert(text:find("|cff6e6e6eCara|r", 1, true), "offline cara not grey: " .. text)
+    local annaPos, caraPos = text:find("Anna", 1, true), text:find("Cara", 1, true)
+    assert(annaPos < caraPos, "online not listed first")
+end)
+
 test("live chat reaches online members and is echoed to their chat frame", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hey all, dungeon tonight?")
