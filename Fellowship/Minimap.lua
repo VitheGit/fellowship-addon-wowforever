@@ -1,5 +1,9 @@
 -- Minimap button: left-click opens the Fellowship window, right-click opens a small menu.
 -- Drag it around the edge of the minimap; its position is saved.
+--
+-- When LibDBIcon-1.0 is loaded (most minimap-button collectors and many addons ship it),
+-- the button is registered through it as "Fellowship", so collectors and minimap addons
+-- treat it like any other standard button. Otherwise a plain button of our own is used.
 local _, ns = ...
 local MB = {}
 ns.MinimapButton = MB
@@ -55,26 +59,30 @@ function MB:OpenMenu(owner)
     end
 end
 
-local function showTooltip(self)
-    if not GameTooltip then return end
-    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-    GameTooltip:AddLine("Fellowship")
+local function fillTooltip(tt)
+    tt:AddLine("Fellowship")
     local f, fid = ns.Store:Active()
     if f then
         local list, onlineCount = ns.Sync:MemberList(fid)
-        GameTooltip:AddLine(string.format("%s: %d of %d online", f.name, onlineCount, #list), 1, 1, 1)
+        tt:AddLine(string.format("%s: %d of %d online", f.name, onlineCount, #list), 1, 1, 1)
         local chats, achievements = ns.Store:UnreadCounts(fid)
         if chats + achievements > 0 then
-            GameTooltip:AddLine(string.format("%d new message%s, %d new announcement%s", chats, chats == 1 and "" or "s",
+            tt:AddLine(string.format("%d new message%s, %d new announcement%s", chats, chats == 1 and "" or "s",
                 achievements, achievements == 1 and "" or "s"), 0.31, 0.82, 0.71)
         end
     else
-        GameTooltip:AddLine("Not in a fellowship yet", 1, 1, 1)
+        tt:AddLine("Not in a fellowship yet", 1, 1, 1)
     end
-    GameTooltip:AddLine(" ")
-    GameTooltip:AddLine("|cffffd100Left-click|r to open Fellowship", 0.8, 0.8, 0.8)
-    GameTooltip:AddLine("|cffffd100Right-click|r for the menu", 0.8, 0.8, 0.8)
-    GameTooltip:AddLine("|cffffd100Drag|r to move", 0.8, 0.8, 0.8)
+    tt:AddLine(" ")
+    tt:AddLine("|cffffd100Left-click|r to open Fellowship", 0.8, 0.8, 0.8)
+    tt:AddLine("|cffffd100Right-click|r for the menu", 0.8, 0.8, 0.8)
+    tt:AddLine("|cffffd100Drag|r to move", 0.8, 0.8, 0.8)
+end
+
+local function showTooltip(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    fillTooltip(GameTooltip)
     GameTooltip:Show()
 end
 
@@ -123,15 +131,52 @@ function MB:Build()
     self:UpdatePosition()
 end
 
+-- LibDBIcon path. Returns true when the button is handled by LibDBIcon.
+local dbicon
+function MB:UseLibDBIcon()
+    if dbicon then return true end
+    local stub = LibStub
+    local ldb = stub and stub("LibDataBroker-1.1", true)
+    local icon = stub and stub("LibDBIcon-1.0", true)
+    if not (ldb and icon) then return false end
+    local obj = ldb:GetDataObjectByName("Fellowship") or ldb:NewDataObject("Fellowship", {
+        type = "launcher",
+        label = "Fellowship",
+        icon = MB.ICON,
+        OnClick = function(frame, mouseButton)
+            if GameTooltip then GameTooltip:Hide() end
+            if mouseButton == "RightButton" then MB:OpenMenu(frame) else ns.UI:Toggle() end
+        end,
+        OnTooltipShow = function(tt) if tt and tt.AddLine then fillTooltip(tt) end end,
+    })
+    -- LibDBIcon keeps {hide, minimapPos} in this table; start from our old position
+    local db = ns.settings.minimapIcon
+    if type(db) ~= "table" then
+        db = { minimapPos = ns.settings.minimapAngle or 210 }
+        ns.settings.minimapIcon = db
+    end
+    db.hide = ns.settings.minimapShow == false
+    if not icon:IsRegistered("Fellowship") then icon:Register("Fellowship", obj, db) end
+    dbicon = icon
+    self.button = icon:GetMinimapButton("Fellowship")
+    return true
+end
+
 function MB:SetShown(shown)
     ns.settings.minimapShow = shown and true or false
-    self:Build()
-    if not button then return end
-    if shown then button:Show() else button:Hide() end
+    if dbicon then
+        ns.settings.minimapIcon.hide = not shown
+        if shown then dbicon:Show("Fellowship") else dbicon:Hide("Fellowship") end
+    else
+        self:Build()
+        if button then
+            if shown then button:Show() else button:Hide() end
+        end
+    end
     if ns.UI.RefreshSettings then ns.UI:RefreshSettings() end
 end
 
 function MB:Init()
-    self:Build()
+    if not self:UseLibDBIcon() then self:Build() end
     self:SetShown(ns.settings.minimapShow ~= false)
 end

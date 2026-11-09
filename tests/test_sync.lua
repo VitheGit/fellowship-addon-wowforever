@@ -773,6 +773,40 @@ test("inviting by first name only explains what to type", function()
     assert(a:logContains("Use their full name"), "no hint")
 end)
 
+test("minimap button goes through LibDBIcon when it is loaded", function()
+    -- a minimal stand-in for LibDataBroker-1.1 + LibDBIcon-1.0
+    local objects, icon = {}, { registered = {}, buttons = {} }
+    local ldb = {
+        GetDataObjectByName = function(_, n) return objects[n] end,
+        NewDataObject = function(_, n, o) objects[n] = o; return o end,
+    }
+    function icon:IsRegistered(n) return self.registered[n] ~= nil end
+    function icon:Register(n, o, db) self.registered[n] = { obj = o, db = db }; self.buttons[n] = { shown = not db.hide } end
+    function icon:GetMinimapButton(n) return self.buttons[n] end
+    function icon:Show(n) self.buttons[n].shown = true end
+    function icon:Hide(n) self.buttons[n].shown = false end
+    local libs = { ["LibDataBroker-1.1"] = ldb, ["LibDBIcon-1.0"] = icon }
+    local w = World.new()
+    local c = w:client("Solo")
+    c.globals = { LibStub = function(name) return libs[name] end }
+    c:login(); w:advance(1)
+    local reg = icon.registered.Fellowship
+    assert(reg, "not registered with LibDBIcon")
+    eq(reg.obj.label, "Fellowship")
+    eq(reg.db.minimapPos, 210, "old position carried over")
+    local lines = {}
+    reg.obj.OnTooltipShow({ AddLine = function(_, l) lines[#lines + 1] = l end })
+    eq(lines[1], "Fellowship")
+    reg.obj.OnClick(nil, "LeftButton")
+    assert(c.ns.UI:IsShown(), "left-click didn't open the window")
+    reg.obj.OnClick(nil, "RightButton")
+    eq(c.contextMenu[1].text, "Settings")
+    c:slash("/fship minimap")
+    eq(icon.buttons.Fellowship.shown, false); eq(reg.db.hide, true)
+    c:slash("/fship minimap")
+    eq(icon.buttons.Fellowship.shown, true)
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")

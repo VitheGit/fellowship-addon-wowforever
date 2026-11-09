@@ -229,6 +229,7 @@ function Client:login()
         client.contextMenu = items
     end }
     base.SELECTED_CHAT_FRAME = base.ChatFrame1
+    for k, v in pairs(self.globals or {}) do base[k] = v end -- per-test extras (e.g. a fake LibStub)
     setmetatable(env, { __index = base })
     env._G = env
     local acct = self.accountOf

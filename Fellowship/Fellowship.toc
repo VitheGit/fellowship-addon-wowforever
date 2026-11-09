@@ -3,8 +3,9 @@
 ## Notes: Private chat and achievement feed for small friend groups, with offline catch-up.
 ## IconTexture: Interface\AddOns\Fellowship\Media\icon
 ## Author: Brad
-## Version: 0.9.4
+## Version: 0.9.5
 ## SavedVariables: FellowshipDB
+## OptionalDeps: LibStub, LibDataBroker-1.1, LibDBIcon-1.0
 ## AddonCompartmentFunc: Fellowship_OnAddonCompartmentClick
 
 Core.lua
