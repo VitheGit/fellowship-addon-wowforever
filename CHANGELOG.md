@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.3
+
+- Fixed invites that could get stuck at "(Joining...)". Invitations now survive a /reload by the inviter, a lost accept is retried automatically, and the join finishes as soon as the fellowship history arrives.
+- You now get a notice when you and the inviter are on different Fellowship versions.
+- New `/fship version` and `/fship debug` commands to help track down sync problems.
+
 ## 0.9.2
 
 - The chat window now has a member list on the right, like the guild window: online members in their class color (listed first), offline members greyed out, and the Admin marked with a gold *.

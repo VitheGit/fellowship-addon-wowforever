@@ -22,7 +22,6 @@ local online = {}        -- key -> true (seen) / false (whisper bounced)
 local status = {}        -- key -> { level, zone } from members who share their location
 ns.memberStatus = status
 local pendingReq = {}    -- fid -> author -> GetTime() expiry
-local pendingInvites = {} -- invitee key -> { fid, expires }
 ns.online = online
 
 local HELLO_INTERVAL = 300
@@ -341,6 +340,7 @@ function Sync:OnEvents(fid, live, records)
 end
 
 function Sync:AfterAdded(fid, added, live)
+    self:CheckJoined(fid)
     for _, e in ipairs(added) do
         if ns.MEMBERSHIP_KINDS[e.k] then
             self:OnRosterChanged(fid, added)
@@ -355,13 +355,7 @@ function Sync:OnRosterChanged(fid, added)
     local f = ns.Store:Get(fid)
     local roster = ns.Store:Roster(fid)
     if f.pendingFrom then
-        if roster[ns.meKey] then
-            f.pendingFrom = nil
-            ns.Print("Welcome to " .. ns.Escape(f.name) .. "! Catching up on history...")
-            ns.Fire("FELLOWSHIP_CHANGED")
-            self:EnsureAccount()
-            self:HelloAll()
-        end
+        self:CheckJoined(fid)
         return
     end
     if not roster[ns.meKey] then
@@ -402,9 +396,10 @@ function Sync:OnMessage(sender, records)
     local key = ns.Key(sender)
     if key == ns.meKey then return end
 
-    if typ == "INV" then return self:OnInvite(sender, fid, h[4]) end
-    if typ == "ACC" then return self:OnAccept(sender, fid) end
-    if typ == "DEC" then return self:OnDecline(sender, fid, h[4]) end
+    ns.Debug("<- " .. tostring(typ) .. " from " .. sender)
+    if typ == "INV" then return self:OnInvite(sender, fid, h[4], records) end
+    if typ == "ACC" then return self:OnAccept(sender, fid, records) end
+    if typ == "DEC" then return self:OnDecline(sender, fid, h[4], records) end
 
     local f = ns.Store:Get(fid)
     if not f or ns.Store:ActiveId() ~= fid then return end
@@ -495,6 +490,17 @@ function Sync:Create(name)
     ns.Fire("FELLOWSHIP_CHANGED")
 end
 
+-- Pending invitations are saved with the fellowship (so a /reload doesn't lose them) and
+-- carry a random token the invitee echoes back, so name spelling/case can't break the match.
+local function newToken()
+    local chars, out = "abcdefghijklmnopqrstuvwxyz0123456789", {}
+    for i = 1, 10 do
+        local k = math.random(1, #chars)
+        out[i] = chars:sub(k, k)
+    end
+    return table.concat(out)
+end
+
 function Sync:Invite(target)
     local f, fid = ns.Store:Active()
     if not f or f.pendingFrom then
@@ -516,48 +522,136 @@ function Sync:Invite(target)
         ns.Print(ns.Short(name) .. " is already in the fellowship.")
         return
     end
-    pendingInvites[key] = { fid = fid, expires = GetTime() + 300 }
-    send(name, { header("INV", fid, f.name) })
+    f.invites = f.invites or {}
+    local now = ns.Now()
+    for t, inv in pairs(f.invites) do
+        if inv.expires < now or ns.Key(inv.name) == key then f.invites[t] = nil end
+    end
+    local token = newToken()
+    f.invites[token] = { name = name, expires = now + 900 }
+    send(name, { header("INV", fid, f.name), { token, ns.VERSION } })
     ns.Print("Invitation sent to " .. ns.Short(name) .. ". They need Fellowship installed to see it.")
 end
 
-function Sync:OnInvite(sender, fid, name)
+function Sync:OnInvite(sender, fid, name, records)
+    local extra = records and records[2] or {}
+    local token, version = extra[1], extra[2]
     if ns.Store:ActiveId() then
-        send(sender, { header("DEC", fid, "busy") })
+        send(sender, { header("DEC", fid, "busy"), { token or "", ns.VERSION } })
         return
     end
     name = ns.Truncate(tostring(name or "?"), 48)
-    ns.UI:ShowInvite({ fid = fid, name = name, from = sender })
+    if version and version ~= ns.VERSION then
+        ns.Print(ns.ColorName(sender) .. " is using Fellowship " .. ns.Escape(version) .. " and you have "
+            .. ns.VERSION .. ". If joining doesn't finish, make sure you both have the latest version.")
+    end
+    ns.UI:ShowInvite({ fid = fid, name = name, from = sender, token = token })
+end
+
+local joinRetry -- ticker while we're waiting to be let in
+
+function Sync:SendJoinRequest(data)
+    send(data.from, { header("ACC", data.fid), { data.token or "", ns.VERSION } })
+    self:Hello(data.fid, data.from, true)
 end
 
 function Sync:AcceptInvite(data)
     if ns.Store:ActiveId() then return end
     ns.Store:Create(data.fid, data.name, data.from)
-    send(data.from, { header("ACC", data.fid) })
-    self:Hello(data.fid, data.from, true)
+    ns.Store:Get(data.fid).joinToken = data.token
+    self:SendJoinRequest(data)
     ns.Print("Joining " .. ns.Escape(data.name) .. "...")
     ns.Fire("FELLOWSHIP_CHANGED")
+    self:WatchJoin(data)
+end
+
+-- While joining: resend every 15s (a message can be lost, or the inviter may have just
+-- reloaded), and explain what to check if it's taking too long.
+function Sync:WatchJoin(data)
+    if joinRetry then joinRetry:Cancel() end
+    local tries = 0
+    joinRetry = C_Timer.NewTicker(15, function()
+        local f = ns.Store:Get(data.fid)
+        if not f or not f.pendingFrom or ns.Store:ActiveId() ~= data.fid then
+            joinRetry:Cancel(); joinRetry = nil
+            return
+        end
+        if Sync:CheckJoined(data.fid) then return end
+        tries = tries + 1
+        if tries == 8 then
+            ns.Print("Still waiting for " .. ns.ColorName(data.from) .. " to let you in. They need to be online and on "
+                .. "the same Fellowship version. You can /fship leave and ask for a new invite.")
+        end
+        if tries > 40 then
+            joinRetry:Cancel(); joinRetry = nil
+            return
+        end
+        Sync:SendJoinRequest(data)
+    end)
+end
+
+-- Joining is done once the history says we're a member (checked after any new events too).
+function Sync:CheckJoined(fid)
+    local f = ns.Store:Get(fid)
+    if not f or not f.pendingFrom then return false end
+    if ns.Store:Roster(fid)[ns.meKey] then
+        f.pendingFrom, f.joinToken = nil, nil
+        ns.Print("Welcome to " .. ns.Escape(f.name) .. "! Catching up on history...")
+        ns.Fire("FELLOWSHIP_CHANGED")
+        self:EnsureAccount()
+        self:HelloAll()
+        return true
+    end
+    return false
 end
 
 function Sync:DeclineInvite(data)
-    send(data.from, { header("DEC", data.fid, "declined") })
+    send(data.from, { header("DEC", data.fid, "declined"), { data.token or "", ns.VERSION } })
 end
 
-function Sync:OnAccept(sender, fid)
+-- Find the saved invitation an ACC/DEC answers: by token, or by name for older versions.
+local function findInvite(f, sender, token)
+    if not f or not f.invites then return nil end
+    local now = ns.Now()
+    if token and token ~= "" and f.invites[token] and f.invites[token].expires >= now then return token end
     local key = ns.Key(sender)
-    local p = pendingInvites[key]
-    if not p or p.fid ~= fid or p.expires < GetTime() then return end
-    pendingInvites[key] = nil
-    if ns.Store:ActiveId() ~= fid or not ns.Store:CanInvite(fid, ns.me) then return end
+    for t, inv in pairs(f.invites) do
+        if inv.expires >= now and ns.Key(inv.name) == key then return t end
+    end
+end
+
+function Sync:OnAccept(sender, fid, records)
+    local extra = records and records[2] or {}
+    local f = ns.Store:Get(fid)
+    if not f or ns.Store:ActiveId() ~= fid then return end
+    local key = ns.Key(sender)
+    if ns.Store:IsMember(fid, sender) then
+        -- already let in (a retry): just make sure they're syncing
+        self:MarkOnline(key)
+        self:Hello(fid, sender, true)
+        return
+    end
+    local token = findInvite(f, sender, extra[1])
+    if not token then
+        ns.Debug("ACC from " .. sender .. " with no matching invitation")
+        return
+    end
+    if not ns.Store:CanInvite(fid, ns.me) then return end
+    f.invites[token] = nil
+    if extra[2] and extra[2] ~= ns.VERSION then
+        ns.Print(ns.ColorName(sender) .. " is using Fellowship " .. ns.Escape(extra[2]) .. " (you have "
+            .. ns.VERSION .. "). Ask them to update if anything looks off.")
+    end
     self:MarkOnline(key)
     self:Publish("J", { sender })
 end
 
-function Sync:OnDecline(sender, fid, reason)
-    local key = ns.Key(sender)
-    local p = pendingInvites[key]
-    if not p or p.fid ~= fid then return end
-    pendingInvites[key] = nil
+function Sync:OnDecline(sender, fid, reason, records)
+    local extra = records and records[2] or {}
+    local f = ns.Store:Get(fid)
+    local token = findInvite(f, sender, extra[1])
+    if not token then return end
+    f.invites[token] = nil
     if reason == "busy" then
         ns.Print(ns.Short(sender) .. " is already in another fellowship.")
     else

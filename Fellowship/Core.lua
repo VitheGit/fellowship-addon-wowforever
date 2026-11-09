@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.9.2"
+ns.VERSION = "0.9.3"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -125,6 +125,12 @@ function ns.ToggleChatFrame(i)
         ns.Print("Fellowship messages will show in " .. name .. ".")
     else
         ns.Print("Fellowship messages hidden from " .. name .. ".")
+    end
+end
+
+function ns.Debug(msg)
+    if ns.settings and ns.settings.debug then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff808080[Fellowship debug]|r " .. tostring(msg))
     end
 end
 
@@ -485,6 +491,11 @@ function ns.HandleSlash(input)
         ns.Print("Chat echo " .. (ns.settings.echoChat and "on" or "off") .. ".")
     elseif cmd == "settings" or cmd == "config" or cmd == "options" then
         ns.UI:ToggleSettings()
+    elseif cmd == "debug" then
+        ns.settings.debug = not ns.settings.debug
+        ns.Print("Debug messages " .. (ns.settings.debug and "on" or "off") .. ".")
+    elseif cmd == "version" then
+        ns.Print("Fellowship " .. ns.VERSION)
     elseif cmd == "minimap" then
         ns.MinimapButton:SetShown(not ns.settings.minimapShow)
         ns.Print("Minimap button " .. (ns.settings.minimapShow and "shown." or "hidden."))

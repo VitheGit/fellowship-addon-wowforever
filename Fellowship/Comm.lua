@@ -86,6 +86,7 @@ end
 
 -- Queue `payload` for `target`. bulk = true for history catch-up traffic.
 function Comm:Send(target, payload, bulk)
+    ns.Debug("-> " .. (payload:match("^[^\30\31]*") or "?") .. " to " .. tostring(target) .. " (" .. #payload .. " bytes)")
     msgCounter = (msgCounter % 46655) + 1
     local id = toBase36(msgCounter)
     local parts, pos = {}, 1

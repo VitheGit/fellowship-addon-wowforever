@@ -197,6 +197,7 @@ function Client:login()
                 b.tokens = b.tokens - 1
                 world.sent = (world.sent or 0) + 1
                 local from = client.full
+                if world.dropper and world.dropper(from, target, text) then return 0 end
                 world:schedule(world.time + 0.05, function()
                     local dest = world:find(target, client.realm)
                     if dest and dest.online then
