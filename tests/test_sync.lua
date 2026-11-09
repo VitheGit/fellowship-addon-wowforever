@@ -119,6 +119,32 @@ test("/fs <message> chats, /fs alone opens the window, /fship runs commands", fu
     assert(solo:logContains("/fs <message>"), "help missing chat line")
 end)
 
+test("right-click 'Invite to Fellowship' on a portrait and in chat", function()
+    local w = World.new()
+    local anna, bob, cara = w:client("Anna"), w:client("Bob"), w:client("Cara", "Area52")
+    anna.units = {
+        target = { name = "Bob", player = true, faction = "Alliance" },
+        focus = { name = "Gnoll", player = false },
+        party1 = { name = "Horde", realm = "Area52", player = true, faction = "Horde" },
+    }
+    anna:login(); bob:login(); cara:login(); w:advance(1)
+    -- not in a fellowship yet: no option
+    eq(#anna:openMenu("MENU_UNIT_TARGET", { unit = "target" }), 0)
+    anna:slash("/fship create Crew")
+    local b = anna:openMenu("MENU_UNIT_TARGET", { unit = "target" })
+    eq(#b, 1); eq(b[1].text, "Invite to Fellowship")
+    eq(#anna:openMenu("MENU_UNIT_FOCUS", { unit = "focus" }), 0, "NPCs get no option")
+    eq(#anna:openMenu("MENU_UNIT_PARTY", { unit = "party1" }), 0, "other faction gets no option")
+    b[1].fn(); w:advance(1)
+    assert(bob:acceptPopup("FELLOWSHIP_INVITE")); w:advance(10)
+    eq(#anna:openMenu("MENU_UNIT_TARGET", { unit = "target" }), 0, "already a member")
+    -- name clicked in chat, cross-realm
+    b = anna:openMenu("MENU_UNIT_FRIEND", { name = "Cara", server = "Area52" })
+    eq(#b, 1); b[1].fn(); w:advance(1)
+    assert(cara:acceptPopup("FELLOWSHIP_INVITE")); w:advance(30)
+    assert(anna.ns.Store:IsMember(anna.ns.Store:ActiveId(), "Cara-Area52"))
+end)
+
 test("live chat reaches online members and is echoed to their chat frame", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hey all, dungeon tonight?")

@@ -6,7 +6,7 @@ World.__index = World
 
 local ADDON_DIR = (arg and arg[0] and arg[0]:match("^(.*)/tests/")) or "."
 ADDON_DIR = ADDON_DIR .. "/Fellowship/"
-local FILES = { "Core.lua", "Serializer.lua", "Store.lua", "Comm.lua", "Sync.lua", "Achievements.lua", "UI.lua" }
+local FILES = { "Core.lua", "Serializer.lua", "Store.lua", "Comm.lua", "Sync.lua", "Achievements.lua", "Menu.lua", "UI.lua" }
 
 local function deepcopy(v)
     if type(v) ~= "table" then
@@ -97,6 +97,8 @@ function Client:login()
     self.online = true
     self.frames = {}
     self.filters = {}
+    self.menus = {}
+    self.units = self.units or {}
     self.bucket = { tokens = 10, last = world.time }
     local env = {}
     self.env = env
@@ -115,7 +117,14 @@ function Client:login()
         geterrorhandler = function() return function(err) error(err, 0) end end,
         GetTime = function() return world.time end,
         GetServerTime = function() return world.epoch + math.floor(world.time) end,
-        UnitFullName = function() return client.name, client.realm end,
+        UnitFullName = function(unit)
+            if unit and unit ~= "player" then local u = client.units[unit]; return u.name, u.realm end
+            return client.name, client.realm
+        end,
+        Menu = { ModifyMenu = function(tag, fn) client.menus[tag] = client.menus[tag] or {}; table.insert(client.menus[tag], fn) end },
+        UnitExists = function(unit) return client.units[unit] ~= nil end,
+        UnitIsPlayer = function(unit) return client.units[unit] and client.units[unit].player end,
+        UnitFactionGroup = function(unit) if unit == "player" then return "Alliance" end return client.units[unit] and client.units[unit].faction end,
         UnitClass = function() return client.class or "Hunter", (client.class or "HUNTER"):upper(), 3 end,
         RAID_CLASS_COLORS = { HUNTER = { r = 0.67, g = 0.83, b = 0.45, colorStr = "ffaad372" } },
         GetNormalizedRealmName = function() return client.realm end,
@@ -183,6 +192,18 @@ function Client:login()
     self:fire("PLAYER_LOGIN")
     self:fire("PLAYER_ENTERING_WORLD")
     return self
+end
+
+-- Open a right-click menu; returns the button labels and a click function.
+function Client:openMenu(tag, contextData)
+    local buttons = {}
+    local root = {
+        CreateDivider = function() end,
+        CreateTitle = function() end,
+        CreateButton = function(_, text, fn) table.insert(buttons, { text = text, fn = fn }) end,
+    }
+    for _, fn in ipairs(self.menus[tag] or {}) do fn(nil, root, contextData) end
+    return buttons
 end
 
 function Client:system(msg)

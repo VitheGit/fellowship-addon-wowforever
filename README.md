@@ -12,6 +12,7 @@ and read everything they missed.
   ("While you were away: 12 messages and 3 achievements")
 - Members tab with online status, founder, achievements shared and last activity
 - Names shown in class colors (works with class-color addons too)
+- Right-click a player (portrait, party/raid frame, name in chat) and pick "Invite to Fellowship"
 - Works across realms (invite `Name-Realm`)
 
 ## Install
