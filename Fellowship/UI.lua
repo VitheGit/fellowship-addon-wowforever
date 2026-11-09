@@ -135,7 +135,7 @@ function UI:Build()
     none.text = none:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     none.text:SetPoint("TOP", 0, -40)
     none.text:SetWidth(460)
-    none.text:SetText("You're not in a fellowship yet.\n\nCreate one below and invite your friends with /fs invite <player>, "
+    none.text:SetText("You're not in a fellowship yet.\n\nCreate one below and invite your friends with /fship invite <player>, "
         .. "or ask a friend to invite you.\n\nEveryone in the fellowship keeps a copy of the chat and achievement history, "
         .. "so you can catch up on anything you missed while offline.")
     none.input = makeInput(none, 48, function(text) ns.Sync:Create(text) end)

@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.2.1"
+ns.VERSION = "0.3.0"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -259,22 +259,22 @@ end)
 -- Slash commands
 ---------------------------------------------------------------------------
 local HELP = {
-    "|cffffd100/fs|r - open the Fellowship window",
-    "|cffffd100/fsay <message>|r - talk to your fellowship",
-    "|cffffd100/fs create <name>|r - start a new fellowship",
-    "|cffffd100/fs invite <player>|r - invite someone (they need Fellowship installed)",
-    "|cffffd100/fs who|r - list members and who is online",
-    "|cffffd100/fs leave|r - leave your fellowship",
-    "|cffffd100/fs remove <player>|r - remove a member (founder only)",
-    "|cffffd100/fs sync|r - ask online members for anything you missed",
-    "|cffffd100/fs color <hex>|r - change the chat text color (/fs color reset for default)",
-    "|cffffd100/fs echo|r, |cffffd100/fs levels|r - toggle chat echo / level-up sharing",
+    "|cffffd100/fs <message>|r - talk to your fellowship",
+    "|cffffd100/fs|r or |cffffd100/fship|r - open the Fellowship window",
+    "|cffffd100/fship create <name>|r - start a new fellowship",
+    "|cffffd100/fship invite <player>|r - invite someone (they need Fellowship installed)",
+    "|cffffd100/fship who|r - list members and who is online",
+    "|cffffd100/fship leave|r - leave your fellowship",
+    "|cffffd100/fship remove <player>|r - remove a member (founder only)",
+    "|cffffd100/fship sync|r - ask online members for anything you missed",
+    "|cffffd100/fship color <hex>|r - change the chat text color (/fship color reset for default)",
+    "|cffffd100/fship echo|r, |cffffd100/fship levels|r - toggle chat echo / level-up sharing",
 }
 
 function ns.HandleSlash(input)
     local cmd, rest = tostring(input or ""):match("^%s*(%S*)%s*(.-)%s*$")
     cmd = (cmd or ""):lower()
-    if cmd == "" then
+    if cmd == "" or cmd == "window" or cmd == "show" then
         ns.UI:Toggle()
     elseif cmd == "create" then
         ns.Sync:Create(rest)
@@ -298,7 +298,7 @@ function ns.HandleSlash(input)
         elseif hex:match("^%x%x%x%x%x%x$") then
             ns.settings.textColor = hex
         else
-            ns.Print("Usage: /fs color <hex like 4fd1b5> or /fs color reset")
+            ns.Print("Usage: /fship color <hex like 4fd1b5> or /fship color reset")
             return
         end
         ns.Print("|cff" .. ns.TextColor() .. "Fellowship chat will look like this.|r")
@@ -315,12 +315,21 @@ function ns.HandleSlash(input)
     end
 end
 
-SLASH_FELLOWSHIP1 = "/fellowship"
-SLASH_FELLOWSHIP2 = "/fs"
+-- /fship (or /fellowship): commands and settings
+SLASH_FELLOWSHIP1 = "/fship"
+SLASH_FELLOWSHIP2 = "/fellowship"
 SlashCmdList.FELLOWSHIP = function(input) ns.HandleSlash(input) end
 
-SLASH_FELLOWSHIPSAY1 = "/fsay"
-SlashCmdList.FELLOWSHIPSAY = function(text) ns.Sync:PostChat(text) end
+-- /fs <message>: talk. /fs on its own opens the window.
+SLASH_FELLOWSHIPSAY1 = "/fs"
+SLASH_FELLOWSHIPSAY2 = "/fsay"
+SlashCmdList.FELLOWSHIPSAY = function(text)
+    if ns.Trim(text) == "" then
+        ns.UI:Toggle()
+    else
+        ns.Sync:PostChat(text)
+    end
+end
 
 function Fellowship_OnAddonCompartmentClick()
     ns.UI:Toggle()

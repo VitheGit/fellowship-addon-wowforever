@@ -4,7 +4,7 @@ A WoW Forever addon for small friend groups: a private group chat and a shared
 achievement feed that **persists**, so anyone who was offline can open the window
 and read everything they missed.
 
-- Private chat between fellowship members (`/fsay hello!`)
+- Private chat between fellowship members (`/fs hello!`)
 - Achievements and level-ups are shared automatically
 - Full history saved on every member's machine; when you log in, whoever is online
   fills in what you missed, even if the original author is offline now
@@ -32,16 +32,16 @@ Everyone in the group needs the addon installed.
 
 | Command | What it does |
 | --- | --- |
-| `/fs` | Open or close the Fellowship window (also in the addon compartment menu) |
-| `/fsay <message>` | Talk to your fellowship |
-| `/fs create <name>` | Start a fellowship |
-| `/fs invite <player>` | Invite someone (`Name` or `Name-Realm`) |
-| `/fs who` | List members and who is online |
-| `/fs leave` | Leave (your copy of the history is deleted) |
-| `/fs remove <player>` | Remove a member (founder only) |
-| `/fs sync` | Ask online members for anything you missed right now |
-| `/fs color <hex>` | Change the chat text color (default sea green `4fd1b5`; `/fs color reset`) |
-| `/fs echo` / `/fs levels` | Toggle chat echo in the main chat frame / level-up sharing |
+| `/fs <message>` | Talk to your fellowship |
+| `/fs` or `/fship` | Open or close the Fellowship window (also in the addon compartment menu) |
+| `/fship create <name>` | Start a fellowship |
+| `/fship invite <player>` | Invite someone (`Name` or `Name-Realm`) |
+| `/fship who` | List members and who is online |
+| `/fship leave` | Leave (your copy of the history is deleted) |
+| `/fship remove <player>` | Remove a member (founder only) |
+| `/fship sync` | Ask online members for anything you missed right now |
+| `/fship color <hex>` | Change the chat text color (default sea green `4fd1b5`; `/fship color reset`) |
+| `/fship echo` / `/fship levels` | Toggle chat echo in the main chat frame / level-up sharing |
 
 ## How offline catch-up works
 

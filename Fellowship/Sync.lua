@@ -284,7 +284,7 @@ function Sync:PostChat(text)
     if text == "" then return end
     local f = ns.Store:Active()
     if not f then
-        ns.Print("You're not in a fellowship yet. Use /fs create <name> or ask a friend to invite you.")
+        ns.Print("You're not in a fellowship yet. Use /fship create <name> or ask a friend to invite you.")
         return
     end
     if f.pendingFrom then
@@ -300,7 +300,7 @@ function Sync:PostChat(text)
         end
         if #others == 0 then
             self.hintShown = true
-            ns.Print("You're the only member so far. Invite friends with /fs invite <player>; they'll see this history when they join.")
+            ns.Print("You're the only member so far. Invite friends with /fship invite <player>; they'll see this history when they join.")
         elseif onlineCount == 0 then
             self.hintShown = true
             ns.Print("Nobody else is online right now. Your message is saved and members will get it when they log in.")
@@ -314,17 +314,17 @@ end
 function Sync:Create(name)
     name = ns.Trim(name):gsub("%c", "")
     if name == "" or #name > 48 then
-        ns.Print("Usage: /fs create <name> (up to 48 bytes)")
+        ns.Print("Usage: /fship create <name> (up to 48 bytes)")
         return
     end
     if ns.Store:ActiveId() then
-        ns.Print("You're already in a fellowship. /fs leave first.")
+        ns.Print("You're already in a fellowship. /fship leave first.")
         return
     end
     local fid = ns.me .. ":" .. ns.Now()
     ns.Store:Create(fid, name)
     self:Publish("N", { name })
-    ns.Print("Created " .. ns.Escape(name) .. ". Invite friends with /fs invite <player>.")
+    ns.Print("Created " .. ns.Escape(name) .. ". Invite friends with /fship invite <player>.")
     ns.Fire("FELLOWSHIP_CHANGED")
 end
 
@@ -336,7 +336,7 @@ function Sync:Invite(target)
     end
     local name = ns.NormalizeName(ns.Trim(target))
     if not name then
-        ns.Print("Usage: /fs invite <player> or <player-realm>")
+        ns.Print("Usage: /fship invite <player> or <player-realm>")
         return
     end
     local key = ns.Key(name)
