@@ -807,6 +807,44 @@ test("minimap button goes through LibDBIcon when it is loaded", function()
     eq(icon.buttons.Fellowship.shown, true)
 end)
 
+test("window shows a Create Fellowship screen when you're not in one", function()
+    local w = World.new()
+    local c = w:client("Vithe", "Valestrider"); c:login(); w:advance(1)
+    c:slash("/fs") -- open the window
+    local none
+    for _, f in ipairs(c.frames) do if rawget(f, "heading") then none = f end end
+    assert(none and none:IsShown(), "create screen not shown")
+    eq(none.heading:GetText(), "Create Fellowship")
+    eq(none.create:GetText(), "Create")
+    none.input:SetText("Loot Kills")
+    none.create:Click()
+    local f = c.ns.Store:Active()
+    assert(f, "not created"); eq(f.name, "Loot Kills")
+    c.ns.UI:Refresh()
+    assert(not none:IsShown(), "create screen still showing")
+end)
+
+test("the inviter hears back when an invitation is accepted, declined or ignored", function()
+    local w = World.new()
+    local anna, bob, cara, dan = w:client("Anna"), w:client("Bob"), w:client("Cara"), w:client("Dan")
+    anna:login(); bob:login(); cara:login(); dan:login(); w:advance(1)
+    anna:slash("/fship create Loot Kills")
+    anna:slash("/fship invite bob silvermoon"); anna:slash("/fship invite cara silvermoon")
+    anna:slash("/fship invite dan silvermoon"); w:advance(1)
+    assert(bob:acceptPopup("FELLOWSHIP_INVITE"))
+    assert(cara:declinePopup("FELLOWSHIP_INVITE", "clicked"))
+    assert(dan:declinePopup("FELLOWSHIP_INVITE", "timeout"))
+    w:advance(5)
+    assert(anna:logContains("Bob Silvermoon|r accepted your invitation and joined Loot Kills!"), "no accept notice")
+    assert(anna:logContains("Cara Silvermoon|r declined your invitation to Loot Kills."), "no decline notice")
+    assert(anna:logContains("Dan Silvermoon|r didn't answer your invitation in time"), "no timeout notice")
+    -- a retried accept doesn't repeat the notice
+    local n = 0
+    w:advance(60)
+    for _, l in ipairs(anna.log) do if l:find("accepted your invitation", 1, true) then n = n + 1 end end
+    eq(n, 1)
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")

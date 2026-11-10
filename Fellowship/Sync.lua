@@ -486,7 +486,7 @@ function Sync:Create(name)
     self:Publish("N", { name })
     self:Publish("V", {})
     self:Publish("Q", { ns.account.id, ns.account.secret })
-    ns.Print("Created " .. ns.Escape(name) .. ". Invite friends with /fship invite <player>.")
+    ns.Print("Created " .. ns.Escape(name) .. ". Invite friends by right-clicking them or with /fship invite <first> <last>.")
     ns.Fire("FELLOWSHIP_CHANGED")
 end
 
@@ -609,8 +609,8 @@ function Sync:CheckJoined(fid)
     return false
 end
 
-function Sync:DeclineInvite(data)
-    send(data.from, { header("DEC", data.fid, "declined"), { data.token or "", ns.VERSION } })
+function Sync:DeclineInvite(data, reason)
+    send(data.from, { header("DEC", data.fid, reason == "timeout" and "timeout" or "declined"), { data.token or "", ns.VERSION } })
 end
 
 -- Find the saved invitation an ACC/DEC answers: by token, or by name for older versions.
@@ -648,6 +648,8 @@ function Sync:OnAccept(sender, fid, records)
     end
     self:MarkOnline(key)
     self:Publish("J", { sender })
+    ns.Print(ns.ColorName(sender) .. " accepted your invitation and joined " .. ns.Escape(f.name) .. "!")
+    if PlaySound and SOUNDKIT and SOUNDKIT.UI_BNET_TOAST then PlaySound(SOUNDKIT.UI_BNET_TOAST) end
 end
 
 function Sync:OnDecline(sender, fid, reason, records)
@@ -657,9 +659,11 @@ function Sync:OnDecline(sender, fid, reason, records)
     if not token then return end
     f.invites[token] = nil
     if reason == "busy" then
-        ns.Print(ns.Short(sender) .. " is already in another fellowship.")
+        ns.Print(ns.ColorName(sender) .. " is already in another fellowship, so they can't join.")
+    elseif reason == "timeout" then
+        ns.Print(ns.ColorName(sender) .. " didn't answer your invitation in time. You can invite them again.")
     else
-        ns.Print(ns.Short(sender) .. " declined your invitation.")
+        ns.Print(ns.ColorName(sender) .. " declined your invitation to " .. ns.Escape(f.name) .. ".")
     end
 end
 

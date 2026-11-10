@@ -157,22 +157,43 @@ function UI:Build()
     mem.leave:SetPoint("BOTTOMRIGHT", -4, 4)
     panels.members = mem
 
-    -- No fellowship yet
+    -- No fellowship yet: a "Create Fellowship" screen
     local none = panel()
+    none.heading = none:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+    none.heading:SetPoint("TOP", 0, -30)
+    none.heading:SetText("Create Fellowship")
     none.text = none:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    none.text:SetPoint("TOP", 0, -40)
+    none.text:SetPoint("TOP", none.heading, "BOTTOM", 0, -14)
     none.text:SetWidth(460)
-    none.text:SetText("You're not in a fellowship yet.\n\nCreate one below and invite your friends with /fship invite <player>, "
-        .. "or ask a friend to invite you.\n\nEveryone in the fellowship keeps a copy of the chat and achievement history, "
-        .. "so you can catch up on anything you missed while offline.")
-    none.input = makeInput(none, 48, function(text) ns.Sync:Create(text) end)
-    none.input:SetPoint("TOP", -45, -170)
-    none.input:SetWidth(220)
-    none.create = makeButton(none, "Create", 80, function()
-        ns.Sync:Create(none.input:GetText())
-        none.input:SetText("")
+    none.text:SetText("You're not in a fellowship yet. Name your fellowship and click Create, "
+        .. "then invite friends by right-clicking them or with /fship invite <first> <last>.")
+    none.label = none:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    none.label:SetText("Fellowship name")
+    local function create()
+        local name = ns.Trim(none.input:GetText())
+        if name == "" then return end
+        ns.Sync:Create(name)
+        if ns.Store:ActiveId() then
+            none.input:SetText("")
+            none.input:ClearFocus()
+        end
+    end
+    none.input = makeInput(none, 48, create)
+    none.input:SetScript("OnEnterPressed", create) -- keep the text if creating fails
+    none.input:SetWidth(260)
+    none.input:SetPoint("TOP", none.text, "BOTTOM", -49, -50) -- centers the input + button pair
+    none.label:SetPoint("BOTTOMLEFT", none.input, "TOPLEFT", -4, 6)
+    none.create = makeButton(none, "Create", 90, create)
+    none.create:SetPoint("LEFT", none.input, "RIGHT", 8, 0)
+    none.input:SetScript("OnTextChanged", function(self)
+        if ns.Trim(self:GetText()) == "" then none.create:Disable() else none.create:Enable() end
     end)
-    none.create:SetPoint("LEFT", none.input, "RIGHT", 6, 0)
+    none.create:Disable()
+    none.footer = none:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    none.footer:SetPoint("BOTTOM", 0, 30)
+    none.footer:SetWidth(460)
+    none.footer:SetText("Got an invitation instead? Accept it and you'll join your friend's fellowship. Everyone keeps a copy "
+        .. "of the chat and activity history, so you can catch up on anything you missed while offline.")
     panels.none = none
 end
 
@@ -183,7 +204,7 @@ function UI:Init()
         button2 = NO or "No",
         OnAccept = function(_, data) ns.Sync:AcceptInvite(data) end,
         OnCancel = function(_, data, reason)
-            if reason ~= "override" then ns.Sync:DeclineInvite(data) end
+            if reason ~= "override" then ns.Sync:DeclineInvite(data, reason) end
         end,
         timeout = 120,
         whileDead = true,
@@ -456,11 +477,12 @@ function UI:Refresh()
     local f, fid = ns.Store:Active()
     if not f then
         frame.title:SetText("Fellowship")
-        for _, b in pairs(tabButtons) do b:Disable() end
+        for _, b in pairs(tabButtons) do b:Hide() end
         panels.none:Show()
         return
     end
     for name, b in pairs(tabButtons) do
+        b:Show()
         if name == activeTab then b:Disable() else b:Enable() end
     end
     local members, onlineCount = ns.Sync:MemberList(fid) -- same count as the Members tab (includes you)

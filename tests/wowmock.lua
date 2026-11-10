@@ -307,6 +307,17 @@ function Client:acceptPopup(which)
 end
 
 -- Signature of the visible history: one line per event, oldest first.
+function Client:declinePopup(which, reason)
+    for i, p in ipairs(self.popups) do
+        if p.which == which then
+            table.remove(self.popups, i)
+            self.env.StaticPopupDialogs[which].OnCancel(nil, p.data, reason or "clicked")
+            return true
+        end
+    end
+    return false
+end
+
 function Client:history()
     local Store = self.ns.Store
     local fid = Store:ActiveId()

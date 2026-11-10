@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.6
+
+- When you're not in a fellowship, the Fellowship window (and the minimap button) now opens a "Create Fellowship" screen: type a name and click Create.
+- Inviters now get a message when someone accepts ("... accepted your invitation and joined ..."), declines, or lets the invitation time out.
+
 ## 0.9.5
 
 - The minimap button now uses the standard LibDBIcon library when it's available, so minimap-button collectors and minimap addons treat it like any other button (no more "custom button" warning, and it's listed as "Fellowship"). Your button position carries over.
