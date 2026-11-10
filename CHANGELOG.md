@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.7
+
+- Item links work in Fellowship chat. Shift-click an item, spell or achievement while typing `/fs` (or in the Fellowship window's chat box) and everyone sees a clickable link. Other formatting codes are still blocked for safety.
+
 ## 0.9.6
 
 - When you're not in a fellowship, the Fellowship window (and the minimap button) now opens a "Create Fellowship" screen: type a name and click Create.

@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.9.6"
+ns.VERSION = "0.9.7"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -258,11 +258,54 @@ function ns.TextColor()
     return ns.defaults.textColor
 end
 
+-- Chat text with links: shift-clicked links (items, spells, achievements...) are kept
+-- clickable, everything else is escaped so nobody can inject textures or fake UI text.
+local LINK_TYPES = {
+    item = true, spell = true, achievement = true, quest = true, currency = true, battlepet = true,
+    battlePetAbil = true, mount = true, enchant = true, talent = true, keystone = true, journal = true,
+    instancelock = true, transmogappearance = true, transmogillusion = true, outfit = true, toy = true,
+    trade = true, conduit = true, azessence = true, mawpower = true, dungeonScore = true, garrfollower = true,
+    garrmission = true, apower = true, worldmap = true, perksactivity = true,
+}
+local LINK_PATTERNS = {
+    "^|c%x%x%x%x%x%x%x%x|H(%w+):[^|]*|h%[[^|%]]*%]|h|r",  -- |cffa335ee|Hitem:...|h[Name]|h|r
+    "^|cn[%w_]+:|H(%w+):[^|]*|h%[[^|%]]*%]|h|r",          -- |cnIQ4:|Hitem:...|h[Name]|h|r
+    "^|H(%w+):[^|]*|h%[[^|%]]*%]|h",                     -- uncolored
+}
+function ns.SafeChat(text, resume)
+    text = tostring(text or "")
+    local out, pos, plain = {}, 1, {}
+    local function flush()
+        if #plain > 0 then out[#out + 1] = ns.Escape(table.concat(plain)); plain = {} end
+    end
+    while pos <= #text do
+        local matched
+        if text:byte(pos) == 124 then -- "|"
+            local rest = text:sub(pos)
+            for _, pat in ipairs(LINK_PATTERNS) do
+                local s, e, kind = rest:find(pat)
+                if s and LINK_TYPES[kind] then matched = rest:sub(1, e); break end
+            end
+        end
+        if matched then
+            flush()
+            out[#out + 1] = matched .. (resume or "")
+            pos = pos + #matched
+        else
+            plain[#plain + 1] = text:sub(pos, pos)
+            pos = pos + 1
+        end
+    end
+    flush()
+    return table.concat(out)
+end
+
 function ns.FormatEvent(e)
     local who = ns.WhoName(e.a)
     local d = e.d or {}
     if e.k == "C" then
-        return who .. ": |cff" .. ns.TextColor() .. ns.Escape(d[1]) .. "|r"
+        local color = "|cff" .. ns.TextColor()
+        return who .. ": " .. color .. ns.SafeChat(d[1], color) .. "|r"
     elseif e.k == "A" then
         local id = tonumber(d[1])
         local link = id and GetAchievementLink and GetAchievementLink(id)

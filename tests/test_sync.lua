@@ -845,6 +845,21 @@ test("the inviter hears back when an invitation is accepted, declined or ignored
     eq(n, 1)
 end)
 
+test("item links in chat stay clickable; other escape codes are neutralised", function()
+    local w, anna, bob = setup()
+    local link = "|cffa335ee|Hitem:19019::::::::60:::::|h[Thunderfury, Blessed Blade of the Windseeker]|h|r"
+    local newLink = "|cnIQ4:|Hitem:19019::::::::60:::::|h[Thunderfury]|h|r"
+    anna:slash("/fs look " .. link .. " and " .. newLink .. "!")
+    w:advance(3)
+    local color = "|cff4fd1b5"
+    assert(bob:logContains(color .. "look " .. link .. color .. " and " .. newLink .. color .. "!|r"), "link not kept")
+    local N = bob.ns.SafeChat
+    eq(N("|TInterface\\Icons\\x:0|t hi"), "||TInterface\\Icons\\x:0||t hi", "texture not escaped")
+    eq(N("|cffff0000fake|r"), "||cffff0000fake||r", "bare color not escaped")
+    eq(N("|Hurl:evil|h[click]|h"), "||Hurl:evil||h[click]||h", "unknown link type not escaped")
+    eq(N("half " .. link:sub(1, 40)), "half " .. bob.ns.Escape(link:sub(1, 40)), "broken link not escaped")
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")

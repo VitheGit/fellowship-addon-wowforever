@@ -231,6 +231,18 @@ function UI:Init()
         whileDead = true,
         hideOnEscape = true,
     }
+    -- Shift-clicking an item, spell or achievement while typing in the Fellowship window links it there.
+    local function insertLink(link)
+        local eb = panels.chat and panels.chat.input
+        if type(link) == "string" and eb and eb.HasFocus and eb:HasFocus() then eb:Insert(link) end
+    end
+    if hooksecurefunc then
+        if ChatFrameUtil and ChatFrameUtil.InsertLink then
+            hooksecurefunc(ChatFrameUtil, "InsertLink", insertLink)
+        elseif ChatEdit_InsertLink then
+            hooksecurefunc("ChatEdit_InsertLink", insertLink)
+        end
+    end
     local function queue() UI:QueueRefresh() end
     ns.Listen("EVENTS_ADDED", queue)
     ns.Listen("PRESENCE", queue)
