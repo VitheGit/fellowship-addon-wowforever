@@ -1,0 +1,60 @@
+<h2>0.9.6</h2>
+<ul>
+<li>When you're not in a fellowship, the Fellowship window (and the minimap button) now opens a "Create Fellowship" screen: type a name and click Create.</li>
+<li>Inviters now get a message when someone accepts ("... accepted your invitation and joined ..."), declines, or lets the invitation time out.</li>
+</ul>
+<h2>0.9.5</h2>
+<ul>
+<li>The minimap button now uses the standard LibDBIcon library when it's available, so minimap-button collectors and minimap addons treat it like any other button (no more "custom button" warning, and it's listed as "Fellowship"). Your button position carries over.</li>
+</ul>
+<h2>0.9.4</h2>
+<ul>
+<li>Fixed invites never finishing on WoW Forever. Character names have a first and last name ("Vithe Valestrider"), and Fellowship was mistaking the last name for a realm and dropping the space, so replies went to a player that doesn't exist. Names are now handled the WoW Forever way everywhere.</li>
+<li>Names show in full ("Vithe Valestrider") in chat, the member list and the sidebar.</li>
+<li><code>/fship invite</code> takes a full name: <code>/fship invite Valtri Brinkforge</code>. Right-click &gt; Invite to Fellowship works as before.</li>
+</ul>
+<h2>0.9.3</h2>
+<ul>
+<li>Fixed invites that could get stuck at "(Joining...)". Invitations now survive a /reload by the inviter, a lost accept is retried automatically, and the join finishes as soon as the fellowship history arrives.</li>
+<li>You now get a notice when you and the inviter are on different Fellowship versions.</li>
+<li>New <code>/fship version</code> and <code>/fship debug</code> commands to help track down sync problems.</li>
+</ul>
+<h2>0.9.2</h2>
+<ul>
+<li>The chat window now has a member list on the right, like the guild window: online members in their class color (listed first), offline members greyed out, and the Admin marked with a gold *.</li>
+</ul>
+<h2>0.9.1 (first public release)</h2>
+<p>Fellowship gives a small group of friends a private chat and a shared adventure feed, with history that catches you up on whatever you missed while offline.</p>
+<h3>Chat</h3>
+<ul>
+<li>Private fellowship chat: <code>/fs &lt;message&gt;</code>; <code>/fs</code> on its own opens the window</li>
+<li>Names in class colors; chat text in its own color (change it in Settings)</li>
+<li>Choose which chat tabs show Fellowship: right-click a chat tab and tick <strong>Show Fellowship</strong>, or <code>/fship tab</code></li>
+</ul>
+<h3>Offline catch-up</h3>
+<ul>
+<li>Every member keeps the full history; when you log in, any online member fills in what you missed</li>
+<li>"New since you were last here" divider and a "While you were away…" login summary</li>
+</ul>
+<h3>Shared announcements</h3>
+<ul>
+<li>Achievements, level-ups, new mounts/pets/toys</li>
+<li>Loot: Rare, Epic or Legendary and up (each person picks their minimum)</li>
+<li>Dungeon and raid completions, including keystone level and timing</li>
+<li>Deaths (in red) and online/offline notices</li>
+<li>Every announcement can be switched off for sharing and for showing in the Settings window</li>
+</ul>
+<h3>Members</h3>
+<ul>
+<li>Membership is per account: alts and new characters join automatically with the same role</li>
+<li>Roles: Admin, Inviter, Member. Admin can be passed on (the new Admin must accept)</li>
+<li>Members tab: who's online, which character they're on, zone and level, last seen</li>
+<li>Invite from the right-click menu on players, or <code>/fship invite &lt;player&gt;</code>; guild-style invite popup</li>
+<li>Members removed while offline are told when they next log in</li>
+</ul>
+<h3>Interface</h3>
+<ul>
+<li>Fellowship window with Chat, Activity and Members tabs</li>
+<li>Settings window (<code>/fship settings</code>)</li>
+<li>Minimap button: left-click opens Fellowship, right-click for the menu, drag to move</li>
+</ul>
