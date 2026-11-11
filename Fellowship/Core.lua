@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.10.0"
+ns.VERSION = "0.10.1"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -340,9 +340,23 @@ function ns.FormatEvent(e)
             return who .. (sub == "raid" and " cleared " or " completed ") .. ns.Escape(d[2]) .. diff .. key
         elseif sub == "death" then
             local RED = "|cffff4040"
-            local killer = (d[2] and d[2] ~= "") and (" by " .. ns.Escape(d[2])) or ""
             local zone = (d[3] and d[3] ~= "") and (" in " .. ns.Escape(d[3])) or ""
-            return who .. RED .. " was killed" .. killer .. zone .. "|r"
+            local cause, source, spell = d[4], d[5] ~= "" and d[5] or nil, d[6] ~= "" and d[6] or nil
+            local how
+            if cause == "falling" then how = " fell to their death"
+            elseif cause == "drowning" then how = " drowned"
+            elseif cause == "fatigue" then how = " died of fatigue"
+            elseif cause == "lava" then how = " burned to death in lava"
+            elseif cause == "fire" then how = " burned to death"
+            elseif cause == "slime" then how = " was dissolved by slime"
+            elseif cause == "mob" and source then
+                how = " was killed by " .. ns.Escape(source) .. (spell and (" (" .. ns.Escape(spell) .. ")") or "")
+            elseif cause == "fight" and source then
+                how = " died fighting " .. ns.Escape(source)
+            else
+                how = " was killed" .. ((d[2] and d[2] ~= "") and (" by " .. ns.Escape(d[2])) or "")
+            end
+            return who .. RED .. how .. zone .. "|r"
         elseif sub == "rare" then
             local where = ""
             if d[4] and d[4] ~= "" then where = " in " .. ns.Escape(d[4]) end

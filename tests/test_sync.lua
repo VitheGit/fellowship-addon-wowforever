@@ -307,14 +307,14 @@ test("announcements: mounts, pets, toys, loot, dungeons, raids and deaths", func
     assert(showsInChat(bob, "cleared Molten Core (Mythic)"), "raid")
     -- death in red, with killer
     anna.instance = nil
-    anna:fire("PLAYER_DEAD"); w:advance(2)
+    anna:fire("PLAYER_DEAD"); w:advance(4)
     assert(showsInChat(bob, "|cffff4040 was killed in Elwynn Forest|r"), "death")
 end)
 
 test("announcements: share and show settings", function()
     local w, anna, bob = setup()
     anna.ns.settings.shareDeaths = false
-    anna:fire("PLAYER_DEAD"); w:advance(2)
+    anna:fire("PLAYER_DEAD"); w:advance(4)
     eq(count(bob, "M"), 0, "death shared while sharing off")
     bob.ns.settings.showLevels = false
     anna.ns.Achievements:OnLevelUp(61); w:advance(2)
@@ -1005,6 +1005,61 @@ test("rare mobs: found from minimap markers, nameplates and target; announced on
         if e.k == "M" and e.d[1] == "rare" and e.d[2] == "RareMob01" then mine = mine + 1 end
     end
     eq(mine, 2, "anna's history has both sightings")
+end)
+
+test("deaths say what killed you: Death Recap, falling, drowning, or who you were fighting", function()
+    local w = World.new()
+    local recap
+    local falling, breath = false, nil
+    local g = {
+        C_DeathRecap = { GetRecapEvents = function() return recap end },
+        IsFalling = function() return falling end,
+        GetMirrorTimerProgress = function(t) if t == "BREATH" then return breath end end,
+        UnitCanAttack = function() return true end,
+    }
+    local anna, bob = w:client("Anna"), w:client("Bob")
+    anna.globals = g
+    anna:login(); bob:login(); w:advance(1)
+    anna:slash("/fship create Loot Kills"); anna:slash("/fship invite bob silvermoon"); w:advance(1)
+    bob:acceptPopup("FELLOWSHIP_INVITE"); w:advance(20)
+    local RED = "|cffff4040"
+    local function died() anna:fire("PLAYER_DEAD"); w:advance(5) end
+
+    recap = {
+        { timestamp = 10, event = "SWING_DAMAGE", sourceName = "Kobold Miner", amount = 5 },
+        { timestamp = 12, event = "SPELL_DAMAGE", sourceName = "Hogger", spellName = "Vicious Slice", amount = 40 },
+    }
+    died()
+    assert(bob:logContains(RED .. " was killed by Hogger (Vicious Slice) in Elwynn Forest|r"), "recap mob + spell")
+    recap = { { timestamp = 3, event = "SWING_DAMAGE", sourceName = "Hogger", spellName = "Melee" } }
+    died()
+    assert(bob:logContains(RED .. " was killed by Hogger in Elwynn Forest|r"), "melee")
+    recap = { { timestamp = 3, event = "ENVIRONMENTAL_DAMAGE", environmentalType = "Falling", amount = 900 } }
+    died()
+    assert(bob:logContains(RED .. " fell to their death in Elwynn Forest|r"), "recap falling")
+    recap = { { timestamp = 3, event = "ENVIRONMENTAL_DAMAGE", environmentalType = "Lava" } }
+    died()
+    assert(bob:logContains(RED .. " burned to death in lava"), "lava")
+
+    -- no recap: falling noticed just before death
+    recap = nil
+    falling = true; w:advance(1); falling = false
+    died()
+    eq(#(function() local t = {}; for _, l in ipairs(bob.log) do if l:find("fell to their death", 1, true) then t[#t + 1] = l end end; return t end)(), 2)
+    -- drowning: breath bar ran out
+    w:advance(5)
+    anna:fire("MIRROR_TIMER_START", "BREATH", 0, 180000, -1, false, "Breath"); breath = 0
+    died()
+    assert(bob:logContains(RED .. " drowned in Elwynn Forest|r"), "drowning")
+    anna:fire("MIRROR_TIMER_STOP", "BREATH"); breath = nil
+    -- the enemy you had targeted
+    anna.units.target = { name = "Defias Bandit", player = false }
+    died()
+    assert(bob:logContains(RED .. " died fighting Defias Bandit in Elwynn Forest|r"), "fight")
+    -- nothing known: plain message, as before
+    anna.units.target = nil
+    died()
+    assert(bob:logContains(RED .. " was killed in Elwynn Forest|r"), "plain")
 end)
 
 test("UI builds and renders without errors", function()

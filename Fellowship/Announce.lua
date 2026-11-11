@@ -217,15 +217,98 @@ function A:OnZoneChanged()
     if postedRun and postedRun ~= key then postedRun = nil end
 end
 
----------------------------------------------------------------------------
--- Deaths
----------------------------------------------------------------------------
--- Note: we deliberately don't read the combat log to name the killer. On current Mainline
--- clients registering COMBAT_LOG_EVENT_UNFILTERED is a protected action and triggers the
--- "Fellowship has been blocked from an action only available to the Blizzard UI" popup.
--- The killer field stays in the format (empty) so it can be filled in later.
+-- Deaths: what killed you comes from the game's Death Recap (the "Recap" button on the
+-- death popup), never the combat log. Reading the combat log is blocked on WoW Forever:
+-- registering COMBAT_LOG_EVENT_UNFILTERED triggers the "blocked from an action" popup.
+-- Without a recap we fall back to: falling, drowning/fatigue (breath bars), or the enemy
+-- you had targeted.
+--   death data: { "death", killer (text older versions show), zone, cause, source, spell }
+--   cause: mob, falling, drowning, fatigue, lava, fire, slime, fight, or ""
+local ENVIRONMENT = {
+    falling = "falling", drowning = "drowning", fatigue = "fatigue",
+    lava = "lava", fire = "fire", slime = "slime",
+}
+local lastFalling = 0
+
+local function recapEvents()
+    local list
+    if C_DeathRecap and C_DeathRecap.GetRecapEvents then
+        local ok, ev = pcall(C_DeathRecap.GetRecapEvents)
+        if ok and type(ev) == "table" and #ev > 0 then list = ev end
+    end
+    if not list and DeathRecap_GetEvents then
+        local ok, ev = pcall(DeathRecap_GetEvents)
+        if ok and type(ev) == "table" and #ev > 0 then list = ev end
+    end
+    return list
+end
+
+-- The killing blow: the latest event in the recap.
+function A.CauseFromRecap(events)
+    local last
+    for _, ev in ipairs(events or {}) do
+        if type(ev) == "table" and (not last or (tonumber(ev.timestamp) or 0) >= (tonumber(last.timestamp) or 0)) then
+            last = ev
+        end
+    end
+    if not last then return nil end
+    local env = type(last.environmentalType) == "string" and ENVIRONMENT[last.environmentalType:lower()]
+    if env then return env end
+    local source = type(last.sourceName) == "string" and last.sourceName ~= "" and last.sourceName or nil
+    if not source then return nil end
+    local spell = type(last.spellName) == "string" and last.spellName or nil
+    if last.event == "SWING_DAMAGE" then spell = nil end
+    return "mob", source, spell
+end
+
+local function breathCause()
+    if not GetMirrorTimerProgress then return nil end
+    for timer, cause in pairs({ BREATH = "drowning", EXHAUSTION = "fatigue" }) do
+        local ok, left = pcall(GetMirrorTimerProgress, timer)
+        if ok and tonumber(left) and tonumber(left) <= 0 and A.mirror and A.mirror[timer] then return cause end
+    end
+end
+
+function A:DeathCause()
+    local cause, source, spell = A.CauseFromRecap(recapEvents())
+    if cause then return cause, source, spell end
+    if GetTime() - lastFalling < 1.5 then return "falling" end
+    cause = breathCause()
+    if cause then return cause end
+    if UnitExists and UnitExists("target") and UnitCanAttack and UnitCanAttack("player", "target")
+        and not UnitIsPlayer("target") then
+        return "fight", UnitName("target")
+    end
+    return ""
+end
+
+local KILLER_TEXT = { falling = "falling", drowning = "drowning", fatigue = "fatigue", lava = "lava", fire = "fire", slime = "slime" }
+
 function A:OnDeath()
-    share("death", { "death", "", (GetZoneText and GetZoneText()) or "" })
+    local zone = (GetZoneText and GetZoneText()) or ""
+    -- the recap fills in just after death; read it a moment later (and once more if needed)
+    local tries = 0
+    local function post()
+        tries = tries + 1
+        local ok, cause, source, spell = pcall(A.DeathCause, A)
+        if not ok then cause, source, spell = "", nil, nil end
+        local recapAPI = (C_DeathRecap and C_DeathRecap.GetRecapEvents) or DeathRecap_GetEvents
+        if cause == "" and recapAPI and tries < 3 then return C_Timer.After(1, post) end
+        ns.Debug("death cause: " .. tostring(cause) .. " / " .. tostring(source) .. " / " .. tostring(spell)
+            .. " (recap events: " .. tostring(recapEvents() and #recapEvents() or 0) .. ")")
+        local killer = KILLER_TEXT[cause] or source or ""
+        share("death", { "death", killer, zone, cause, source or "", spell or "" })
+    end
+    C_Timer.After(0.5, post)
+end
+
+function A:InitDeaths()
+    if IsFalling then
+        C_Timer.NewTicker(0.25, function() if IsFalling() then lastFalling = GetTime() end end)
+    end
+    A.mirror = {}
+    ns.On("MIRROR_TIMER_START", function(timer) if timer then A.mirror[timer] = true end end)
+    ns.On("MIRROR_TIMER_STOP", function(timer) if timer then A.mirror[timer] = nil end end)
 end
 
 ---------------------------------------------------------------------------
@@ -326,5 +409,6 @@ function A:Init()
     ns.On("CHALLENGE_MODE_COMPLETED", function() A:OnChallengeCompleted() end)
     ns.On("ZONE_CHANGED_NEW_AREA", function() A:OnZoneChanged() end)
     ns.On("PLAYER_DEAD", function() A:OnDeath() end)
+    self:InitDeaths()
     self:InitRares()
 end

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.1
+
+- Death messages now say what killed you, using the game's Death Recap: "was killed by Hogger (Vicious Slice)", "fell to their death", "drowned", "burned to death in lava", and so on.
+- If there's no recap, Fellowship notices falling and drowning itself, or names the enemy you were fighting ("died fighting Defias Bandit").
+- Still no combat log reading, so no "blocked action" popups.
+
 ## 0.10.0
 
 - Rare mob announcements: when you come across a rare, the fellowship sees "Vithe Valestrider has encountered RareMob01! in Elwynn Forest [Map Pin]". Click the map pin to set a waypoint to it.
