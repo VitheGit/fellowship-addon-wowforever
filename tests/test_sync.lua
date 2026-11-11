@@ -945,6 +945,68 @@ test("members on an older version are told about the update, at most once an hou
     assert(not bob.ns.VersionNewer("garbage", "0.9.8"), "garbage accepted")
 end)
 
+test("rare mobs: found from minimap markers, nameplates and target; announced once", function()
+    local w = World.new()
+    local vignettes = {
+        ["V-1"] = { name = "RareMob01", atlasName = "VignetteKillElite", objectGUID = "Creature-0-3767-0-22-12345-0000AB" },
+        ["V-2"] = { name = "Shiny Chest", atlasName = "VignetteLoot", objectGUID = "GameObject-0-3767-0-22-999-0" },
+    }
+    local units = {}
+    local function world()
+        return {
+            C_VignetteInfo = {
+                GetVignetteInfo = function(g) return vignettes[g] end,
+                GetVignettes = function() return { "V-1", "V-2" } end,
+                GetVignettePosition = function() return { GetXY = function() return 0.452, 0.601 end } end,
+            },
+            C_Map = { GetBestMapForUnit = function() return 37 end },
+            IsInInstance = function() return false end,
+            UnitClassification = function(u) return units[u] and units[u].class end,
+            UnitIsDead = function() return false end,
+        }
+    end
+    local anna, bob = w:client("Anna"), w:client("Bob")
+    anna.globals, bob.globals = world(), world()
+    anna:login(); bob:login(); w:advance(1)
+    anna:slash("/fship create Loot Kills"); anna:slash("/fship invite bob silvermoon"); w:advance(1)
+    bob:acceptPopup("FELLOWSHIP_INVITE"); w:advance(20)
+
+    anna:fire("VIGNETTE_MINIMAP_UPDATED", "V-1", true); w:advance(2)
+    local line = "Anna Silvermoon|r has encountered |cffff9933RareMob01|r! in Elwynn Forest |cffffff00|Hworldmap:37:4520:6010|h[Map Pin]|h|r"
+    assert(bob:logContains(line), "bob didn't see the rare")
+    anna:fire("VIGNETTE_MINIMAP_UPDATED", "V-2", true)          -- a treasure, not a rare
+    anna:fire("VIGNETTES_UPDATED")                              -- the same rare again
+    bob:fire("VIGNETTE_MINIMAP_UPDATED", "V-1", true)           -- bob sees it too, minutes later
+    w:advance(2)
+    local function count(c, pat) local n = 0; for _, l in ipairs(c.log) do if l:find(pat, 1, true) then n = n + 1 end end; return n end
+    eq(count(bob, "has encountered"), 1, "rare announced more than once")
+    assert(not bob:logContains("Shiny Chest"), "treasure announced")
+
+    -- a rare nameplate (no marker), then the same mob targeted: one announcement
+    anna.units.nameplate1 = { name = "Grumpy Gnoll", player = false }
+    units.nameplate1 = { class = "rare" }
+    anna.env.UnitGUID = function(u) if u == "nameplate1" or u == "target" then return "Creature-0-3767-0-22-777-00" end end
+    anna:fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    anna.units.target = anna.units.nameplate1; units.target = units.nameplate1
+    anna:fire("PLAYER_TARGET_CHANGED"); w:advance(2)
+    eq(count(bob, "Grumpy Gnoll"), 1)
+
+    -- switched off: nothing shared; bob can also hide others' rares
+    w:advance(700)
+    anna.ns.settings.shareRares = false
+    anna:fire("VIGNETTE_MINIMAP_UPDATED", "V-1", true); w:advance(2)
+    eq(count(bob, "RareMob01"), 1, "shared while switched off")
+    anna.ns.settings.shareRares = true
+    bob.ns.settings.showRares = false
+    anna:fire("VIGNETTE_MINIMAP_UPDATED", "V-1", true); w:advance(2)
+    eq(count(bob, "RareMob01"), 1, "shown while hidden")
+    local mine = 0
+    for _, e in ipairs(anna.ns.Store:Sorted(anna.ns.Store:ActiveId())) do
+        if e.k == "M" and e.d[1] == "rare" and e.d[2] == "RareMob01" then mine = mine + 1 end
+    end
+    eq(mine, 2, "anna's history has both sightings")
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")

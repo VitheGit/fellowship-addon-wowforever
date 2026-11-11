@@ -365,6 +365,7 @@ UI.SETTINGS_ROWS = {
     { "Loot (Rare or better)", "shareLoot", "showLoot" },
     { "Dungeon and raid completions", "shareInstances", "showInstances" },
     { "Deaths", "shareDeaths", "showDeaths" },
+    { "Rare mobs spotted", "shareRares", "showRares" },
     { "Online / offline notices", nil, "showPresence" },
     { "Zone and level (Members tab)", "shareLocation", nil },
 }
@@ -387,7 +388,7 @@ function UI:BuildSettings()
     if settingsFrame then return end
     local f = CreateFrame("Frame", "FellowshipSettingsFrame", UIParent, "BasicFrameTemplateWithInset")
     settingsFrame = f
-    f:SetSize(470, 480)
+    f:SetSize(470, 506)
     f:SetPoint("CENTER", 40, -20)
     f:SetMovable(true)
     f:EnableMouse(true)

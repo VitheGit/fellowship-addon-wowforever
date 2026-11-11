@@ -7,6 +7,7 @@
 --   pet     name                        toy    name, itemID
 --   loot    itemString, name, quality   dungeon/raid  instance, difficulty, keyLevel, onTime
 --   death   killer, zone
+--   rare    name, npcID, zone, mapID, x, y   (x/y in 1/10000 of the map, for a map pin)
 local _, ns = ...
 local A = {}
 ns.Announce = A
@@ -20,10 +21,11 @@ A.TYPES = {
     loot        = { share = "shareLoot",         show = "showLoot" },
     instance    = { share = "shareInstances",    show = "showInstances" },
     death       = { share = "shareDeaths",       show = "showDeaths" },
+    rare        = { share = "shareRares",        show = "showRares" },
 }
 local SUBTYPE_GROUP = {
     level = "level", mount = "collection", pet = "collection", toy = "collection",
-    loot = "loot", dungeon = "instance", raid = "instance", death = "death",
+    loot = "loot", dungeon = "instance", raid = "instance", death = "death", rare = "rare",
 }
 
 function A.GroupOf(e)
@@ -227,6 +229,92 @@ function A:OnDeath()
 end
 
 ---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+-- Rare mobs: found the same way RareScanner finds them, from the rare markers
+-- (vignettes) the game puts on the minimap, plus nameplates, target and mouseover.
+---------------------------------------------------------------------------
+A.RARE_REPEAT = 600     -- don't re-announce the same rare from this character for 10 minutes
+A.RARE_SHARED = 300     -- skip it if any member announced it in the last 5 minutes
+local rareSeen = {}
+
+local function npcIDFromGUID(guid)
+    if type(guid) ~= "string" then return nil end
+    -- Creature-0-[server]-[instance]-[zone]-[npcID]-[spawn]
+    local kind, id = guid:match("^(%a+)%-%d+%-%d+%-%d+%-%d+%-(%d+)%-")
+    if kind == "Creature" or kind == "Vehicle" then return tonumber(id) end
+end
+
+local function mapPosition(vignetteGUID)
+    if not (C_Map and C_Map.GetBestMapForUnit) then return nil end
+    local mapID = C_Map.GetBestMapForUnit("player")
+    if not mapID then return nil end
+    local pos
+    if vignetteGUID and C_VignetteInfo and C_VignetteInfo.GetVignettePosition then
+        pos = C_VignetteInfo.GetVignettePosition(vignetteGUID, mapID)
+    end
+    if not pos and C_Map.GetPlayerMapPosition then pos = C_Map.GetPlayerMapPosition(mapID, "player") end
+    local x, y
+    if pos and pos.GetXY then x, y = pos:GetXY() end
+    if not x or not y then return mapID end
+    return mapID, math.floor(x * 10000 + 0.5), math.floor(y * 10000 + 0.5)
+end
+
+function A:FoundRare(name, npcID, vignetteGUID)
+    if type(name) ~= "string" or name == "" or not ns.settings.shareRares then return end
+    if IsInInstance and IsInInstance() then return end -- open-world rares only
+    local f, fid = ns.Store:Active()
+    if not f or f.pendingFrom then return end
+    local id = npcID or name
+    local now = ns.Now()
+    if rareSeen[id] and now - rareSeen[id] < A.RARE_REPEAT then return end
+    rareSeen[id] = now
+    -- someone in the fellowship already called this one out
+    local events = ns.Store:Sorted(fid)
+    for i = #events, 1, -1 do
+        local e = events[i]
+        if now - (e.t or 0) > A.RARE_SHARED then break end
+        if e.k == "M" and e.d[1] == "rare" then
+            local same = (npcID and e.d[3] == tostring(npcID)) or (not npcID and e.d[2] == name)
+            if same then return end
+        end
+    end
+    local zone = (GetZoneText and GetZoneText()) or ""
+    local mapID, x, y = mapPosition(vignetteGUID)
+    share("rare", { "rare", name, npcID or "", zone, mapID or "", x or "", y or "" })
+end
+
+local function checkVignette(guid)
+    if not (C_VignetteInfo and C_VignetteInfo.GetVignetteInfo) then return end
+    local info = C_VignetteInfo.GetVignetteInfo(guid)
+    if not info or info.isDead or type(info.name) ~= "string" then return end
+    local atlas = type(info.atlasName) == "string" and info.atlasName:lower() or ""
+    local npcID = npcIDFromGUID(info.objectGUID)
+    if atlas:find("vignettekill", 1, true) and npcID then A:FoundRare(info.name, npcID, guid) end
+end
+
+local function checkUnit(unit)
+    if not (UnitExists and UnitExists(unit)) or UnitIsPlayer(unit) or (UnitIsDead and UnitIsDead(unit)) then return end
+    local class = UnitClassification and UnitClassification(unit)
+    if class ~= "rare" and class ~= "rareelite" then return end
+    A:FoundRare(UnitName(unit), npcIDFromGUID(UnitGUID(unit)))
+end
+
+-- Game data can be restricted in combat; a failed lookup just means no announcement.
+local function safely(fn, ...) pcall(fn, ...) end
+
+function A:InitRares()
+    ns.On("VIGNETTE_MINIMAP_UPDATED", function(guid, onMinimap)
+        if guid and onMinimap ~= false then safely(checkVignette, guid) end
+    end)
+    ns.On("VIGNETTES_UPDATED", function()
+        if not (C_VignetteInfo and C_VignetteInfo.GetVignettes) then return end
+        for _, guid in ipairs(C_VignetteInfo.GetVignettes() or {}) do safely(checkVignette, guid) end
+    end)
+    ns.On("NAME_PLATE_UNIT_ADDED", function(unit) safely(checkUnit, unit) end)
+    ns.On("PLAYER_TARGET_CHANGED", function() safely(checkUnit, "target") end)
+    ns.On("UPDATE_MOUSEOVER_UNIT", function() safely(checkUnit, "mouseover") end)
+end
+
 function A:Init()
     ns.On("ACHIEVEMENT_EARNED", function(id, alreadyEarned) A:OnEarned(id, alreadyEarned) end)
     ns.On("PLAYER_LEVEL_UP", function(level) A:OnLevelUp(level) end)
@@ -238,4 +326,5 @@ function A:Init()
     ns.On("CHALLENGE_MODE_COMPLETED", function() A:OnChallengeCompleted() end)
     ns.On("ZONE_CHANGED_NEW_AREA", function() A:OnZoneChanged() end)
     ns.On("PLAYER_DEAD", function() A:OnDeath() end)
+    self:InitRares()
 end

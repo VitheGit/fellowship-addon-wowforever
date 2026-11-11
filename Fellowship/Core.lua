@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.9.9"
+ns.VERSION = "0.10.0"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -19,6 +19,7 @@ ns.defaults = {
     lootMinQuality = 4,       -- show loot of this quality or better (3 Rare, 4 Epic, 5 Legendary)
     shareInstances = true,    showInstances = true,    -- dungeon and raid completions
     shareDeaths = true,       showDeaths = true,
+    shareRares = true,        showRares = true,        -- rare mobs spotted
     showPresence = true,      -- "Bob came online / went offline"
     shareLocation = true,     -- zone and level in other members' Members tab
     -- minimap button
@@ -342,6 +343,15 @@ function ns.FormatEvent(e)
             local killer = (d[2] and d[2] ~= "") and (" by " .. ns.Escape(d[2])) or ""
             local zone = (d[3] and d[3] ~= "") and (" in " .. ns.Escape(d[3])) or ""
             return who .. RED .. " was killed" .. killer .. zone .. "|r"
+        elseif sub == "rare" then
+            local where = ""
+            if d[4] and d[4] ~= "" then where = " in " .. ns.Escape(d[4]) end
+            local mapID, x, y = tonumber(d[5]), tonumber(d[6]), tonumber(d[7])
+            if mapID and x and y then
+                -- the game's own map-pin link: clicking it sets a waypoint
+                where = where .. string.format(" |cffffff00|Hworldmap:%d:%d:%d|h[Map Pin]|h|r", mapID, x, y)
+            end
+            return who .. " has encountered |cffff9933" .. ns.Escape(d[2]) .. "|r!" .. where
         end
         return who .. " hit a milestone: " .. ns.Escape(d[2])
     elseif e.k == "N" then

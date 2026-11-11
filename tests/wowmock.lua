@@ -126,6 +126,10 @@ function Client:login()
             return client.name, client.realm
         end,
         Menu = { ModifyMenu = function(tag, fn) client.menus[tag] = client.menus[tag] or {}; table.insert(client.menus[tag], fn) end },
+        UnitName = function(unit)
+            if unit == "player" then return client.name end
+            local u = client.units[unit]; return u and u.name
+        end,
         UnitExists = function(unit) return client.units[unit] ~= nil end,
         UnitIsPlayer = function(unit) return client.units[unit] and client.units[unit].player end,
         UnitFactionGroup = function(unit) if unit == "player" then return "Alliance" end return client.units[unit] and client.units[unit].faction end,
