@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.9.7"
+ns.VERSION = "0.9.8"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -24,6 +24,7 @@ ns.defaults = {
     -- minimap button
     minimapShow = true,
     minimapAngle = 210,
+    showOffline = true,        -- Members tab: list offline members too
     -- storage
     maxEvents = 3000,         -- history kept per fellowship (membership events are never pruned)
     maxAgeDays = 180,         -- history older than this is pruned at login

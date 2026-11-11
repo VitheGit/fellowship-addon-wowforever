@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.8
+
+- The Members tab is now a roster like the guild window: Name, Level, Zone, Rank and Last Online columns. Online members are in their class color, offline members are greyed out.
+- Click a column header to sort by it (click again to reverse). Scroll with the mouse wheel.
+- **Show offline members** checkbox to hide or show offline members.
+- Hover a member for details (characters, member since, achievements shared). Right-click for Whisper and Invite to Group, and for the Admin: Make Inviter/Member, Pass Admin and Remove from Fellowship.
+
 ## 0.9.7
 
 - Item links work in Fellowship chat. Shift-click an item, spell or achievement while typing `/fs` (or in the Fellowship window's chat box) and everyone sees a clickable link. Other formatting codes are still blocked for safety.

@@ -363,27 +363,81 @@ test("no protected events are registered (avoids 'blocked from an action' popups
     end
 end)
 
-test("Members tab lists every member and the title count matches", function()
+local function memberPanel(c)
+    for _, f in ipairs(c.frames) do if rawget(f, "rows") and rawget(f, "showOffline") then return f end end
+end
+local function rosterRows(p)
+    local out = {}
+    for _, r in ipairs(p.rows) do
+        if r:IsShown() then
+            local t = {}
+            for k, fs in pairs(r.cells) do t[k] = fs:GetText() end
+            out[#out + 1] = t
+        end
+    end
+    return out
+end
+
+test("Members tab is a guild-style roster and the title count matches", function()
     local w, anna, bob, cara = setup()
     anna:slash("/fs")
     anna.ns.UI:SelectTab("members")
-    -- find the members font string: the one whose text has the online count
-    local found
-    for _, f in ipairs(anna.frames) do
-        local list = rawget(f, "list")
-        if type(list) == "table" and type(list._text) == "string" and list._text:find("online") then
-            found = list._text
+    local p = memberPanel(anna)
+    assert(p, "members panel not found")
+    eq(p.count:GetText(), "3 of 3 members online")
+    local rows = rosterRows(p)
+    eq(#rows, 3)
+    local seen = {}
+    for _, r in ipairs(rows) do
+        for _, n in ipairs({ "Anna Silvermoon", "Bob Silvermoon", "Cara Area52" }) do
+            if r.name:find(n .. "|r", 1, true) then seen[n] = r end
         end
     end
-    assert(found, "members text not found")
-    assert(found:find("3 of 3 online", 1, true), found)
-    for _, n in ipairs({ "Anna Silvermoon", "Bob Silvermoon", "Cara Area52" }) do assert(found:find(n .. "|r", 1, true), n .. " missing: " .. found) end
+    for _, n in ipairs({ "Anna Silvermoon", "Bob Silvermoon", "Cara Area52" }) do assert(seen[n], n .. " missing") end
+    assert(seen["Anna Silvermoon"].name:find("(you)", 1, true), "you not marked")
+    assert(seen["Anna Silvermoon"].rank:find("Admin", 1, true), "admin rank missing")
+    eq(seen["Bob Silvermoon"].seen, "|cff33ff99Online|r")
     local title
     for _, f in ipairs(anna.frames) do
         local t = rawget(f, "title")
         if type(t) == "table" and type(t._text) == "string" and t._text:find("online") then title = t._text end
     end
     assert(title and title:find("3 of 3 online", 1, true), tostring(title))
+
+    -- offline members are grey with last-online time; the checkbox hides them
+    cara:logout(); w:advance(70)
+    anna.ns.UI:Refresh()
+    rows = rosterRows(p)
+    eq(#rows, 3)
+    local last = rows[3]
+    eq(last.name, "|cff6e6e6eCara Area52|r")
+    eq(last.zone, "|cff808080Offline|r")
+    assert(last.seen:find("ago", 1, true), last.seen)
+    p.showOffline:SetChecked(false); p.showOffline:Click()
+    eq(#rosterRows(p), 2)
+    eq(p.count:GetText(), "2 of 3 members online")
+    p.showOffline:SetChecked(true); p.showOffline:Click()
+
+    -- sorting by a column header (Name, reversed on a second click)
+    p.cols[1]:Click()
+    rows = rosterRows(p)
+    assert(rows[1].name:find("Anna", 1, true) and rows[3].name:find("Cara", 1, true), "not sorted by name")
+    p.cols[1]:Click()
+    assert(rosterRows(p)[1].name:find("Cara", 1, true), "not reversed")
+
+    -- hovering and right-clicking a row
+    local bobRow
+    for _, r in ipairs(p.rows) do local m = rawget(r, "member"); if m and m.main == "Bob-Silvermoon" then bobRow = r end end
+    bobRow._scripts.OnEnter(bobRow)
+    local labels = {}
+    for _, item in ipairs(anna.ns.UI:MemberMenuItems(bobRow.member)) do labels[#labels + 1] = item[1] end
+    eq(table.concat(labels, ","), "Whisper,Invite to Group,Make Inviter,Pass Admin,Remove from Fellowship")
+    eq(#bob.ns.UI:MemberMenuItems(bob.ns.Sync:MemberList(bob.ns.Store:ActiveId())[1]), 2, "non-admin sees only whisper/invite")
+    for _, item in ipairs(anna.ns.UI:MemberMenuItems(bobRow.member)) do
+        if item[1] == "Make Inviter" then item[2]() end
+    end
+    w:advance(3)
+    eq(bob.ns.Store:Role(bob.ns.Store:ActiveId(), "Bob-Silvermoon"), "inviter")
 end)
 
 test("minimap button: left-click opens the window, right-click menu has Settings", function()

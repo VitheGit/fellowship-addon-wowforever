@@ -9,6 +9,19 @@ local activeTab = "chat"
 local refreshQueued = false
 local MAX_LINES = 600
 
+-- Members roster columns (widths add up to the panel width)
+local ROSTER_COLUMNS = {
+    { key = "name", title = "Name", width = 200 },
+    { key = "level", title = "Level", width = 50, align = "CENTER" },
+    { key = "zone", title = "Zone", width = 170 },
+    { key = "rank", title = "Rank", width = 90 },
+    { key = "seen", title = "Last Online", width = 110 },
+}
+local ROSTER_ROWS, ROW_HEIGHT = 15, 18
+local rosterSort = { key = "default", reverse = false }
+local RANK_ORDER = { admin = 1, inviter = 2, member = 3 }
+local GREY = "|cff808080"
+
 local NEW_DIVIDER = "|cff33ff99----------  new since you were last here  ----------|r"
 local TIME_COLOR = "|cff808080"
 
@@ -135,18 +148,82 @@ function UI:Build()
     ach.log:SetPoint("BOTTOMRIGHT", -4, 4)
     panels.achievements = ach
 
-    -- Members
+    -- Members: a roster laid out like the guild window
     local mem = panel()
-    -- A plain top-anchored text block: a ScrollingMessageFrame is bottom-anchored and
-    -- "scroll to top" on a short list hides everything but the first line.
-    mem.list = mem:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    mem.list:SetPoint("TOPLEFT", 8, -8)
-    mem.list:SetPoint("BOTTOMRIGHT", -8, 38)
-    mem.list:SetJustifyH("LEFT")
-    mem.list:SetJustifyV("TOP")
-    mem.list:SetSpacing(3)
+    mem.cols = {}
+    local x = 4
+    for _, c in ipairs(ROSTER_COLUMNS) do
+        local h = CreateFrame("Button", nil, mem)
+        h:SetPoint("TOPLEFT", x, -2)
+        h:SetSize(c.width, 20)
+        local bg = h:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints()
+        bg:SetColorTexture(1, 1, 1, 0.08)
+        h.label = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        h.label:SetPoint("LEFT", 6, 0)
+        h.label:SetText(c.title)
+        h:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+        h:SetScript("OnClick", function()
+            if rosterSort.key == c.key then rosterSort.reverse = not rosterSort.reverse
+            else rosterSort.key, rosterSort.reverse = c.key, false end
+            UI:Refresh()
+        end)
+        c.x = x
+        mem.cols[#mem.cols + 1] = h
+        x = x + c.width + 2
+    end
+    mem.rows = {}
+    for i = 1, ROSTER_ROWS do
+        local row = CreateFrame("Button", nil, mem)
+        row:SetPoint("TOPLEFT", 4, -24 - (i - 1) * ROW_HEIGHT)
+        row:SetSize(x - 6, ROW_HEIGHT)
+        row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        if i % 2 == 0 then
+            local bg = row:CreateTexture(nil, "BACKGROUND")
+            bg:SetAllPoints()
+            bg:SetColorTexture(1, 1, 1, 0.03)
+        end
+        row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+        row.cells = {}
+        for _, c in ipairs(ROSTER_COLUMNS) do
+            local fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            fs:SetPoint("LEFT", c.x - 4 + 6, 0)
+            fs:SetWidth(c.width - 8)
+            fs:SetJustifyH(c.align or "LEFT")
+            fs:SetWordWrap(false)
+            row.cells[c.key] = fs
+        end
+        row:SetScript("OnEnter", function(self) if self.member then UI:ShowMemberTooltip(self, self.member) end end)
+        row:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+        row:SetScript("OnClick", function(self, button)
+            if self.member and button == "RightButton" then UI:OpenMemberMenu(self, self.member) end
+        end)
+        row:Hide()
+        mem.rows[i] = row
+    end
+    mem.offset = 0
+    mem:EnableMouseWheel(true)
+    mem:SetScript("OnMouseWheel", function(_, delta)
+        mem.offset = math.max(0, mem.offset - delta * 3)
+        UI:Refresh()
+    end)
+
+    mem.count = mem:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    mem.count:SetPoint("BOTTOMLEFT", 8, 36)
+    mem.showOffline = CreateFrame("CheckButton", nil, mem, "UICheckButtonTemplate")
+    mem.showOffline:SetSize(22, 22)
+    mem.showOffline:SetPoint("BOTTOMRIGHT", -120, 30)
+    mem.showOffline:SetScript("OnClick", function(self)
+        ns.settings.showOffline = self:GetChecked() and true or false
+        mem.offset = 0
+        UI:Refresh()
+    end)
+    mem.showOfflineLabel = mem:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    mem.showOfflineLabel:SetPoint("LEFT", mem.showOffline, "RIGHT", 2, 0)
+    mem.showOfflineLabel:SetText("Show offline members")
+
     mem.input = makeInput(mem, 64, function(text) ns.Sync:Invite(text) end)
-    mem.input:SetPoint("BOTTOMLEFT", 8, 4)
+    mem.input:SetPoint("BOTTOMLEFT", 10, 4)
     mem.input:SetWidth(220)
     mem.invite = makeButton(mem, "Invite", 80, function()
         ns.Sync:Invite(mem.input:GetText())
@@ -221,6 +298,15 @@ function UI:Init()
         timeout = 0,
         whileDead = true,
         hideOnEscape = false,
+    }
+    StaticPopupDialogs["FELLOWSHIP_REMOVE"] = {
+        text = "Remove %s from the fellowship? This includes all of their characters.",
+        button1 = YES or "Yes",
+        button2 = NO or "No",
+        OnAccept = function(_, data) ns.Sync:Remove(data) end,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
     }
     StaticPopupDialogs["FELLOWSHIP_LEAVE"] = {
         text = "Leave your fellowship? Your copy of its history will be deleted.",
@@ -464,23 +550,126 @@ local function renderSidebar(p, fid)
     p.members:SetText(table.concat(lines, "\n"))
 end
 
-local function renderMembers(fs, fid)
-    local list, onlineCount = ns.Sync:MemberList(fid)
-    local lines = { string.format("|cffffd100%d of %d online|r", onlineCount, #list), " " }
-    for _, m in ipairs(list) do
-        lines[#lines + 1] = string.format("%s  %s  |cffffd100%s|r", m.status, m.display, m.roleLabel)
-        local alts = ""
-        if #m.chars > 1 then
-            local names = {}
-            for _, n in ipairs(m.chars) do names[#names + 1] = ns.Short(n) end
-            table.sort(names)
-            alts = "characters: " .. table.concat(names, ", ") .. "  -  "
-        end
-        lines[#lines + 1] = string.format("      |cffaaaaaa%s%smember since %s, %d achievement%s shared|r",
-            m.where and (m.where .. "  -  ") or "", alts, date("%b %d %Y", m.since), m.achievements,
-            m.achievements == 1 and "" or "s")
+local function sortRoster(list)
+    local key, rev = rosterSort.key, rosterSort.reverse
+    local function value(m)
+        if key == "name" then return ns.Short(m.name):lower()
+        elseif key == "level" then return m.level or -1
+        elseif key == "zone" then return (m.online and m.zone or "~"):lower()
+        elseif key == "rank" then return RANK_ORDER[m.role] or 9
+        elseif key == "seen" then return m.online and math.huge or (m.seen or 0) end
     end
-    fs:SetText(table.concat(lines, "\n"))
+    if key == "default" then return list end -- MemberList order: online first, then by name
+    table.sort(list, function(a, b)
+        local va, vb = value(a), value(b)
+        if va == vb then return ns.Short(a.name):lower() < ns.Short(b.name):lower() end
+        if key == "level" or key == "seen" then va, vb = -va, -vb end -- highest / most recent first
+        if rev then return va > vb end
+        return va < vb
+    end)
+    return list
+end
+
+local function renderMembers(p, fid)
+    local all, onlineCount = ns.Sync:MemberList(fid)
+    local showOffline = ns.settings.showOffline ~= false
+    p.showOffline:SetChecked(showOffline)
+    p.count:SetText(string.format("%d of %d members online", onlineCount, #all))
+    local list = {}
+    for _, m in ipairs(all) do
+        if showOffline or m.online then list[#list + 1] = m end
+    end
+    sortRoster(list)
+    p.offset = math.max(0, math.min(p.offset or 0, #list - ROSTER_ROWS))
+    for i, row in ipairs(p.rows) do
+        local m = list[i + p.offset]
+        row.member = m
+        if m then
+            local c = row.cells
+            if m.online then
+                local name = ns.ColorName(m.name)
+                if ns.Key(m.name) ~= ns.Key(m.main) then name = name .. GREY .. " (" .. ns.Short(m.main) .. ")|r" end
+                if m.isMe then name = name .. GREY .. " (you)|r" end
+                c.name:SetText(name)
+                c.level:SetText(m.level and tostring(m.level) or "")
+                c.zone:SetText(m.zone and ns.Escape(m.zone) or "")
+                c.seen:SetText("|cff33ff99Online|r")
+            else
+                c.name:SetText("|cff6e6e6e" .. ns.Short(m.main) .. "|r")
+                c.level:SetText("")
+                c.zone:SetText(GREY .. "Offline|r")
+                c.seen:SetText(GREY .. (m.seen and ns.Ago(m.seen) or "unknown") .. "|r")
+            end
+            local rank = m.roleLabel
+            if m.role == "admin" then rank = "|cffffd100" .. rank .. "|r"
+            elseif not m.online then rank = GREY .. rank .. "|r" end
+            c.rank:SetText(rank)
+            row:Show()
+        else
+            row:Hide()
+        end
+    end
+end
+
+function UI:ShowMemberTooltip(owner, m)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(m.online and ns.ColorName(m.name) or ns.Short(m.main))
+    GameTooltip:AddLine(m.roleLabel, 1, 0.82, 0)
+    if m.online and (m.level or m.zone) then
+        GameTooltip:AddLine((m.level and ("Level " .. m.level .. "  ") or "") .. (m.zone or ""), 1, 1, 1)
+    elseif not m.online then
+        GameTooltip:AddLine("Last online " .. (m.seen and ns.Ago(m.seen) or "unknown"), 0.6, 0.6, 0.6)
+    end
+    if #m.chars > 1 then
+        local names = {}
+        for _, n in ipairs(m.chars) do names[#names + 1] = ns.Short(n) end
+        table.sort(names)
+        GameTooltip:AddLine("Characters: " .. table.concat(names, ", "), 0.8, 0.8, 0.8, true)
+    end
+    GameTooltip:AddLine("Member since " .. date("%b %d, %Y", m.since), 0.8, 0.8, 0.8)
+    GameTooltip:AddLine(m.achievements .. " achievement" .. (m.achievements == 1 and "" or "s") .. " shared", 0.8, 0.8, 0.8)
+    if not m.isMe then GameTooltip:AddLine("Right-click for options", 0.5, 0.5, 0.5) end
+    GameTooltip:Show()
+end
+
+-- Right-click a member: whisper/invite to group, plus role and removal options for the Admin.
+function UI:MemberMenuItems(m)
+    local items = {}
+    if m.isMe then return items end
+    local target = ns.Short(m.online and m.name or m.main)
+    if m.online then
+        items[#items + 1] = { "Whisper", function()
+            local tell = (ChatFrameUtil and ChatFrameUtil.SendTell) or ChatFrame_SendTell
+            if tell then tell(target) end
+        end }
+        items[#items + 1] = { "Invite to Group", function()
+            local invite = (C_PartyInfo and C_PartyInfo.InviteUnit) or InviteUnit
+            if invite then invite(target) end
+        end }
+    end
+    local fid = ns.Store:ActiveId()
+    if fid and ns.Store:IsAdmin(fid, ns.me) then
+        if m.role == "member" then
+            items[#items + 1] = { "Make Inviter", function() ns.Sync:SetRole(m.main, "inviter") end }
+        elseif m.role == "inviter" then
+            items[#items + 1] = { "Make Member", function() ns.Sync:SetRole(m.main, "member") end }
+        end
+        items[#items + 1] = { "Pass Admin", function() ns.Sync:OfferAdmin(m.main) end }
+        items[#items + 1] = { "Remove from Fellowship", function()
+            StaticPopup_Show("FELLOWSHIP_REMOVE", ns.Short(m.main), nil, m.main)
+        end }
+    end
+    return items
+end
+
+function UI:OpenMemberMenu(owner, m)
+    local items = self:MemberMenuItems(m)
+    if #items == 0 or not (MenuUtil and MenuUtil.CreateContextMenu) then return end
+    MenuUtil.CreateContextMenu(owner, function(_, root)
+        root:CreateTitle(ns.Short(m.online and m.name or m.main))
+        for _, item in ipairs(items) do root:CreateButton(item[1], item[2]) end
+    end)
 end
 
 function UI:Refresh()
@@ -509,6 +698,6 @@ function UI:Refresh()
     elseif activeTab == "achievements" then
         renderFeed(p.log, fid, function(e) return (e.k == "A" or e.k == "M") and ns.Announce.ShouldShow(e) end)
     else
-        renderMembers(p.list, fid)
+        renderMembers(p, fid)
     end
 end

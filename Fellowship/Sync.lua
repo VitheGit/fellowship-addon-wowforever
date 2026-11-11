@@ -842,7 +842,8 @@ function Sync:MemberList(fid)
                 .. (st.zone and ns.Escape(st.zone) or "")
         end
         list[#list + 1] = { key = ns.Key(shown), account = key, name = shown, main = acct.main, chars = acct.chars,
-            since = acct.since, role = acct.role, online = on, status = status, where = where,
+            since = acct.since, role = acct.role, online = on, status = status, where = where, isMe = isMe,
+            level = st and tonumber(st.level), zone = st and st.zone, seen = seen,
             achievements = count, roleLabel = ns.ROLE_LABEL[acct.role] or "Member",
             display = ns.WhoName(shown, acct.main) }
     end
