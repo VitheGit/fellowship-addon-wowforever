@@ -31,8 +31,9 @@ local REQ_TIMEOUT = 60
 ---------------------------------------------------------------------------
 -- Encoding helpers
 ---------------------------------------------------------------------------
+-- Every message header carries our addon version (field 5), so members learn about updates.
 local function header(typ, fid, extra)
-    return { typ, fid or "", ns.PROTOCOL, extra }
+    return { typ, fid or "", ns.PROTOCOL, extra or "", ns.VERSION }
 end
 
 local function encodeEvent(e)
@@ -97,8 +98,58 @@ function Sync:Init()
     self:AutoJoinAlt()
     C_Timer.NewTicker(HELLO_INTERVAL, function() Sync:HelloAll() end)
     C_Timer.NewTicker(PING_INTERVAL, function() Sync:PingOnline() end)
+    -- remind about a newer Fellowship version at most once an hour (first check after login settles)
+    C_Timer.After(30, function() Sync:UpdateReminder() end)
+    C_Timer.NewTicker(60, function() Sync:UpdateReminder() end)
     ns.On("ZONE_CHANGED_NEW_AREA", function() Sync:QueueStatus() end)
     ns.On("PLAYER_LEVEL_UP", function() Sync:QueueStatus() end)
+end
+
+---------------------------------------------------------------------------
+-- Update notices: addons can't reach the internet, but every message from another
+-- member carries their Fellowship version. If someone has a newer one, we know an
+-- update exists and say so in Fellowship chat, at most once an hour.
+---------------------------------------------------------------------------
+local UPDATE_REMIND_EVERY = 3600
+
+local function parseVersion(v)
+    if type(v) ~= "string" then return nil end
+    local a, b, c = v:match("^(%d+)%.(%d+)%.(%d+)$")
+    if not a then return nil end
+    return { tonumber(a), tonumber(b), tonumber(c) }
+end
+
+function ns.VersionNewer(a, b) -- is version string a newer than b?
+    local x, y = parseVersion(a), parseVersion(b)
+    if not x or not y then return false end
+    for i = 1, 3 do
+        if x[i] ~= y[i] then return x[i] > y[i] end
+    end
+    return false
+end
+
+function Sync:NoteVersion(v)
+    local db = ns.Store.db
+    if not db or not ns.VersionNewer(v, ns.VERSION) then return end
+    if db.newestVersion and not ns.VersionNewer(v, db.newestVersion) then return end
+    db.newestVersion = v
+    db.updateNoticeAt = nil -- a newer release than we last mentioned: say so right away
+    self:UpdateReminder()
+end
+
+function Sync:UpdateReminder()
+    local db = ns.Store.db
+    if not db or not db.newestVersion then return end
+    if not ns.VersionNewer(db.newestVersion, ns.VERSION) then
+        db.newestVersion, db.updateNoticeAt = nil, nil -- we've updated
+        return
+    end
+    if not ns.loginTime or GetTime() - ns.loginTime < 20 then return end -- don't bury it in the login burst
+    local now = ns.Now()
+    if db.updateNoticeAt and now - db.updateNoticeAt < UPDATE_REMIND_EVERY then return end
+    db.updateNoticeAt = now
+    ns.Print("|cffffd100A new version of Fellowship is available:|r " .. db.newestVersion .. " (you have "
+        .. ns.VERSION .. "). Download it from CurseForge, then /reload.")
 end
 
 function Sync:IsOnline(name)
@@ -410,6 +461,7 @@ function Sync:OnMessage(sender, records)
     end
     self:MarkOnline(key)
     ns.Store:SetSeen(sender)
+    self:NoteVersion(h[5])
 
     if typ == "HI" then
         self:OnHello(sender, fid, f, h[4] == "1", records)
@@ -545,6 +597,7 @@ function Sync:OnInvite(sender, fid, name, records)
         return
     end
     name = ns.Truncate(tostring(name or "?"), 48)
+    self:NoteVersion(version)
     if version and version ~= ns.VERSION then
         ns.Print(ns.ColorName(sender) .. " is using Fellowship " .. ns.Escape(version) .. " and you have "
             .. ns.VERSION .. ". If joining doesn't finish, make sure you both have the latest version.")

@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.9.8"
+ns.VERSION = "0.9.9"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -437,6 +437,7 @@ ns.On("PLAYER_LOGIN", function()
     local first, last = UnitFullName("player")
     ns.me = ns.NormalizeName(last and last ~= "" and (first .. "-" .. last) or first)
     loginTime = GetTime()
+    ns.loginTime = loginTime
     ns.meKey = ns.Key(ns.me)
     ns.Store:InitCharacter()
     local _, classToken = UnitClass("player")

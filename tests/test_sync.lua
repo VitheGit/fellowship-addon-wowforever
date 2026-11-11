@@ -914,6 +914,37 @@ test("item links in chat stay clickable; other escape codes are neutralised", fu
     eq(N("half " .. link:sub(1, 40)), "half " .. bob.ns.Escape(link:sub(1, 40)), "broken link not escaped")
 end)
 
+test("members on an older version are told about the update, at most once an hour", function()
+    local w, anna, bob = setup()
+    w:advance(30)
+    local function notices(c)
+        local n = 0
+        for _, l in ipairs(c.log) do if l:find("A new version of Fellowship is available", 1, true) then n = n + 1 end end
+        return n
+    end
+    eq(notices(bob), 0, "no notice when everyone is on the same version")
+    -- Anna updates to a newer version and logs back in
+    anna:logout()
+    local real = anna.ns.VERSION
+    anna:login()
+    anna.ns.VERSION = "99.0.0"
+    anna.ns.Sync:HelloAll(); w:advance(5)
+    eq(notices(bob), 1, "bob not told")
+    assert(bob:logContains("99.0.0 (you have " .. real .. ")"), "version text")
+    eq(notices(anna), 0, "the up-to-date member isn't nagged")
+    w:advance(1800); eq(notices(bob), 1, "repeated within the hour")
+    w:advance(1900); eq(notices(bob), 2, "no hourly reminder")
+    -- a relog doesn't reset the hourly timer, and the reminder survives with nobody online
+    anna:logout(); bob:logout(); bob:login(); w:advance(60)
+    eq(notices(bob), 2, "reload spammed the notice")
+    w:advance(3600); eq(notices(bob), 3, "reminder lost after relog")
+    -- once bob has the new version, the reminders stop
+    bob:logout(); bob:login(); bob.ns.VERSION = "99.0.0"; w:advance(7300)
+    eq(notices(bob), 3)
+    assert(bob.ns.VersionNewer("1.0.10", "1.0.9") and not bob.ns.VersionNewer("1.0.9", "1.0.10"), "version compare")
+    assert(not bob.ns.VersionNewer("garbage", "0.9.8"), "garbage accepted")
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")
