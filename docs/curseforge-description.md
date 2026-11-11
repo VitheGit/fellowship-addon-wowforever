@@ -23,6 +23,10 @@ No guild needed. No server, no website, no Discord. Just the addon.
 - Every member keeps the full history, so **you catch up on what you missed when you log in**, even if the person who said it has since logged off
 - A *"new since you were last here"* line in the window, and a login summary: *"While you were away: 12 messages and 3 achievements"*
 
+### 🛡️ Fellowship Achievements
+- Clear a dungeon or raid where **everyone in the group is in your fellowship** and it's earned for the whole fellowship, with the date and who was there
+- See them all in the **Achievements** tab, with the dungeons and raids you haven't done together yet listed underneath
+
 ### 🏆 A shared adventure feed
 Posted automatically when it happens:
 - Achievements and level-ups

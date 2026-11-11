@@ -99,8 +99,9 @@ sees the removal and cleans up. User text is escaped (`|` becomes `||`) before d
 
 `FellowshipDB` (account-wide SavedVariables) holds every fellowship's log, plus per
 character the active fellowship and the "last read" time. At login, chat and
-achievements beyond 3000 events or 180 days are pruned; membership events are never
-pruned. Pruning raises a per-author `floor` so peers stop asking for removed events.
+achievements beyond 3000 events or 180 days are pruned; membership events and
+Fellowship Achievements (`M` events with subtype `feat`, see Feats.lua) are never
+pruned and are always included in a catch-up. Pruning raises a per-author `floor` so peers stop asking for removed events.
 
 ## Known limits / ideas
 

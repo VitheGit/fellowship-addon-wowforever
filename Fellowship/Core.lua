@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.10.2"
+ns.VERSION = "0.11.0"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -316,7 +316,9 @@ function ns.FormatEvent(e)
             .. ((pts and pts > 0) and (" (" .. pts .. " pts)") or "")
     elseif e.k == "M" then
         local sub = d[1]
-        if sub == "level" then
+        if sub == "feat" then
+            return ns.Feats.Format(e)
+        elseif sub == "level" then
             return who .. " reached level " .. (tonumber(d[2]) or "?") .. "!"
         elseif sub == "mount" then
             local spellID = tonumber(d[3])
@@ -437,7 +439,7 @@ ns.Listen("EVENTS_ADDED", function(fid, added, live)
         end
         table.sort(late, function(a, b) return a.t < b.t end)
         for _, e in ipairs(late) do
-            local show = (e.k == "C" and ns.settings.echoChat) or (e.k ~= "C" and ns.Announce.ShouldShow(e))
+            local show = (e.k == "C" and ns.settings.echoChat) or (e.k ~= "C" and ns.Announce.ShouldEcho(e))
             if show then
                 local ago = now - e.t
                 ns.Echo((ns.FormatEvent(e) or "") .. (ago >= 60 and (" |cff808080(" .. ns.Ago(e.t) .. ")|r") or ""))
@@ -453,7 +455,7 @@ ns.Listen("EVENTS_ADDED", function(fid, added, live)
             if e.k == "C" and ns.settings.echoChat then
                 ns.Echo(ns.FormatEvent(e) or "")
             elseif e.k == "A" or e.k == "M" then
-                if ns.Announce.ShouldShow(e) then ns.Echo(ns.FormatEvent(e) or "") end
+                if ns.Announce.ShouldEcho(e) then ns.Echo(ns.FormatEvent(e) or "") end
             elseif ns.MEMBERSHIP_KINDS[e.k] then
                 ns.Echo(ns.FormatEvent(e) or "")
             end

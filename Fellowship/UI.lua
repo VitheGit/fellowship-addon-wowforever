@@ -1,4 +1,4 @@
--- UI: the Fellowship window (Chat feed, Achievements, Members) and the invite popup.
+-- UI: the Fellowship window (Chat, Activity, Achievements, Members) and the invite popup.
 local _, ns = ...
 local UI = {}
 ns.UI = UI
@@ -18,6 +18,15 @@ local ROSTER_COLUMNS = {
     { key = "seen", title = "Last Online", width = 110 },
 }
 local ROSTER_ROWS, ROW_HEIGHT = 15, 18
+
+-- Achievements tab columns
+local FEAT_COLUMNS = {
+    { key = "title", title = "Achievement", width = 230 },
+    { key = "type", title = "Type", width = 70 },
+    { key = "date", title = "Completed", width = 100 },
+    { key = "with", title = "Completed With", width = 220 },
+}
+local FEAT_ROWS = 16
 local rosterSort = { key = "default", reverse = false }
 local RANK_ORDER = { admin = 1, inviter = 2, member = 3 }
 local GREY = "|cff808080"
@@ -94,7 +103,8 @@ function UI:Build()
     end)
 
     -- Tabs
-    local tabs = { { "chat", "Chat" }, { "achievements", "Activity" }, { "members", "Members" } }
+    local tabs = { { "chat", "Chat" }, { "achievements", "Activity" }, { "feats", "Achievements" },
+        { "members", "Members" } }
     for i, t in ipairs(tabs) do
         local b = makeButton(frame, t[2], 110, function() UI:SelectTab(t[1]) end)
         b:SetPoint("TOPLEFT", 12 + (i - 1) * 114, -28)
@@ -147,6 +157,60 @@ function UI:Build()
     ach.log:SetPoint("TOPLEFT", 4, -4)
     ach.log:SetPoint("BOTTOMRIGHT", -4, 4)
     panels.achievements = ach
+
+    -- Achievements: Fellowship Achievements (dungeons and raids completed together)
+    local feats = panel()
+    local fx = 4
+    for _, c in ipairs(FEAT_COLUMNS) do
+        local h = CreateFrame("Frame", nil, feats)
+        h:SetPoint("TOPLEFT", fx, -2)
+        h:SetSize(c.width, 20)
+        local bg = h:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints()
+        bg:SetColorTexture(1, 1, 1, 0.08)
+        local label = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        label:SetPoint("LEFT", 6, 0)
+        label:SetText(c.title)
+        c.x = fx
+        fx = fx + c.width + 2
+    end
+    feats.rows = {}
+    for i = 1, FEAT_ROWS do
+        local row = CreateFrame("Button", nil, feats)
+        row:SetPoint("TOPLEFT", 4, -24 - (i - 1) * ROW_HEIGHT)
+        row:SetSize(fx - 6, ROW_HEIGHT)
+        if i % 2 == 0 then
+            local bg = row:CreateTexture(nil, "BACKGROUND")
+            bg:SetAllPoints()
+            bg:SetColorTexture(1, 1, 1, 0.03)
+        end
+        row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+        row.cells = {}
+        for _, c in ipairs(FEAT_COLUMNS) do
+            local fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            fs:SetPoint("LEFT", c.x - 4 + 6, 0)
+            fs:SetWidth(c.width - 8)
+            fs:SetJustifyH("LEFT")
+            fs:SetWordWrap(false)
+            row.cells[c.key] = fs
+        end
+        row:SetScript("OnEnter", function(self) if self.feat then UI:ShowFeatTooltip(self, self.feat) end end)
+        row:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+        row:Hide()
+        feats.rows[i] = row
+    end
+    feats.offset = 0
+    feats:EnableMouseWheel(true)
+    feats:SetScript("OnMouseWheel", function(_, delta)
+        feats.offset = math.max(0, feats.offset - delta * 3)
+        UI:Refresh()
+    end)
+    feats.count = feats:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    feats.count:SetPoint("BOTTOMLEFT", 8, 8)
+    feats.hint = feats:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    feats.hint:SetPoint("BOTTOMRIGHT", -8, 8)
+    feats.hint:SetText("Complete a dungeon or raid where everyone in the group is in the fellowship.")
+    panels.feats = feats
 
     -- Members: a roster laid out like the guild window
     local mem = panel()
@@ -612,6 +676,59 @@ local function renderMembers(p, fid)
     end
 end
 
+local function renderFeats(p, fid)
+    local rows, earned, todo = ns.Feats:Rows(fid)
+    if todo > 0 then
+        p.count:SetText(string.format("%d of %d earned", earned, earned + todo))
+    else
+        p.count:SetText(string.format("%d earned", earned))
+    end
+    p.offset = math.max(0, math.min(p.offset or 0, #rows - FEAT_ROWS))
+    for i, row in ipairs(p.rows) do
+        local a = rows[i + p.offset]
+        row.feat = a
+        if a then
+            local c = row.cells
+            local kind = a.category == "raid" and "Raid" or "Dungeon"
+            if a.t then
+                c.title:SetText("|cffffd100" .. ns.Escape(a.title) .. "|r")
+                c.type:SetText(kind)
+                c.date:SetText(date("%b %d, %Y", a.t))
+                c.with:SetText(ns.Feats.JoinNames(a.members, true))
+            else
+                c.title:SetText(GREY .. ns.Escape(a.title) .. "|r")
+                c.type:SetText(GREY .. kind .. "|r")
+                c.date:SetText(GREY .. "Not yet|r")
+                c.with:SetText("")
+            end
+            row:Show()
+        else
+            row:Hide()
+        end
+    end
+    if #rows == 0 then
+        p.rows[1].cells.title:SetText(GREY .. "No Fellowship Achievements yet.|r")
+        for _, k in ipairs({ "type", "date", "with" }) do p.rows[1].cells[k]:SetText("") end
+        p.rows[1]:Show()
+    end
+end
+
+function UI:ShowFeatTooltip(owner, a)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(ns.Escape(a.title), 1, 0.82, 0)
+    if a.t then
+        GameTooltip:AddLine((a.category == "raid" and "Cleared " or "Completed ") .. date("%b %d, %Y at %H:%M", a.t), 1, 1, 1)
+        if #a.members > 0 then
+            GameTooltip:AddLine("With " .. ns.Feats.JoinNames(a.members, false), 0.8, 0.8, 0.8, true)
+        end
+    else
+        GameTooltip:AddLine((a.category == "raid" and "Clear" or "Complete")
+            .. " it with a group made up only of fellowship members.", 0.6, 0.6, 0.6, true)
+    end
+    GameTooltip:Show()
+end
+
 function UI:ShowMemberTooltip(owner, m)
     if not GameTooltip then return end
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
@@ -698,6 +815,8 @@ function UI:Refresh()
         renderSidebar(p, fid)
     elseif activeTab == "achievements" then
         renderFeed(p.log, fid, function(e) return (e.k == "A" or e.k == "M") and ns.Announce.ShouldShow(e) end)
+    elseif activeTab == "feats" then
+        renderFeats(p, fid)
     else
         renderMembers(p, fid)
     end

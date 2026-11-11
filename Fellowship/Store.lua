@@ -32,6 +32,13 @@ for k in pairs(MEMBERSHIP) do KINDS[k] = true end
 ns.MEMBERSHIP_KINDS = MEMBERSHIP
 ns.EVENT_KINDS = KINDS
 
+-- Kept forever (never pruned, always sent in a catch-up): membership events and
+-- Fellowship Achievements ("M" events with subtype "feat").
+local function keep(k, d)
+    return MEMBERSHIP[k] or (k == "M" and type(d) == "table" and d[1] == "feat")
+end
+ns.KeepForever = keep
+
 local MAX_FIELD = 1000
 
 -- runtime caches (not saved)
@@ -155,8 +162,8 @@ function Store:AddEvent(fid, e)
     local evs = f.events[e.a]
     if not evs then evs = {}; f.events[e.a] = evs end
     if evs[e.s] then return false end
-    -- Below our floor means we pruned it on purpose; only membership events are kept forever.
-    if e.s <= (f.floor[e.a] or 0) and not MEMBERSHIP[e.k] then return false end
+    -- Below our floor means we pruned it on purpose; only membership events and feats are kept forever.
+    if e.s <= (f.floor[e.a] or 0) and not keep(e.k, e.d) then return false end
     local d = {}
     for i, v in ipairs(e.d or {}) do d[i] = tostring(v) end
     evs[e.s] = { t = e.t, r = ns.Now(), k = e.k, d = d }
@@ -201,7 +208,7 @@ function Store:EventsAfter(fid, author, from, limit)
     table.sort(seqs)
     local others = {}
     for _, s in ipairs(seqs) do
-        if not MEMBERSHIP[evs[s].k] then others[#others + 1] = s end
+        if not keep(evs[s].k, evs[s].d) then others[#others + 1] = s end
     end
     local floor = f.floor[author] or 0
     local skipBelow = 0
@@ -212,7 +219,7 @@ function Store:EventsAfter(fid, author, from, limit)
     local out = {}
     for _, s in ipairs(seqs) do
         local e = evs[s]
-        if MEMBERSHIP[e.k] or s >= skipBelow then
+        if keep(e.k, e.d) or s >= skipBelow then
             out[#out + 1] = { a = author, s = s, t = e.t, k = e.k, d = e.d }
         end
     end
@@ -480,7 +487,7 @@ function Store:Prune(fid)
     local cutoff = ns.Now() - (s.maxAgeDays or 180) * 86400
     local prunable = {}
     for _, e in ipairs(self:Sorted(fid)) do
-        if not MEMBERSHIP[e.k] then prunable[#prunable + 1] = e end
+        if not keep(e.k, e.d) then prunable[#prunable + 1] = e end
     end
     local excess = #prunable - (s.maxEvents or 3000)
     local removed = 0

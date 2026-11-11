@@ -1101,12 +1101,108 @@ test("messages sent while the game blocks addon messages go out once it allows t
     assert(bob:logContains("during the boss fight"), "message lost during lockdown")
 end)
 
+-- Put `c` in a group with `others` ({ client or { name, realm, player } }).
+local function joinGroup(c, others, raid)
+    c.group, c.raid = {}, raid
+    for i, o in ipairs(others) do
+        local u = { name = o.name or o[1], realm = o.realm or o[2], player = o.player ~= false and o[3] ~= false }
+        c.group[i] = u
+        c.units[(raid and "raid" or "party") .. i] = u
+    end
+end
+
+local function feats(c)
+    local fid = c.ns.Store:ActiveId()
+    local earned = c.ns.Feats:Earned(fid)
+    local n = 0
+    for _ in pairs(earned) do n = n + 1 end
+    return earned, n
+end
+
+test("Fellowship Achievements: dungeons and raids completed with only fellowship members", function()
+    local w, anna, bob, cara = setup()
+    local dana = w:client("Dana"); dana:login(); w:advance(1) -- not in the fellowship
+    local dm = { name = "Deadmines", type = "party", difficulty = "Normal", id = 36, bosses = { 11, 12 } }
+    -- a stranger in the group: no achievement (but the dungeon is still announced)
+    for _, c in ipairs({ anna, bob }) do c.instance = dm end
+    joinGroup(anna, { bob, dana }); joinGroup(bob, { anna, dana })
+    anna:fire("ENCOUNTER_END", 12, "Boss 2", 1, 5, 1); bob:fire("ENCOUNTER_END", 12, "Boss 2", 1, 5, 1)
+    w:advance(3)
+    local _, n = feats(cara)
+    eq(n, 0, "earned with a non-member in the group")
+    assert(cara:logContains("completed Deadmines (Normal)"), "dungeon still announced")
+    -- solo doesn't count
+    cara.instance = dm; cara.group = nil
+    cara:fire("ENCOUNTER_END", 12, "Boss 2", 1, 5, 1); w:advance(3)
+    _, n = feats(anna)
+    eq(n, 0, "earned solo")
+    -- all three members (plus an NPC follower): earned once, announced once
+    for _, c in ipairs({ anna, bob, cara }) do c:fire("ZONE_CHANGED_NEW_AREA"); c.instance = nil; c:fire("ZONE_CHANGED_NEW_AREA") end
+    for _, c in ipairs({ anna, bob, cara }) do c.instance = dm end
+    local follower = { "Captain Garrick", "", false }
+    joinGroup(anna, { bob, cara, follower }); joinGroup(bob, { anna, cara, follower }); joinGroup(cara, { anna, bob, follower })
+    local before = #bob.log
+    for _, c in ipairs({ anna, bob, cara }) do c:fire("ENCOUNTER_END", 12, "Boss 2", 1, 5, 1) end
+    w:advance(5)
+    for _, c in ipairs({ anna, bob, cara }) do
+        local earned, count = feats(c)
+        eq(count, 1, c.name .. " achievements")
+        local a = earned["dungeon|deadmines|normal"]
+        assert(a, c.name .. " has no Deadmines achievement")
+        eq(#a.members, 3, "members recorded")
+        eq(table.concat(a.members, ","), "Anna-Silvermoon,Bob-Silvermoon,Cara-Area52", "members")
+        assert(a.t > 0, "date")
+    end
+    local shown = 0
+    for i = before + 1, #bob.log do
+        if bob.log[i]:find("Fellowship Achievement:", 1, true) then shown = shown + 1 end
+    end
+    eq(shown, 1, "announced once in bob's chat")
+    assert(bob:logContains("[Deadmines (Normal)]"), "title in chat")
+    -- the Activity feed shows it once too
+    local fid = bob.ns.Store:ActiveId()
+    local inFeed = 0
+    for _, e in ipairs(bob.ns.Store:Sorted(fid)) do
+        if bob.ns.Feats.IsFeat(e) and bob.ns.Announce.ShouldShow(e) then inFeed = inFeed + 1 end
+    end
+    eq(inFeed, 1, "one feed line")
+    -- doing it again doesn't add another; a raid is its own achievement
+    local stored = #bob:history()
+    for _, c in ipairs({ anna, bob, cara }) do c:fire("ZONE_CHANGED_NEW_AREA") end
+    anna.instance = nil; anna:fire("ZONE_CHANGED_NEW_AREA"); anna.instance = dm
+    anna:fire("ENCOUNTER_END", 12, "Boss 2", 1, 5, 1); w:advance(3)
+    eq(#bob:history(), stored + 1, "only the dungeon announcement is new") -- the normal dungeon line
+    anna.instance = { name = "Molten Core", type = "raid", difficulty = "Normal", id = 409, bosses = { 21, 22 } }
+    anna:fire("ZONE_CHANGED_NEW_AREA")
+    joinGroup(anna, { bob, cara }, true)
+    anna:fire("ENCOUNTER_END", 22, "Ragnaros", 14, 20, 1); w:advance(3)
+    local earned, count = feats(cara)
+    eq(count, 2, "raid achievement")
+    eq(earned["raid|molten core|normal"].category, "raid", "raid category")
+    assert(cara:logContains("cleared |cffffd100[Molten Core (Normal)]"), "raid announced")
+    -- achievements survive pruning and reach someone who joins later
+    anna.ns.settings.maxEvents = 1
+    anna.ns.Store:Prune(anna.ns.Store:ActiveId())
+    eq(select(2, feats(anna)), 2, "pruned")
+    -- Achievements tab renders, earned first then the journal's unearned ones
+    anna.env.EJ_GetInstanceByIndex = function(i, isRaid)
+        local list = isRaid and { "Molten Core", "Onyxia's Lair" } or { "Deadmines", "Wailing Caverns" }
+        if list[i] then return i, list[i] end
+    end
+    local rows, got, todo = anna.ns.Feats:Rows(anna.ns.Store:ActiveId())
+    eq(got, 2, "earned rows"); eq(todo, 2, "unearned rows")
+    eq(rows[1].title, "Molten Core (Normal)", "newest first")
+    eq(rows[3].title, "Wailing Caverns", "dungeons before raids in the not-yet list")
+    anna:slash("/fs")
+    anna.ns.UI:SelectTab("feats")
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")
     w:advance(2)
     anna:slash("/fs")
-    for _, tab in ipairs({ "chat", "achievements", "members" }) do anna.ns.UI:SelectTab(tab) end
+    for _, tab in ipairs({ "chat", "achievements", "feats", "members" }) do anna.ns.UI:SelectTab(tab) end
     w:advance(1)
     anna:slash("/fship who")
     anna:slash("/fship help")

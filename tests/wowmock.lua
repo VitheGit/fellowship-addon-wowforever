@@ -6,7 +6,7 @@ World.__index = World
 
 local ADDON_DIR = (arg and arg[0] and arg[0]:match("^(.*)/tests/")) or "."
 ADDON_DIR = ADDON_DIR .. "/Fellowship/"
-local FILES = { "Core.lua", "Serializer.lua", "Store.lua", "Comm.lua", "Sync.lua", "Announce.lua", "Menu.lua", "Minimap.lua", "UI.lua" }
+local FILES = { "Core.lua", "Serializer.lua", "Store.lua", "Comm.lua", "Sync.lua", "Announce.lua", "Feats.lua", "Menu.lua", "Minimap.lua", "UI.lua" }
 
 local function deepcopy(v)
     if type(v) ~= "table" then
@@ -131,6 +131,10 @@ function Client:login()
             local u = client.units[unit]; return u and u.name
         end,
         UnitExists = function(unit) return client.units[unit] ~= nil end,
+        -- group: set client.group = { { name, realm, player = true|false }, ... } (not including you)
+        IsInGroup = function() return client.group ~= nil and #client.group > 0 end,
+        IsInRaid = function() return client.raid == true end,
+        GetNumGroupMembers = function() return client.group and (#client.group + 1) or 0 end,
         UnitIsPlayer = function(unit) return client.units[unit] and client.units[unit].player end,
         UnitFactionGroup = function(unit) if unit == "player" then return "Alliance" end return client.units[unit] and client.units[unit].faction end,
         UnitLevel = function() return client.level or 60 end,

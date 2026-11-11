@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0
+
+- New Achievements tab with Fellowship Achievements, earned together. Complete a dungeon or clear a raid (final boss down) where everyone in your group is in the fellowship, and it's marked complete with the date and who was there.
+- Each dungeon and raid is its own achievement per difficulty, so Deadmines (Normal) and Deadmines (Heroic) count separately. Groups need at least two players; NPC followers don't count against you.
+- The fellowship sees "Fellowship Achievement: completed [Deadmines (Normal)] with ..." once, even though everyone in the group's addon notices it.
+- Dungeons and raids you haven't done together yet are listed in grey underneath, so you can see what's left.
+- Fellowship Achievements are kept forever (never trimmed with old history), and new members get them when they join.
+- Everyone needs 0.11.0 to earn them; older versions still store them and show them as a milestone.
+
 ## 0.10.2
 
 - Fixed chat lines that some members never saw. A message that got lost on the way is now noticed and fetched as soon as the next message arrives, or within two minutes at most, and it shows up in chat (marked with how long ago it was sent) instead of only in the window.

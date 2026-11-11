@@ -29,6 +29,7 @@ local SUBTYPE_GROUP = {
 }
 
 function A.GroupOf(e)
+    if ns.Feats.IsFeat(e) then return nil end
     if e.k == "A" then return "achievement" end
     if e.k == "M" then return SUBTYPE_GROUP[e.d and e.d[1]] or "level" end
     return nil
@@ -36,6 +37,8 @@ end
 
 -- Should this event be shown to me (chat echo and the window)?
 function A.ShouldShow(e)
+    -- Fellowship Achievements: everyone in the group posts one; show only the first
+    if ns.Feats.IsFeat(e) then return ns.Feats:IsFirst(e) end
     local group = A.GroupOf(e)
     if not group then return true end
     if e.a == ns.me then return true end -- your own things always show in the window
@@ -45,6 +48,14 @@ function A.ShouldShow(e)
         local q = tonumber(e.d[4]) or 0
         return q >= (s.lootMinQuality or 4)
     end
+    return true
+end
+
+-- Should this event be printed in chat? Like ShouldShow, but a Fellowship Achievement is
+-- printed only once even when several members of the group post it at the same moment.
+function A.ShouldEcho(e)
+    if not A.ShouldShow(e) then return false end
+    if ns.Feats.IsFeat(e) then return ns.Feats:MarkAnnounced(e) end
     return true
 end
 
@@ -188,6 +199,7 @@ function A:PostInstance(keyLevel, onTime)
     if postedRun == key then return end
     postedRun = key
     local _, _, _, difficultyName = GetInstanceInfo()
+    ns.Feats:OnInstanceComplete(instanceType == "raid" and "raid" or "dungeon", name, difficultyName or "")
     share("instance", { instanceType == "raid" and "raid" or "dungeon", name, difficultyName or "",
         keyLevel or "", onTime == nil and "" or (onTime and "1" or "0") })
 end
