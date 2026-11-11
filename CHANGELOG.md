@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.3
+
+- The Dungeons tab no longer lists every zone and battleground. WoW Forever's group finder list includes those, so it's now used only to add level ranges and pictures to real dungeons and raids.
+- Level ranges of "LV 1" from that list are ignored, so each dungeon keeps its real range.
+
 ## 0.11.2
 
 - Fixed the Achievements tab showing "No dungeons to show yet". Fellowship now has its own list of every dungeon and raid, with level ranges, so the cards always show. If the game also provides its dungeon list, its level ranges and pictures are used.

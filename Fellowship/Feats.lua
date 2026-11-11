@@ -189,7 +189,7 @@ local function addInstance(list, byKey, name, category, fields)
 end
 
 -- Built in, so the cards always show even when the game doesn't hand addons its dungeon
--- list. Levels are WoW Forever's where known (from its dungeon picker), classic otherwise;
+-- list (and only these, plus the Encounter Journal's, count as dungeons). Levels are WoW Forever's where known (from its dungeon picker), classic otherwise;
 -- the game's own numbers win when it does give them. art = Dungeon Finder picture name.
 local BUILTIN = {
     dungeon = {
@@ -233,22 +233,11 @@ local catalog, builtAt, fromGame
 -- guarded separately, so one odd entry can't hide the rest. Returns the number found.
 local function readGame(list, byKey)
     local found = 0
-    if GetLFGDungeonInfo then
-        for id = 1, 3000 do
-            local ok, name, typeID, subtypeID, minLevel, maxLevel, _, minRec, maxRec, _, _, texture,
-                _, maxPlayers = pcall(GetLFGDungeonInfo, id)
-            -- typeID 1 = dungeon or raid, 2 = raid (older clients); 6 = random queue
-            if ok and type(name) == "string" and typeID ~= 6 and subtypeID ~= 4 then
-                local raid = subtypeID == 3 or typeID == 2 or (tonumber(maxPlayers) or 0) > 5
-                local lo, hi = tonumber(minRec) or 0, tonumber(maxRec) or 0
-                if lo <= 0 or hi <= 0 then lo, hi = tonumber(minLevel) or 0, tonumber(maxLevel) or 0 end
-                addInstance(list, byKey, name, raid and "raid" or "dungeon", {
-                    minLevel = lo, maxLevel = hi,
-                    art = (type(texture) == "string" and texture ~= "") and (LFG_ART .. texture) or nil,
-                })
-                found = found + 1
-            end
-        end
+    -- The Dungeon Finder list also holds zones, battlegrounds and world PvP (WoW Forever's
+    -- group finder lists every zone), so it only adds detail (levels, art) to dungeons and
+    -- raids we already know from the built-in list or the Encounter Journal.
+    for category, entries in pairs(BUILTIN) do
+        for _, b in ipairs(entries) do addInstance(list, byKey, b[1], category, {}) end
     end
     if EJ_GetInstanceByIndex then
         local okT, tiers = pcall(function() return EJ_GetNumTiers and EJ_GetNumTiers() or 1 end)
@@ -266,6 +255,24 @@ local function readGame(list, byKey)
         end
         if current and EJ_SelectTier then pcall(EJ_SelectTier, current) end
     end
+    if GetLFGDungeonInfo then
+        for id = 1, 3000 do
+            local ok, name, typeID, _, minLevel, maxLevel, _, minRec, maxRec, _, _, texture =
+                pcall(GetLFGDungeonInfo, id)
+            local inst = ok and type(name) == "string" and typeID ~= 6 and byKey[F.NameKey(name)]
+            if inst then
+                local lo, hi = tonumber(minRec) or 0, tonumber(maxRec) or 0
+                if lo <= 1 or hi <= 1 then lo, hi = tonumber(minLevel) or 0, tonumber(maxLevel) or 0 end
+                if lo > 1 and hi > 1 and lo < (inst.gameMin or math.huge) then
+                    inst.gameMin, inst.minLevel, inst.maxLevel = lo, lo, hi
+                end
+                if not inst.art and type(texture) == "string" and texture ~= "" then
+                    inst.art = LFG_ART .. texture
+                end
+                found = found + 1
+            end
+        end
+    end
     return found
 end
 
@@ -274,16 +281,12 @@ function F:Catalog()
     if catalog and (fromGame or GetTime() - builtAt < 60) then return catalog end
     local list, byKey = {}, {}
     local found = readGame(list, byKey)
-    for category, entries in pairs(BUILTIN) do
+    -- the game's numbers and pictures win; the built-in ones fill in what it left out
+    for _, entries in pairs(BUILTIN) do
         for _, b in ipairs(entries) do
-            local key = F.NameKey(b[1])
-            local known = byKey[key]
-            -- the game's numbers win; ours only fill in what it left out
-            addInstance(list, byKey, b[1], category, {
-                minLevel = (not known or not known.minLevel) and b[2] or nil,
-                maxLevel = (not known or not known.minLevel) and b[3] or nil,
-                art = b[4] and (LFG_ART .. b[4]) or nil,
-            })
+            local inst = byKey[F.NameKey(b[1])]
+            if not inst.minLevel then inst.minLevel, inst.maxLevel = b[2], b[3] end
+            if not inst.art and b[4] then inst.art = LFG_ART .. b[4] end
         end
     end
     catalog, builtAt, fromGame = list, GetTime(), found > 0
@@ -294,14 +297,20 @@ end
 function F:Diagnose()
     local list, byKey = {}, {}
     local found = readGame(list, byKey)
-    ns.Print(string.format("Dungeon Finder: %s. Encounter Journal: %s. Found %d entries from the game.",
+    ns.Print(string.format("Dungeon Finder: %s. Encounter Journal: %s. %d matches from the game.",
         GetLFGDungeonInfo and "yes" or "missing", EJ_GetInstanceByIndex and "yes" or "missing", found))
-    for i = 1, math.min(#list, 12) do
-        local inst = list[i]
-        ns.Output(string.format("  %s (%s) LV %s-%s art: %s", inst.name, inst.category,
-            tostring(inst.minLevel or "?"), tostring(inst.maxLevel or "?"), tostring(inst.art or inst.ejArt or "none")))
+    local shown = 0
+    for _, inst in ipairs(list) do
+        if inst.gameMin or inst.art or inst.ejArt then
+            shown = shown + 1
+            if shown <= 15 then
+                ns.Output(string.format("  %s (%s) LV %s-%s art: %s", inst.name, inst.category,
+                    tostring(inst.minLevel or "?"), tostring(inst.maxLevel or "?"),
+                    tostring(inst.art or inst.ejArt or "none")))
+            end
+        end
     end
-    if #list > 12 then ns.Output("  ... and " .. (#list - 12) .. " more") end
+    if shown > 15 then ns.Output("  ... and " .. (shown - 15) .. " more") end
 end
 
 -- Cards for one Achievements sub-tab ("dungeon" or "raid"), by level range like the

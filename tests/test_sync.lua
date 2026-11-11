@@ -1192,6 +1192,10 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
         [3] = { "The Deadmines", 1, 2, 60, 60, 0, 60, 60, 0, 0, "DEADMINES" }, -- heroic
         [4] = { "Random Classic Dungeon", 6, 1, 15, 60, 0, 15, 60, 0, 0, "" },
         [5] = { "Molten Core", 2, 3, 60, 60, 0, 60, 60, 0, 0, "MOLTENCORE" },
+        -- WoW Forever's group finder also lists zones and battlegrounds (level 1)
+        [6] = { "Alterac Mountains", 1, 1, 1, 1, 0, 1, 1, 0, 0, "" },
+        [7] = { "Arathi Basin", 1, 1, 1, 1, 0, 1, 1, 0, 0, "" },
+        [8] = { "Shadowfang Keep", 1, 1, 1, 1, 0, 1, 1, 0, 0, "" },
     }
     anna.env.GetLFGDungeonInfo = function(id) if lfg[id] then return unpack(lfg[id]) end end
     anna.env.EJ_GetInstanceByIndex = function(i, isRaid)
@@ -1216,6 +1220,8 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
     assert(not byName["Wailing Caverns"].done, "Wailing Caverns incomplete")
     assert(byName["Ragefire Chasm"].index < byName["Shadowfang Keep"].index, "sorted by level")
     assert(not byName["Random Classic Dungeon"], "random queue is not a dungeon")
+    assert(not byName["Alterac Mountains"] and not byName["Arathi Basin"], "zones are not dungeons")
+    eq(byName["Shadowfang Keep"].minLevel, 20, "a level-1 entry doesn't replace the real range")
     local raids, raidsDone = anna.ns.Feats:Cards(fid, "raid")
     eq(#raids, 7, "raid cards"); eq(raidsDone, 1, "raids done")
     anna:slash("/fs")
