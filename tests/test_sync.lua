@@ -1181,15 +1181,15 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
     eq(earned["raid|molten core|normal"].category, "raid", "raid category")
     assert(cara:logContains("cleared |cffffd100[Molten Core (Normal)]"), "raid announced")
     -- no Encounter Journal info (WoW Forever): the built-in final boss names finish the run
-    local stocks = { name = "The Stockade", type = "party", difficulty = "Normal", id = 34, bosses = {} }
+    local stocks = { name = "Stormwind Stockade", type = "party", difficulty = "Normal", id = 34, bosses = {} }
     for _, c in ipairs({ anna, bob, cara }) do c.instance = stocks; c:fire("ZONE_CHANGED_NEW_AREA") end
     joinGroup(anna, { bob, cara })
     anna:fire("ENCOUNTER_END", 1716, "Targorr the Dread", 1, 5, 1); w:advance(2)
-    assert(not feats(cara)["dungeon|the stockade|normal"], "a middle boss finished the Stockade")
+    assert(not feats(cara)["dungeon|stormwind stockade|normal"], "a middle boss finished the Stockade")
     anna:fire("ENCOUNTER_END", 1717, "Bazil Thredd", 1, 5, 1); w:advance(3)
-    assert(feats(cara)["dungeon|the stockade|normal"], "Bazil Thredd didn't finish the Stockade")
+    assert(feats(cara)["dungeon|stormwind stockade|normal"], "Bazil Thredd didn't finish the Stockade")
     anna:slash("/fship dungeons")
-    assert(anna:logContains("Killed Bazil Thredd (1717) in The Stockade"), "boss kill listed by /fship dungeons")
+    assert(anna:logContains("Killed Bazil Thredd (1717) in Stormwind Stockade"), "boss kill listed by /fship dungeons")
     -- no encounter events at all: seeing the final boss dead (target or nameplate) finishes it
     local sfk = { name = "Shadowfang Keep", type = "party", difficulty = "Normal", id = 33, bosses = {} }
     anna.instance = sfk; anna:fire("ZONE_CHANGED_NEW_AREA")

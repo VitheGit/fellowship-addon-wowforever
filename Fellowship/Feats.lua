@@ -169,9 +169,15 @@ end
 local LFG_ART = "Interface\\LFGFrame\\UI-LFG-BACKGROUND-"
 
 -- "The Deadmines" and "Deadmines" are the same place.
+-- Different names for the same place (WoW Forever calls it "Stormwind Stockade").
+local ALIASES = {
+    stockade = "stormwindstockade", stockades = "stormwindstockade", stormwindstockades = "stormwindstockade",
+    sunkentemple = "templeofatalhakkar",
+}
+
 function F.NameKey(name)
     local n = lower(name):gsub("^the ", ""):gsub("[^%w]", "")
-    return n
+    return ALIASES[n] or n
 end
 
 local function addInstance(list, byKey, name, category, fields)
@@ -204,7 +210,7 @@ local BUILTIN = {
         { "The Deadmines", 17, 26, "DEADMINES" },
         { "Shadowfang Keep", 20, 30, "SHADOWFANGKEEP" },
         { "Blackfathom Deeps", 24, 32, "BLACKFATHOMDEEPS" },
-        { "The Stockade", 24, 32, "STORMWINDSTOCKADES" },
+        { "Stormwind Stockade", 24, 32, "STORMWINDSTOCKADES" },
         { "Gnomeregan", 29, 38, "GNOMEREGAN" },
         { "Razorfen Kraul", 30, 40, "RAZORFENKRAUL" },
         { "Scarlet Monastery", 30, 45, "SCARLETMONASTERY" },
@@ -276,7 +282,12 @@ function F.IsFinalBoss(instance, bossName)
         end
     end
     local set = FINAL_BY_KEY[F.NameKey(instance)]
-    return set ~= nil and set[F.NameKey(bossName)] == true
+    if set then return set[F.NameKey(bossName)] == true end
+    -- an instance name we don't recognise: go by the boss alone (these names are unique)
+    for _, bosses in pairs(FINAL_BY_KEY) do
+        if bosses[F.NameKey(bossName)] then return true end
+    end
+    return false
 end
 
 -- Recent boss kills and why a run did or didn't count, shown by /fship dungeons.
