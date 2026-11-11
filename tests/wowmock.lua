@@ -131,6 +131,7 @@ function Client:login()
             local u = client.units[unit]; return u and u.name
         end,
         UnitExists = function(unit) return client.units[unit] ~= nil end,
+        UnitIsDead = function(unit) return client.units[unit] ~= nil and client.units[unit].dead == true end,
         -- group: set client.group = { { name, realm, player = true|false }, ... } (not including you)
         IsInGroup = function() return client.group ~= nil and #client.group > 0 end,
         IsInRaid = function() return client.raid == true end,

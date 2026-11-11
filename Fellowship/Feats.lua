@@ -234,12 +234,12 @@ local BUILTIN = {
 -- The last boss (or bosses: wings, or several ways to finish) of each instance, for when the
 -- Encounter Journal can't tell us which boss ends it. Matched against ENCOUNTER_END's name.
 local FINAL_BOSSES = {
-    ["ragefire chasm"] = { "Bazzalan", "Taragaman the Hungerer" },
+    ["ragefire chasm"] = { "Bazzalan", "Taragaman the Hungerer", "Lava Guard Gordoth" },
     ["wailing caverns"] = { "Mutanus the Devourer" },
-    ["deadmines"] = { "Edwin VanCleef", "Cookie" },
-    ["shadowfang keep"] = { "Archmage Arugal" },
+    ["deadmines"] = { "Edwin VanCleef", "Cookie", "Captain Cookie", "Vanessa VanCleef" },
+    ["shadowfang keep"] = { "Archmage Arugal", "Lord Godfrey" },
     ["blackfathom deeps"] = { "Aku'mai" },
-    ["stockade"] = { "Bazil Thredd", "Dextren Ward" },
+    ["stockade"] = { "Bazil Thredd", "Dextren Ward", "Randolph Moloch" },
     ["gnomeregan"] = { "Mekgineer Thermaplugg" },
     ["razorfen kraul"] = { "Charlga Razorflank" },
     ["scarlet monastery"] = { "High Inquisitor Whitemane", "Herod", "Arcanist Doan", "Bloodmage Thalnos" },
@@ -279,12 +279,37 @@ function F.IsFinalBoss(instance, bossName)
     return set ~= nil and set[F.NameKey(bossName)] == true
 end
 
--- Recent boss kills and dungeon completions this session, shown by /fship dungeons.
-F.recent = {}
+-- Recent boss kills and why a run did or didn't count, shown by /fship dungeons.
+-- Saved, so it can still be read after a reload or the next login.
+function F:Log()
+    local db = ns.Store.db
+    if not db then return {} end
+    if type(db.bossLog) ~= "table" then db.bossLog = {} end
+    return db.bossLog
+end
+
 function F:Note(text)
-    table.insert(self.recent, date("%H:%M") .. " " .. text)
-    if #self.recent > 8 then table.remove(self.recent, 1) end
+    local log = self:Log()
+    table.insert(log, date("%b %d %H:%M") .. " " .. text)
+    while #log > 15 do table.remove(log, 1) end
     ns.Debug(text)
+end
+
+-- Backup for when the game doesn't report the encounter: a final boss seen dead
+-- (targeted, on a nameplate or boss frame) while you're in its instance.
+local deadSeen = {}
+function F:CheckDead(unit)
+    if not (UnitExists and UnitExists(unit)) or UnitIsPlayer(unit) then return end
+    if not (UnitIsDead and UnitIsDead(unit)) then return end
+    local instance, instanceType = GetInstanceInfo()
+    if instanceType ~= "party" and instanceType ~= "raid" then return end
+    local name = UnitName(unit)
+    if not self.IsFinalBoss(instance, name) then return end
+    local guid = (UnitGUID and UnitGUID(unit)) or name
+    if deadSeen[guid] then return end
+    deadSeen[guid] = true
+    self:Note("Saw " .. tostring(name) .. " dead in " .. tostring(instance))
+    ns.Announce:PostInstance()
 end
 
 local catalog, builtAt, fromGame
@@ -373,11 +398,12 @@ function F:Diagnose()
     if shown > 15 then ns.Output("  ... and " .. (shown - 15) .. " more") end
     local name, instanceType = GetInstanceInfo()
     ns.Output("  You are in: " .. tostring(name) .. " (" .. tostring(instanceType) .. ")")
-    if #self.recent == 0 then
-        ns.Output("  No boss kills seen since you logged in.")
+    local log = self:Log()
+    if #log == 0 then
+        ns.Output("  No boss kills seen yet.")
     else
-        ns.Output("  Boss kills seen since you logged in:")
-        for _, line in ipairs(self.recent) do ns.Output("    " .. line) end
+        ns.Output("  Recent boss kills and dungeon runs:")
+        for _, line in ipairs(log) do ns.Output("    " .. line) end
     end
 end
 

@@ -214,6 +214,8 @@ function A:OnEncounterEnd(encounterID, encounterName, _, _, success)
     -- the Encounter Journal knows the last boss; if it doesn't, our own list of final bosses
     if (final and final == encounterID) or ns.Feats.IsFinalBoss(instance, encounterName) then
         self:PostInstance()
+    else
+        ns.Feats:Note("  (not the last boss" .. (final and "" or ", as far as Fellowship knows") .. ")")
     end
 end
 
@@ -435,6 +437,20 @@ function A:Init()
     ns.On("ENCOUNTER_END", function(...) A:OnEncounterEnd(...) end)
     ns.On("CHALLENGE_MODE_COMPLETED", function() A:OnChallengeCompleted() end)
     ns.On("BOSS_KILL", function(...) A:OnBossKill(...) end)
+    -- backup: a final boss seen dead, in case the game doesn't report the encounter
+    local function inInstance()
+        local _, t = GetInstanceInfo()
+        return t == "party" or t == "raid"
+    end
+    ns.On("UNIT_HEALTH", function(unit)
+        if unit and (unit == "target" or unit == "focus" or unit:find("^boss") or unit:find("^nameplate"))
+            and inInstance() then
+            safely(function() ns.Feats:CheckDead(unit) end)
+        end
+    end)
+    ns.On("PLAYER_TARGET_CHANGED", function()
+        if inInstance() then safely(function() ns.Feats:CheckDead("target") end) end
+    end)
     -- finishing a dungeon queued through the group finder
     ns.On("LFG_COMPLETION_REWARD", function()
         ns.Feats:Note("Dungeon Finder: dungeon completed")

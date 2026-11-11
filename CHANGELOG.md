@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.5
+
+- Another way to notice a finished dungeon: if the game doesn't report the boss fight, seeing the final boss dead (targeted, on its nameplate or boss frame) now counts too. Clicking the boss's corpse to loot it is enough.
+- Added the newer final bosses in case WoW Forever uses them: Randolph Moloch (Stockade), Captain Cookie and Vanessa VanCleef (Deadmines), Lord Godfrey (Shadowfang Keep), Lava Guard Gordoth (Ragefire Chasm).
+- The `/fship dungeons` boss log is now saved, so you can check it after a reload or on your next login.
+
 ## 0.11.4
 
 - Fixed dungeon and raid completions not being noticed in WoW Forever, which meant no Fellowship Achievement (for example, The Stockade). The game doesn't say which boss is the last one, so Fellowship now has its own list of final bosses for every classic dungeon and raid. Any wing's last boss counts for Scarlet Monastery and Dire Maul.
