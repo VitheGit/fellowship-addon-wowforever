@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.10.1"
+ns.VERSION = "0.10.2"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -421,7 +421,28 @@ end
 
 ns.Listen("EVENTS_ADDED", function(fid, added, live)
     if not live then
-        ns.ScheduleSummary()
+        -- A line that missed us and was filled in later: show recent ones in chat as usual
+        -- (with how long ago they were sent). Right after login it's history: summarise instead.
+        local settled = ns.loginTime and GetTime() - ns.loginTime > 60
+        local now = ns.Now()
+        local late = {}
+        for _, e in ipairs(added) do
+            if settled and e.a ~= ns.me and (e.t or 0) >= now - 900 and (e.k == "C" or e.k == "A" or e.k == "M") then
+                late[#late + 1] = e
+            end
+        end
+        if #late == 0 then
+            ns.ScheduleSummary()
+            return
+        end
+        table.sort(late, function(a, b) return a.t < b.t end)
+        for _, e in ipairs(late) do
+            local show = (e.k == "C" and ns.settings.echoChat) or (e.k ~= "C" and ns.Announce.ShouldShow(e))
+            if show then
+                local ago = now - e.t
+                ns.Echo((ns.FormatEvent(e) or "") .. (ago >= 60 and (" |cff808080(" .. ns.Ago(e.t) .. ")|r") or ""))
+            end
+        end
         return
     end
     for _, e in ipairs(added) do

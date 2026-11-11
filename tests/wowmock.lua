@@ -178,7 +178,7 @@ function Client:login()
         end,
         GetAchievementInfo = function(id) return id, "Achievement #" .. id, 10, false, nil, nil, nil, "", 0, 0, "", false end,
         GetAchievementLink = function(id) return "|cffffff00|Hachievement:" .. id .. "|h[Achievement #" .. id .. "]|h|r" end,
-        Enum = { SendAddonMessageResult = { Success = 0, AddonMessageThrottle = 3 } },
+        Enum = { SendAddonMessageResult = { Success = 0, AddonMessageThrottle = 3, AddOnMessageLockdown = 11, TargetOffline = 12 } },
         C_Timer = {
             After = after,
             NewTicker = function(interval, fn)
@@ -194,6 +194,7 @@ function Client:login()
             SendAddonMessage = function(prefix, text, channel, target)
                 assert(#text <= 255, "addon message too long: " .. #text)
                 assert(#prefix <= 16)
+                if client.lockdown then return 11 end -- addon messages blocked (e.g. combat in an instance)
                 -- server-side throttle: 10 burst, 1/sec
                 local b = client.bucket
                 b.tokens = math.min(10, b.tokens + (world.time - b.last))

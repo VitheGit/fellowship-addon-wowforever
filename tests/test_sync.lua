@@ -1062,6 +1062,45 @@ test("deaths say what killed you: Death Recap, falling, drowning, or who you wer
     assert(bob:logContains(RED .. " was killed in Elwynn Forest|r"), "plain")
 end)
 
+test("a chat line that gets lost on the way is filled in and still shown in chat", function()
+    local w, anna, bob, cara = setup()
+    w:advance(90) -- past the login catch-up window
+    local drop = true
+    w.dropper = function(from, to, text)
+        if drop and from == "Anna Silvermoon" and to:lower():find("cara") and text:find("first line", 1, true) then
+            drop = false
+            return true
+        end
+    end
+    anna:slash("/fs first line"); w:advance(2)
+    assert(bob:logContains("first line"), "bob missed it")
+    assert(not cara:logContains("first line"), "test setup: cara should have missed it")
+    anna:slash("/fs second line"); w:advance(3)
+    assert(cara:logContains("first line"), "gap not filled by the next message")
+    assert(cara:logContains("second line"), "second line missing")
+
+    -- lost with no follow-up message: the regular check-in fills it within a couple of minutes
+    w.dropper = function(from, to, text)
+        return from == "Bob Silvermoon" and to:lower():find("cara") and text:find("quiet line", 1, true)
+    end
+    bob:slash("/fs quiet line"); w:advance(3)
+    assert(not cara:logContains("quiet line"), "test setup")
+    w.dropper = nil
+    w:advance(130)
+    assert(cara:logContains("quiet line"), "not caught up by the check-in")
+    assert(cara:logContains("ago)"), "late line not marked with when it was sent")
+end)
+
+test("messages sent while the game blocks addon messages go out once it allows them again", function()
+    local w, anna, bob = setup()
+    anna.lockdown = true
+    anna:slash("/fs during the boss fight"); w:advance(5)
+    assert(not bob:logContains("during the boss fight"), "test setup")
+    anna.lockdown = false
+    w:advance(2)
+    assert(bob:logContains("during the boss fight"), "message lost during lockdown")
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")

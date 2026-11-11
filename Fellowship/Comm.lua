@@ -119,10 +119,19 @@ local function rawSend(item)
     recentTargets[item.key] = GetTime() + 30
     local result = C_ChatInfo.SendAddonMessage(ns.PREFIX, item.text, "WHISPER", item.target)
     local E = Enum and Enum.SendAddonMessageResult
-    if E and E.AddonMessageThrottle and result == E.AddonMessageThrottle then
-        return false
+    if not E or result == nil or result == true or result == E.Success then return "sent" end
+    -- the game wouldn't send it right now (throttled, or addon messages locked down, e.g. in
+    -- combat inside an instance): keep it and try again shortly instead of losing it
+    if result == E.AddonMessageThrottle or result == E.ChannelThrottle or result == E.AddOnMessageLockdown
+        or result == E.AddonMessageLockdown or result == E.GeneralError then
+        return "retry"
     end
-    return true
+    if result == E.TargetOffline then
+        ns.Sync:MarkOffline(item.key)
+        return "drop-target"
+    end
+    ns.Debug("send to " .. tostring(item.target) .. " failed (result " .. tostring(result) .. ")")
+    return "sent" -- not recoverable by retrying; drop this frame
 end
 
 function Comm:Pump()
@@ -133,8 +142,12 @@ function Comm:Pump()
         local q = (#liveQueue > 0) and liveQueue or bulkQueue
         local item = q[1]
         if not item then break end
-        if rawSend(item) then
+        local r = rawSend(item)
+        if r == "sent" then
             table.remove(q, 1)
+            tokens = tokens - 1
+        elseif r == "drop-target" then
+            self:DropTarget(item.key)
             tokens = tokens - 1
         else
             tokens = 0 -- server says slow down; retry later

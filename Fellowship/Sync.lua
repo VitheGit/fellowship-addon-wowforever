@@ -24,7 +24,7 @@ ns.memberStatus = status
 local pendingReq = {}    -- fid -> author -> GetTime() expiry
 ns.online = online
 
-local HELLO_INTERVAL = 300
+local HELLO_INTERVAL = 120 -- also the longest a missed message can stay missing
 local PING_INTERVAL = 60
 local REQ_TIMEOUT = 60
 
@@ -378,16 +378,39 @@ function Sync:OnFloor(fid, records)
     end
 end
 
-function Sync:OnEvents(fid, live, records)
-    local added = {}
+function Sync:OnEvents(fid, live, records, sender)
+    local added, gaps = {}, {}
+    local f = ns.Store:Get(fid)
     for i = 2, #records do
         local e = decodeEvent(records[i])
         if ns.Store:AddEvent(fid, e) then
-            e.d = ns.Store:Get(fid).events[e.a][e.s].d
+            e.d = f.events[e.a][e.s].d
             added[#added + 1] = e
         end
+        -- a live message that skips ahead means we missed something: ask for it now
+        if live and e and type(e.s) == "number" and e.a and (f.hwm[e.a] or 0) < e.s then gaps[e.a] = true end
     end
     if #added > 0 then self:AfterAdded(fid, added, live) end
+    if sender and next(gaps) then self:RequestMissing(sender, fid, gaps) end
+end
+
+function Sync:RequestMissing(sender, fid, authors)
+    local f = ns.Store:Get(fid)
+    if not f then return end
+    local now = GetTime()
+    pendingReq[fid] = pendingReq[fid] or {}
+    local pend = pendingReq[fid]
+    local wants = { header("REQ", fid) }
+    for author in pairs(authors) do
+        if not (pend[author] and pend[author] > now) then
+            wants[#wants + 1] = { author, f.hwm[author] or 0 }
+            pend[author] = now + 10
+        end
+    end
+    if #wants > 1 then
+        ns.Debug("filling a gap from " .. sender)
+        send(sender, wants)
+    end
 end
 
 function Sync:AfterAdded(fid, added, live)
@@ -468,7 +491,7 @@ function Sync:OnMessage(sender, records)
     elseif typ == "REQ" then
         self:OnRequest(sender, fid, records)
     elseif typ == "EV" then
-        self:OnEvents(fid, h[4] == "1", records)
+        self:OnEvents(fid, h[4] == "1", records, sender)
     elseif typ == "PI" then
         self:OnPing(sender, records)
     elseif typ == "FL" then

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.2
+
+- Fixed chat lines that some members never saw. A message that got lost on the way is now noticed and fetched as soon as the next message arrives, or within two minutes at most, and it shows up in chat (marked with how long ago it was sent) instead of only in the window.
+- Messages the game refuses to send for a moment (for example while addon messages are locked down in combat) are kept and sent shortly after, instead of being dropped.
+
 ## 0.10.1
 
 - Death messages now say what killed you, using the game's Death Recap: "was killed by Hogger (Vicious Slice)", "fell to their death", "drowned", "burned to death in lava", and so on.
