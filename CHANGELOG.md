@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.2
+
+- Fixed the Achievements tab showing "No dungeons to show yet". Fellowship now has its own list of every dungeon and raid, with level ranges, so the cards always show. If the game also provides its dungeon list, its level ranges and pictures are used.
+- New `/fship dungeons` command, which shows what the game's dungeon lists give the addon. It helps with fixing missing pictures.
+
 ## 0.11.1
 
 - The Achievements tab now has **Dungeons** and **Raids** sub-tabs, with a card for each one showing its picture and level range, like the game's dungeon picker.

@@ -1188,7 +1188,7 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
     -- and the Encounter Journal, sorted by level; completed ones carry the date
     local lfg = {
         [1] = { "The Deadmines", 1, 1, 15, 25, 0, 17, 26, 0, 0, "DEADMINES" },
-        [2] = { "Wailing Caverns", 1, 1, 15, 25, 0, 15, 24, 0, 0, "WAILINGCAVERNS" },
+        [2] = { "Wailing Caverns", 1, 1, 15, 25, 0, 16, 23, 0, 0, "WAILINGCAVERNS" },
         [3] = { "The Deadmines", 1, 2, 60, 60, 0, 60, 60, 0, 0, "DEADMINES" }, -- heroic
         [4] = { "Random Classic Dungeon", 6, 1, 15, 60, 0, 15, 60, 0, 0, "" },
         [5] = { "Molten Core", 2, 3, 60, 60, 0, 60, 60, 0, 0, "MOLTENCORE" },
@@ -1199,17 +1199,25 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
         if list[i] then return i, list[i], "", "", "Interface\\EJ\\" .. list[i] end
     end
     local fid = anna.ns.Store:ActiveId()
+    -- no dungeon list from the game: the built-in one still gives every card
+    local bare = cara.ns.Feats:Cards(cara.ns.Store:ActiveId(), "dungeon")
+    assert(#bare >= 20, "built-in dungeon list")
     local cards, done = anna.ns.Feats:Cards(fid, "dungeon")
-    eq(#cards, 3, "dungeon cards (Deadmines merged, random skipped)"); eq(done, 1, "dungeons done")
-    eq(cards[1].name, "Wailing Caverns", "lowest level first")
-    eq(cards[2].name, "The Deadmines", "then Deadmines")
-    eq(cards[2].minLevel, 17, "recommended level range"); eq(cards[2].maxLevel, 26, "max level")
-    assert(cards[2].done and cards[2].done.t > 0, "Deadmines completed with a date")
-    eq(cards[2].art, "Interface\\LFGFrame\\UI-LFG-BACKGROUND-DEADMINES", "dungeon finder art")
-    eq(cards[3].name, "Hall of Thanes", "journal-only dungeon last (no level)")
-    assert(not cards[1].done, "Wailing Caverns incomplete")
+    local byName = {}
+    for i, c in ipairs(cards) do byName[c.name] = c; c.index = i end
+    eq(#cards, #bare, "game's dungeons merged with the built-in list (random queue skipped)")
+    eq(done, 1, "dungeons done")
+    assert(byName["The Deadmines"].done and byName["The Deadmines"].done.t > 0, "Deadmines completed with a date")
+    eq(byName["The Deadmines"].minLevel, 17, "recommended level range")
+    eq(byName["Wailing Caverns"].minLevel, 16, "the game's levels win over the built-in ones")
+    eq(byName["Wailing Caverns"].maxLevel, 23, "game max level")
+    eq(byName["The Deadmines"].art, "Interface\\LFGFrame\\UI-LFG-BACKGROUND-DEADMINES", "dungeon finder art")
+    eq(byName["Hall of Thanes"].ejArt, "Interface\\EJ\\Hall of Thanes", "journal art")
+    assert(not byName["Wailing Caverns"].done, "Wailing Caverns incomplete")
+    assert(byName["Ragefire Chasm"].index < byName["Shadowfang Keep"].index, "sorted by level")
+    assert(not byName["Random Classic Dungeon"], "random queue is not a dungeon")
     local raids, raidsDone = anna.ns.Feats:Cards(fid, "raid")
-    eq(#raids, 2, "raid cards"); eq(raidsDone, 1, "raids done")
+    eq(#raids, 7, "raid cards"); eq(raidsDone, 1, "raids done")
     anna:slash("/fs")
     anna.ns.UI:SelectTab("feats")
     local p

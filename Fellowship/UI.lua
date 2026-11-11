@@ -704,20 +704,23 @@ end
 
 -- Show a picture cropped (not stretched) to fill the card.
 local function setArt(tex, card)
-    local path, u, v = card.art, 1, 1
-    if not path and card.ejArt then
-        path, u, v = card.ejArt, 0.68359375, 0.7421875 -- the Encounter Journal's button art area
+    -- Dungeon Finder picture first, then the Encounter Journal's; SetTexture returns false
+    -- when the game has no such file, so a wrong guess just falls through to the next one
+    local tries = {}
+    if card.art then tries[#tries + 1] = { card.art, 1, 1, 2 } end
+    if card.ejArt then tries[#tries + 1] = { card.ejArt, 0.68359375, 0.7421875, 174 / 95 } end
+    for _, t in ipairs(tries) do
+        if tex:SetTexture(t[1]) ~= false then
+            local w, h = CARD_W - 4, CARD_H - 4
+            -- both pictures are less wide than a card: trim top and bottom instead of stretching
+            local keep = math.min(1, t[4] / (w / h))
+            local top = (1 - keep) / 2
+            tex:SetTexCoord(0, t[2], top * t[3], (top + keep) * t[3])
+            tex:Show()
+            return
+        end
     end
-    if not path then tex:Hide(); return end
-    tex:SetTexture(path)
-    local w, h = CARD_W - 4, CARD_H - 4
-    -- LFG backgrounds are 2:1, journal buttons about 1.8:1; both are wider-than-tall but
-    -- not as wide as a card, so trim the top and bottom
-    local srcAspect = path == card.art and 2 or (174 / 95)
-    local keep = math.min(1, srcAspect / (w / h))
-    local top = (1 - keep) / 2
-    tex:SetTexCoord(0, u, top * v, (top + keep) * v)
-    tex:Show()
+    tex:Hide()
 end
 
 local function renderFeats(p, fid)

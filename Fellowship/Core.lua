@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.11.1"
+ns.VERSION = "0.11.2"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -594,6 +594,8 @@ function ns.HandleSlash(input)
     elseif cmd == "debug" then
         ns.settings.debug = not ns.settings.debug
         ns.Print("Debug messages " .. (ns.settings.debug and "on" or "off") .. ".")
+    elseif cmd == "dungeons" then
+        ns.Feats:Diagnose()
     elseif cmd == "version" then
         ns.Print("Fellowship " .. ns.VERSION)
     elseif cmd == "minimap" then

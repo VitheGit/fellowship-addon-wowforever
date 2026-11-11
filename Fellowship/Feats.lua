@@ -170,8 +170,6 @@ function F.NameKey(name)
     return n
 end
 
-local catalog, triedAt
-
 local function addInstance(list, byKey, name, category, fields)
     if type(name) ~= "string" or name == "" or name:find("^Random ") then return end
     local key = F.NameKey(name)
@@ -190,51 +188,120 @@ local function addInstance(list, byKey, name, category, fields)
     end
 end
 
-function F:Catalog()
-    if catalog then return catalog end
-    if triedAt and GetTime() - triedAt < 30 then return {} end
-    triedAt = GetTime()
-    local list, byKey = {}, {}
-    -- Dungeon Finder: subtype 1 = dungeon, 2 = heroic dungeon, 3 = raid
+-- Built in, so the cards always show even when the game doesn't hand addons its dungeon
+-- list. Levels are WoW Forever's where known (from its dungeon picker), classic otherwise;
+-- the game's own numbers win when it does give them. art = Dungeon Finder picture name.
+local BUILTIN = {
+    dungeon = {
+        { "Ragefire Chasm", 13, 18, "RAGEFIRECHASM" },
+        { "Hall of Thanes", 13, 20, nil },
+        { "Wailing Caverns", 15, 24, "WAILINGCAVERNS" },
+        { "Ruins of Lordaeron", 15, 22, nil },
+        { "The Deadmines", 17, 26, "DEADMINES" },
+        { "Shadowfang Keep", 20, 30, "SHADOWFANGKEEP" },
+        { "Blackfathom Deeps", 24, 32, "BLACKFATHOMDEEPS" },
+        { "The Stockade", 24, 32, "STORMWINDSTOCKADES" },
+        { "Gnomeregan", 29, 38, "GNOMEREGAN" },
+        { "Razorfen Kraul", 30, 40, "RAZORFENKRAUL" },
+        { "Scarlet Monastery", 30, 45, "SCARLETMONASTERY" },
+        { "Razorfen Downs", 40, 50, "RAZORFENDOWNS" },
+        { "Uldaman", 42, 52, "ULDAMAN" },
+        { "Zul'Farrak", 44, 54, "ZULFARAK" },
+        { "Maraudon", 46, 55, "MARAUDON" },
+        { "The Temple of Atal'Hakkar", 50, 60, "SUNKENTEMPLE" },
+        { "Blackrock Depths", 52, 60, "BLACKROCKDEPTHS" },
+        { "Lower Blackrock Spire", 55, 60, "BLACKROCKSPIRE" },
+        { "Upper Blackrock Spire", 58, 60, "BLACKROCKSPIRE" },
+        { "Dire Maul", 56, 60, "DIREMAUL" },
+        { "Scholomance", 58, 60, "SCHOLOMANCE" },
+        { "Stratholme", 58, 60, "STRATHOLME" },
+    },
+    raid = {
+        { "Zul'Gurub", 60, 60, "ZULGURUB" },
+        { "Ruins of Ahn'Qiraj", 60, 60, "AQRUINS" },
+        { "Onyxia's Lair", 60, 60, "ONYXIASLAIR" },
+        { "Molten Core", 60, 60, "MOLTENCORE" },
+        { "Blackwing Lair", 60, 60, "BLACKWINGLAIR" },
+        { "Temple of Ahn'Qiraj", 60, 60, "AQTEMPLE" },
+        { "Naxxramas", 60, 60, "NAXXRAMAS" },
+    },
+}
+
+local catalog, builtAt, fromGame
+
+-- What the game's own lists return (Dungeon Finder, then Encounter Journal). Each call is
+-- guarded separately, so one odd entry can't hide the rest. Returns the number found.
+local function readGame(list, byKey)
+    local found = 0
     if GetLFGDungeonInfo then
-        pcall(function()
-            for id = 1, 3000 do
-                local name, typeID, subtypeID, minLevel, maxLevel, _, minRec, maxRec, _, _, texture =
-                    GetLFGDungeonInfo(id)
-                if name and typeID ~= 6 and (subtypeID == 1 or subtypeID == 2 or subtypeID == 3) then
-                    local lo, hi = tonumber(minRec) or 0, tonumber(maxRec) or 0
-                    if lo <= 0 or hi <= 0 then lo, hi = tonumber(minLevel) or 0, tonumber(maxLevel) or 0 end
-                    addInstance(list, byKey, name, subtypeID == 3 and "raid" or "dungeon", {
-                        minLevel = lo, maxLevel = hi,
-                        art = (type(texture) == "string" and texture ~= "") and (LFG_ART .. texture) or nil,
-                    })
-                end
+        for id = 1, 3000 do
+            local ok, name, typeID, subtypeID, minLevel, maxLevel, _, minRec, maxRec, _, _, texture,
+                _, maxPlayers = pcall(GetLFGDungeonInfo, id)
+            -- typeID 1 = dungeon or raid, 2 = raid (older clients); 6 = random queue
+            if ok and type(name) == "string" and typeID ~= 6 and subtypeID ~= 4 then
+                local raid = subtypeID == 3 or typeID == 2 or (tonumber(maxPlayers) or 0) > 5
+                local lo, hi = tonumber(minRec) or 0, tonumber(maxRec) or 0
+                if lo <= 0 or hi <= 0 then lo, hi = tonumber(minLevel) or 0, tonumber(maxLevel) or 0 end
+                addInstance(list, byKey, name, raid and "raid" or "dungeon", {
+                    minLevel = lo, maxLevel = hi,
+                    art = (type(texture) == "string" and texture ~= "") and (LFG_ART .. texture) or nil,
+                })
+                found = found + 1
             end
-        end)
+        end
     end
-    -- Encounter Journal: buttonImage1 is the picture on its instance buttons
     if EJ_GetInstanceByIndex then
-        pcall(function()
-            local tiers = (EJ_GetNumTiers and EJ_GetNumTiers()) or 1
-            local current = EJ_GetCurrentTier and EJ_GetCurrentTier()
-            for tier = 1, tiers do
-                if EJ_SelectTier then EJ_SelectTier(tier) end
-                for _, isRaid in ipairs({ false, true }) do
-                    local i = 1
-                    while i < 200 do
-                        local id, name, _, _, buttonImage = EJ_GetInstanceByIndex(i, isRaid)
-                        if not id then break end
-                        addInstance(list, byKey, name, isRaid and "raid" or "dungeon", { ejArt = buttonImage })
-                        i = i + 1
-                    end
+        local okT, tiers = pcall(function() return EJ_GetNumTiers and EJ_GetNumTiers() or 1 end)
+        local _, current = pcall(function() return EJ_GetCurrentTier and EJ_GetCurrentTier() end)
+        for tier = 1, (okT and tonumber(tiers)) or 1 do
+            if EJ_SelectTier then pcall(EJ_SelectTier, tier) end
+            for _, isRaid in ipairs({ false, true }) do
+                for i = 1, 200 do
+                    local ok, id, name, _, _, buttonImage = pcall(EJ_GetInstanceByIndex, i, isRaid)
+                    if not ok or not id then break end
+                    addInstance(list, byKey, name, isRaid and "raid" or "dungeon", { ejArt = buttonImage })
+                    found = found + 1
                 end
             end
-            if current and EJ_SelectTier then EJ_SelectTier(current) end
-        end)
+        end
+        if current and EJ_SelectTier then pcall(EJ_SelectTier, current) end
     end
-    -- only cache a non-empty list (the game may not have it ready right after login)
-    if #list > 0 then catalog = list end
+    return found
+end
+
+function F:Catalog()
+    -- rebuilt now and then until the game's lists answer (they may not be ready at login)
+    if catalog and (fromGame or GetTime() - builtAt < 60) then return catalog end
+    local list, byKey = {}, {}
+    local found = readGame(list, byKey)
+    for category, entries in pairs(BUILTIN) do
+        for _, b in ipairs(entries) do
+            local key = F.NameKey(b[1])
+            local known = byKey[key]
+            -- the game's numbers win; ours only fill in what it left out
+            addInstance(list, byKey, b[1], category, {
+                minLevel = (not known or not known.minLevel) and b[2] or nil,
+                maxLevel = (not known or not known.minLevel) and b[3] or nil,
+                art = b[4] and (LFG_ART .. b[4]) or nil,
+            })
+        end
+    end
+    catalog, builtAt, fromGame = list, GetTime(), found > 0
     return list
+end
+
+-- /fship dungeons: what the game's lists give us, for working out missing cards or art.
+function F:Diagnose()
+    local list, byKey = {}, {}
+    local found = readGame(list, byKey)
+    ns.Print(string.format("Dungeon Finder: %s. Encounter Journal: %s. Found %d entries from the game.",
+        GetLFGDungeonInfo and "yes" or "missing", EJ_GetInstanceByIndex and "yes" or "missing", found))
+    for i = 1, math.min(#list, 12) do
+        local inst = list[i]
+        ns.Output(string.format("  %s (%s) LV %s-%s art: %s", inst.name, inst.category,
+            tostring(inst.minLevel or "?"), tostring(inst.maxLevel or "?"), tostring(inst.art or inst.ejArt or "none")))
+    end
+    if #list > 12 then ns.Output("  ... and " .. (#list - 12) .. " more") end
 end
 
 -- Cards for one Achievements sub-tab ("dungeon" or "raid"), by level range like the
