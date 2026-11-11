@@ -3,9 +3,9 @@
 ## 0.11.0
 
 - New Achievements tab with Fellowship Achievements, earned together. Complete a dungeon or clear a raid (final boss down) where everyone in your group is in the fellowship, and it's marked complete with the date and who was there.
-- Each dungeon and raid is its own achievement per difficulty, so Deadmines (Normal) and Deadmines (Heroic) count separately. Groups need at least two players; NPC followers don't count against you.
+- The tab has Dungeons and Raids sub-tabs showing a card for each one, with its picture and level range like the game's dungeon picker. Each card says **Completed: date** in green or **Incomplete** in red. Hover a card to see who was there and on which difficulty.
+- Any difficulty completes the card; the announcement names the difficulty. Groups need at least two players; NPC followers don't count against you.
 - The fellowship sees "Fellowship Achievement: completed [Deadmines (Normal)] with ..." once, even though everyone in the group's addon notices it.
-- Dungeons and raids you haven't done together yet are listed in grey underneath, so you can see what's left.
 - Fellowship Achievements are kept forever (never trimmed with old history), and new members get them when they join.
 - Everyone needs 0.11.0 to earn them; older versions still store them and show them as a milestone.
 

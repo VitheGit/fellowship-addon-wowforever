@@ -157,14 +157,62 @@ function F:OnInstanceComplete(category, instance, difficulty)
 end
 
 ---------------------------------------------------------------------------
--- Every dungeon and raid the game knows about (Encounter Journal), for the
--- not-yet-earned rows. Empty if the journal isn't available.
+-- Every dungeon and raid the game knows about, for the Achievements cards.
+-- Names, level ranges and artwork come from the Dungeon Finder list (the same art as the
+-- game's dungeon picker), with the Encounter Journal as a second source. Both are read
+-- defensively: anything missing just means a card without a picture or level range.
 ---------------------------------------------------------------------------
-local allInstances
+local LFG_ART = "Interface\\LFGFrame\\UI-LFG-BACKGROUND-"
 
-function F:AllInstances()
-    if allInstances then return allInstances end
-    local list, seen = {}, {}
+-- "The Deadmines" and "Deadmines" are the same place.
+function F.NameKey(name)
+    local n = lower(name):gsub("^the ", ""):gsub("[^%w]", "")
+    return n
+end
+
+local catalog, triedAt
+
+local function addInstance(list, byKey, name, category, fields)
+    if type(name) ~= "string" or name == "" or name:find("^Random ") then return end
+    local key = F.NameKey(name)
+    local inst = byKey[key]
+    if not inst then
+        inst = { name = name, key = key, category = category }
+        byKey[key] = inst
+        list[#list + 1] = inst
+    end
+    for k, v in pairs(fields) do
+        if inst[k] == nil and v ~= nil and v ~= "" and v ~= 0 then inst[k] = v end
+    end
+    -- the lowest level range across difficulties (heroic versions start higher)
+    if fields.minLevel and fields.minLevel > 0 and fields.minLevel < (inst.minLevel or math.huge) then
+        inst.minLevel, inst.maxLevel = fields.minLevel, fields.maxLevel
+    end
+end
+
+function F:Catalog()
+    if catalog then return catalog end
+    if triedAt and GetTime() - triedAt < 30 then return {} end
+    triedAt = GetTime()
+    local list, byKey = {}, {}
+    -- Dungeon Finder: subtype 1 = dungeon, 2 = heroic dungeon, 3 = raid
+    if GetLFGDungeonInfo then
+        pcall(function()
+            for id = 1, 3000 do
+                local name, typeID, subtypeID, minLevel, maxLevel, _, minRec, maxRec, _, _, texture =
+                    GetLFGDungeonInfo(id)
+                if name and typeID ~= 6 and (subtypeID == 1 or subtypeID == 2 or subtypeID == 3) then
+                    local lo, hi = tonumber(minRec) or 0, tonumber(maxRec) or 0
+                    if lo <= 0 or hi <= 0 then lo, hi = tonumber(minLevel) or 0, tonumber(maxLevel) or 0 end
+                    addInstance(list, byKey, name, subtypeID == 3 and "raid" or "dungeon", {
+                        minLevel = lo, maxLevel = hi,
+                        art = (type(texture) == "string" and texture ~= "") and (LFG_ART .. texture) or nil,
+                    })
+                end
+            end
+        end)
+    end
+    -- Encounter Journal: buttonImage1 is the picture on its instance buttons
     if EJ_GetInstanceByIndex then
         pcall(function()
             local tiers = (EJ_GetNumTiers and EJ_GetNumTiers()) or 1
@@ -174,12 +222,9 @@ function F:AllInstances()
                 for _, isRaid in ipairs({ false, true }) do
                     local i = 1
                     while i < 200 do
-                        local id, name = EJ_GetInstanceByIndex(i, isRaid)
+                        local id, name, _, _, buttonImage = EJ_GetInstanceByIndex(i, isRaid)
                         if not id then break end
-                        if name and not seen[name:lower()] then
-                            seen[name:lower()] = true
-                            list[#list + 1] = { name = name, category = isRaid and "raid" or "dungeon" }
-                        end
+                        addInstance(list, byKey, name, isRaid and "raid" or "dungeon", { ejArt = buttonImage })
                         i = i + 1
                     end
                 end
@@ -187,33 +232,52 @@ function F:AllInstances()
             if current and EJ_SelectTier then EJ_SelectTier(current) end
         end)
     end
-    allInstances = list
+    -- only cache a non-empty list (the game may not have it ready right after login)
+    if #list > 0 then catalog = list end
     return list
 end
 
--- Rows for the Achievements tab: earned (newest first), then not yet earned (A-Z).
-function F:Rows(fid)
+-- Cards for one Achievements sub-tab ("dungeon" or "raid"), by level range like the
+-- dungeon picker. Each card: { name, category, minLevel, maxLevel, art, ejArt,
+--   done = { t, members, difficulties = { "Normal", ... } } or nil }.
+function F:Cards(fid, category)
     local earned = self:Earned(fid)
-    local rows, done = {}, {}
+    local done = {}
     for _, a in pairs(earned) do
-        rows[#rows + 1] = a
-        done[lower(a.instance)] = true
+        local key = F.NameKey(a.instance)
+        local d = done[key]
+        if not d then
+            d = { t = a.t, members = a.members, difficulties = {}, category = a.category, name = a.instance }
+            done[key] = d
+        elseif a.t < d.t then
+            d.t, d.members = a.t, a.members
+        end
+        d.difficulties[#d.difficulties + 1] = (a.difficulty ~= "" and a.difficulty) or "Normal"
     end
-    table.sort(rows, function(a, b)
-        if a.t ~= b.t then return a.t > b.t end
-        return a.title < b.title
-    end)
-    local earnedCount = #rows
-    local todo = {}
-    for _, inst in ipairs(self:AllInstances()) do
-        if not done[lower(inst.name)] then
-            todo[#todo + 1] = { title = inst.name, category = inst.category, instance = inst.name }
+    local cards, seen = {}, {}
+    for _, inst in ipairs(self:Catalog()) do
+        if inst.category == category then
+            local card = {}
+            for k, v in pairs(inst) do card[k] = v end
+            card.done = done[inst.key]
+            cards[#cards + 1] = card
+            seen[inst.key] = true
         end
     end
-    table.sort(todo, function(a, b)
-        if a.category ~= b.category then return a.category == "dungeon" end
-        return a.title < b.title
+    -- completed somewhere the game's lists don't show: still gets a card
+    for key, d in pairs(done) do
+        if not seen[key] and d.category == category then
+            cards[#cards + 1] = { name = d.name, key = key, category = category, done = d }
+        end
+    end
+    table.sort(cards, function(a, b)
+        local la, lb = a.minLevel or math.huge, b.minLevel or math.huge
+        if la ~= lb then return la < lb end
+        return F.NameKey(a.name) < F.NameKey(b.name)
     end)
-    for _, r in ipairs(todo) do rows[#rows + 1] = r end
-    return rows, earnedCount, #todo
+    local completed = 0
+    for _, c in ipairs(cards) do
+        if c.done then completed = completed + 1 end
+    end
+    return cards, completed
 end

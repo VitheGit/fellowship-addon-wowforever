@@ -1184,17 +1184,46 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
     anna.ns.settings.maxEvents = 1
     anna.ns.Store:Prune(anna.ns.Store:ActiveId())
     eq(select(2, feats(anna)), 2, "pruned")
-    -- Achievements tab renders, earned first then the journal's unearned ones
+    -- Achievements tab: Dungeons and Raids cards, from the Dungeon Finder list (levels, art)
+    -- and the Encounter Journal, sorted by level; completed ones carry the date
+    local lfg = {
+        [1] = { "The Deadmines", 1, 1, 15, 25, 0, 17, 26, 0, 0, "DEADMINES" },
+        [2] = { "Wailing Caverns", 1, 1, 15, 25, 0, 15, 24, 0, 0, "WAILINGCAVERNS" },
+        [3] = { "The Deadmines", 1, 2, 60, 60, 0, 60, 60, 0, 0, "DEADMINES" }, -- heroic
+        [4] = { "Random Classic Dungeon", 6, 1, 15, 60, 0, 15, 60, 0, 0, "" },
+        [5] = { "Molten Core", 2, 3, 60, 60, 0, 60, 60, 0, 0, "MOLTENCORE" },
+    }
+    anna.env.GetLFGDungeonInfo = function(id) if lfg[id] then return unpack(lfg[id]) end end
     anna.env.EJ_GetInstanceByIndex = function(i, isRaid)
-        local list = isRaid and { "Molten Core", "Onyxia's Lair" } or { "Deadmines", "Wailing Caverns" }
-        if list[i] then return i, list[i] end
+        local list = isRaid and { "Molten Core", "Onyxia's Lair" } or { "Deadmines", "Hall of Thanes" }
+        if list[i] then return i, list[i], "", "", "Interface\\EJ\\" .. list[i] end
     end
-    local rows, got, todo = anna.ns.Feats:Rows(anna.ns.Store:ActiveId())
-    eq(got, 2, "earned rows"); eq(todo, 2, "unearned rows")
-    eq(rows[1].title, "Molten Core (Normal)", "newest first")
-    eq(rows[3].title, "Wailing Caverns", "dungeons before raids in the not-yet list")
+    local fid = anna.ns.Store:ActiveId()
+    local cards, done = anna.ns.Feats:Cards(fid, "dungeon")
+    eq(#cards, 3, "dungeon cards (Deadmines merged, random skipped)"); eq(done, 1, "dungeons done")
+    eq(cards[1].name, "Wailing Caverns", "lowest level first")
+    eq(cards[2].name, "The Deadmines", "then Deadmines")
+    eq(cards[2].minLevel, 17, "recommended level range"); eq(cards[2].maxLevel, 26, "max level")
+    assert(cards[2].done and cards[2].done.t > 0, "Deadmines completed with a date")
+    eq(cards[2].art, "Interface\\LFGFrame\\UI-LFG-BACKGROUND-DEADMINES", "dungeon finder art")
+    eq(cards[3].name, "Hall of Thanes", "journal-only dungeon last (no level)")
+    assert(not cards[1].done, "Wailing Caverns incomplete")
+    local raids, raidsDone = anna.ns.Feats:Cards(fid, "raid")
+    eq(#raids, 2, "raid cards"); eq(raidsDone, 1, "raids done")
     anna:slash("/fs")
     anna.ns.UI:SelectTab("feats")
+    local p
+    for _, f in ipairs(anna.frames) do if type(rawget(f, "cards")) == "table" then p = f end end
+    assert(p, "achievements panel")
+    local function statusOf(name)
+        for _, c in ipairs(p.cards) do
+            if c.card and c.card.name == name then return c.status:GetText() end
+        end
+    end
+    assert(statusOf("The Deadmines"):find("Completed: ", 1, true), "completed card")
+    assert(statusOf("Wailing Caverns"):find("|cffff3333Incomplete", 1, true), "incomplete card in red")
+    p.subTabs.raid:Click()
+    assert(statusOf("Molten Core"):find("Completed: ", 1, true), "raids sub-tab")
 end)
 
 test("UI builds and renders without errors", function()

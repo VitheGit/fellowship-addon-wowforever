@@ -19,14 +19,9 @@ local ROSTER_COLUMNS = {
 }
 local ROSTER_ROWS, ROW_HEIGHT = 15, 18
 
--- Achievements tab columns
-local FEAT_COLUMNS = {
-    { key = "title", title = "Achievement", width = 230 },
-    { key = "type", title = "Type", width = 70 },
-    { key = "date", title = "Completed", width = 100 },
-    { key = "with", title = "Completed With", width = 220 },
-}
-local FEAT_ROWS = 16
+-- Achievements tab: dungeon/raid cards, two per row like the game's dungeon picker
+local CARD_W, CARD_H, CARD_GAP, CARD_ROWS = 310, 100, 8, 3
+local GREEN, RED = "|cff40ff40", "|cffff3333"
 local rosterSort = { key = "default", reverse = false }
 local RANK_ORDER = { admin = 1, inviter = 2, member = 3 }
 local GREY = "|cff808080"
@@ -158,58 +153,89 @@ function UI:Build()
     ach.log:SetPoint("BOTTOMRIGHT", -4, 4)
     panels.achievements = ach
 
-    -- Achievements: Fellowship Achievements (dungeons and raids completed together)
+    -- Achievements: Fellowship Achievements, with Dungeons and Raids sub-tabs
     local feats = panel()
-    local fx = 4
-    for _, c in ipairs(FEAT_COLUMNS) do
-        local h = CreateFrame("Frame", nil, feats)
-        h:SetPoint("TOPLEFT", fx, -2)
-        h:SetSize(c.width, 20)
-        local bg = h:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints()
-        bg:SetColorTexture(1, 1, 1, 0.08)
-        local label = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        label:SetPoint("LEFT", 6, 0)
-        label:SetText(c.title)
-        c.x = fx
-        fx = fx + c.width + 2
+    feats.category = "dungeon"
+    feats.subTabs = {}
+    for i, t in ipairs({ { "dungeon", "Dungeons" }, { "raid", "Raids" } }) do
+        local b = makeButton(feats, t[2], 100, function()
+            feats.category = t[1]
+            feats.offset = 0
+            UI:Refresh()
+        end)
+        b:SetPoint("TOPLEFT", 4 + (i - 1) * 104, -2)
+        feats.subTabs[t[1]] = b
     end
-    feats.rows = {}
-    for i = 1, FEAT_ROWS do
-        local row = CreateFrame("Button", nil, feats)
-        row:SetPoint("TOPLEFT", 4, -24 - (i - 1) * ROW_HEIGHT)
-        row:SetSize(fx - 6, ROW_HEIGHT)
-        if i % 2 == 0 then
-            local bg = row:CreateTexture(nil, "BACKGROUND")
-            bg:SetAllPoints()
-            bg:SetColorTexture(1, 1, 1, 0.03)
+    feats.count = feats:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    feats.count:SetPoint("TOPRIGHT", -8, -6)
+    feats.cards = {}
+    for i = 1, CARD_ROWS * 2 do
+        local col, rowN = (i - 1) % 2, math.floor((i - 1) / 2)
+        local card = CreateFrame("Button", nil, feats)
+        card:SetSize(CARD_W, CARD_H)
+        card:SetPoint("TOPLEFT", 4 + col * (CARD_W + CARD_GAP), -30 - rowN * (CARD_H + CARD_GAP))
+        card.fill = card:CreateTexture(nil, "BACKGROUND")
+        card.fill:SetAllPoints()
+        card.fill:SetColorTexture(0.12, 0.09, 0.06, 1)
+        card.art = card:CreateTexture(nil, "BORDER")
+        card.art:SetPoint("TOPLEFT", 2, -2)
+        card.art:SetPoint("BOTTOMRIGHT", -2, 2)
+        -- darker band along the top so the name and status stay readable on any picture
+        card.band = card:CreateTexture(nil, "ARTWORK")
+        card.band:SetPoint("TOPLEFT", 2, -2)
+        card.band:SetPoint("TOPRIGHT", -2, -2)
+        card.band:SetHeight(32)
+        card.band:SetColorTexture(0, 0, 0, 0.45)
+        card.shade = card:CreateTexture(nil, "ARTWORK")
+        card.shade:SetPoint("BOTTOMLEFT", 2, 2)
+        card.shade:SetPoint("BOTTOMRIGHT", -2, 2)
+        card.shade:SetHeight(22)
+        card.shade:SetColorTexture(0, 0, 0, 0.4)
+        -- thin gold-brown frame
+        for _, edge in ipairs({ { "TOPLEFT", "TOPRIGHT", nil, 2 }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, 2 },
+                { "TOPLEFT", "BOTTOMLEFT", 2, nil }, { "TOPRIGHT", "BOTTOMRIGHT", 2, nil } }) do
+            local t = card:CreateTexture(nil, "OVERLAY")
+            t:SetPoint(edge[1]); t:SetPoint(edge[2])
+            if edge[3] then t:SetWidth(edge[3]) else t:SetHeight(edge[4]) end
+            t:SetColorTexture(0.45, 0.33, 0.16, 1)
         end
-        row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
-        row.cells = {}
-        for _, c in ipairs(FEAT_COLUMNS) do
-            local fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            fs:SetPoint("LEFT", c.x - 4 + 6, 0)
-            fs:SetWidth(c.width - 8)
-            fs:SetJustifyH("LEFT")
-            fs:SetWordWrap(false)
-            row.cells[c.key] = fs
-        end
-        row:SetScript("OnEnter", function(self) if self.feat then UI:ShowFeatTooltip(self, self.feat) end end)
-        row:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-        row:Hide()
-        feats.rows[i] = row
+        card.name = card:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        card.name:SetPoint("TOPLEFT", 12, -9)
+        card.name:SetPoint("RIGHT", card, "RIGHT", -180, 0)
+        card.name:SetJustifyH("LEFT")
+        card.name:SetWordWrap(false)
+        card.status = card:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        card.status:SetPoint("TOPRIGHT", -10, -11)
+        card.status:SetJustifyH("RIGHT")
+        card.check = card:CreateTexture(nil, "OVERLAY")
+        card.check:SetSize(18, 18)
+        card.check:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
+        card.check:SetPoint("RIGHT", card.status, "LEFT", -4, 0)
+        card.level = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        card.level:SetPoint("BOTTOMLEFT", 12, 7)
+        card.with = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        card.with:SetPoint("BOTTOMRIGHT", -10, 7)
+        card.with:SetPoint("LEFT", card, "LEFT", 90, 0)
+        card.with:SetJustifyH("RIGHT")
+        card.with:SetWordWrap(false)
+        card.glow = card:CreateTexture(nil, "HIGHLIGHT")
+        card.glow:SetPoint("TOPLEFT", 2, -2)
+        card.glow:SetPoint("BOTTOMRIGHT", -2, 2)
+        card.glow:SetColorTexture(1, 1, 1, 0.08)
+        card:SetScript("OnEnter", function(self) if self.card then UI:ShowFeatTooltip(self, self.card) end end)
+        card:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+        card:Hide()
+        feats.cards[i] = card
     end
-    feats.offset = 0
+    feats.empty = feats:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    feats.empty:SetPoint("CENTER", 0, -10)
+    feats.empty:SetWidth(460)
+    feats.offset = 0 -- in rows of two cards
     feats:EnableMouseWheel(true)
     feats:SetScript("OnMouseWheel", function(_, delta)
-        feats.offset = math.max(0, feats.offset - delta * 3)
+        feats.offset = math.max(0, feats.offset - delta)
         UI:Refresh()
     end)
-    feats.count = feats:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    feats.count:SetPoint("BOTTOMLEFT", 8, 8)
-    feats.hint = feats:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    feats.hint:SetPoint("BOTTOMRIGHT", -8, 8)
-    feats.hint:SetText("Complete a dungeon or raid where everyone in the group is in the fellowship.")
     panels.feats = feats
 
     -- Members: a roster laid out like the guild window
@@ -676,54 +702,82 @@ local function renderMembers(p, fid)
     end
 end
 
-local function renderFeats(p, fid)
-    local rows, earned, todo = ns.Feats:Rows(fid)
-    if todo > 0 then
-        p.count:SetText(string.format("%d of %d earned", earned, earned + todo))
-    else
-        p.count:SetText(string.format("%d earned", earned))
+-- Show a picture cropped (not stretched) to fill the card.
+local function setArt(tex, card)
+    local path, u, v = card.art, 1, 1
+    if not path and card.ejArt then
+        path, u, v = card.ejArt, 0.68359375, 0.7421875 -- the Encounter Journal's button art area
     end
-    p.offset = math.max(0, math.min(p.offset or 0, #rows - FEAT_ROWS))
-    for i, row in ipairs(p.rows) do
-        local a = rows[i + p.offset]
-        row.feat = a
-        if a then
-            local c = row.cells
-            local kind = a.category == "raid" and "Raid" or "Dungeon"
-            if a.t then
-                c.title:SetText("|cffffd100" .. ns.Escape(a.title) .. "|r")
-                c.type:SetText(kind)
-                c.date:SetText(date("%b %d, %Y", a.t))
-                c.with:SetText(ns.Feats.JoinNames(a.members, true))
+    if not path then tex:Hide(); return end
+    tex:SetTexture(path)
+    local w, h = CARD_W - 4, CARD_H - 4
+    -- LFG backgrounds are 2:1, journal buttons about 1.8:1; both are wider-than-tall but
+    -- not as wide as a card, so trim the top and bottom
+    local srcAspect = path == card.art and 2 or (174 / 95)
+    local keep = math.min(1, srcAspect / (w / h))
+    local top = (1 - keep) / 2
+    tex:SetTexCoord(0, u, top * v, (top + keep) * v)
+    tex:Show()
+end
+
+local function renderFeats(p, fid)
+    for cat, b in pairs(p.subTabs) do
+        if cat == p.category then b:Disable() else b:Enable() end
+    end
+    local cards, completed = ns.Feats:Cards(fid, p.category)
+    p.count:SetText(string.format("%d / %d completed", completed, #cards))
+    local rows = math.ceil(#cards / 2)
+    p.offset = math.max(0, math.min(p.offset or 0, rows - CARD_ROWS))
+    for i, f in ipairs(p.cards) do
+        local c = cards[i + p.offset * 2]
+        f.card = c
+        if c then
+            setArt(f.art, c)
+            f.name:SetText(ns.Escape(c.name))
+            if c.minLevel and c.maxLevel and c.maxLevel > 0 then
+                f.level:SetText(c.minLevel == c.maxLevel and ("LV " .. c.minLevel)
+                    or ("LV " .. c.minLevel .. "-" .. c.maxLevel))
             else
-                c.title:SetText(GREY .. ns.Escape(a.title) .. "|r")
-                c.type:SetText(GREY .. kind .. "|r")
-                c.date:SetText(GREY .. "Not yet|r")
-                c.with:SetText("")
+                f.level:SetText("")
             end
-            row:Show()
+            if c.done then
+                f.status:SetText(GREEN .. "Completed: " .. date("%b %d, %Y", c.done.t) .. "|r")
+                f.check:Show()
+                f.art:SetVertexColor(1, 1, 1)
+                f.with:SetText(ns.Feats.JoinNames(c.done.members, true))
+            else
+                f.status:SetText(RED .. "Incomplete|r")
+                f.check:Hide()
+                f.art:SetVertexColor(0.7, 0.7, 0.7) -- not done yet: a little dimmer
+                f.with:SetText("")
+            end
+            f:Show()
         else
-            row:Hide()
+            f:Hide()
         end
     end
-    if #rows == 0 then
-        p.rows[1].cells.title:SetText(GREY .. "No Fellowship Achievements yet.|r")
-        for _, k in ipairs({ "type", "date", "with" }) do p.rows[1].cells[k]:SetText("") end
-        p.rows[1]:Show()
+    if #cards == 0 then
+        p.empty:SetText(p.category == "raid" and "No raids to show yet." or "No dungeons to show yet.")
+        p.empty:Show()
+    else
+        p.empty:Hide()
     end
 end
 
-function UI:ShowFeatTooltip(owner, a)
+function UI:ShowFeatTooltip(owner, c)
     if not GameTooltip then return end
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
-    GameTooltip:AddLine(ns.Escape(a.title), 1, 0.82, 0)
-    if a.t then
-        GameTooltip:AddLine((a.category == "raid" and "Cleared " or "Completed ") .. date("%b %d, %Y at %H:%M", a.t), 1, 1, 1)
-        if #a.members > 0 then
-            GameTooltip:AddLine("With " .. ns.Feats.JoinNames(a.members, false), 0.8, 0.8, 0.8, true)
+    GameTooltip:AddLine(ns.Escape(c.name), 1, 0.82, 0)
+    if c.done then
+        GameTooltip:AddLine((c.category == "raid" and "Cleared " or "Completed ")
+            .. date("%b %d, %Y at %H:%M", c.done.t), 0.25, 1, 0.25)
+        GameTooltip:AddLine("Difficulty: " .. table.concat(c.done.difficulties, ", "), 1, 1, 1)
+        if #c.done.members > 0 then
+            GameTooltip:AddLine("With " .. ns.Feats.JoinNames(c.done.members, false), 0.8, 0.8, 0.8, true)
         end
     else
-        GameTooltip:AddLine((a.category == "raid" and "Clear" or "Complete")
+        GameTooltip:AddLine("Incomplete", 1, 0.2, 0.2)
+        GameTooltip:AddLine((c.category == "raid" and "Clear" or "Complete")
             .. " it with a group made up only of fellowship members.", 0.6, 0.6, 0.6, true)
     end
     GameTooltip:Show()

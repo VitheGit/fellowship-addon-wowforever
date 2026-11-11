@@ -25,7 +25,7 @@ No guild needed. No server, no website, no Discord. Just the addon.
 
 ### 🛡️ Fellowship Achievements
 - Clear a dungeon or raid where **everyone in the group is in your fellowship** and it's earned for the whole fellowship, with the date and who was there
-- See them all in the **Achievements** tab, with the dungeons and raids you haven't done together yet listed underneath
+- See them all in the **Achievements** tab: a card for every dungeon and raid, marked **Completed** with the date or **Incomplete**
 
 ### 🏆 A shared adventure feed
 Posted automatically when it happens:
