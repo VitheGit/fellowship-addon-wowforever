@@ -204,10 +204,25 @@ function A:PostInstance(keyLevel, onTime)
         keyLevel or "", onTime == nil and "" or (onTime and "1" or "0") })
 end
 
-function A:OnEncounterEnd(encounterID, _, _, _, success)
-    if success ~= 1 and success ~= true then return end
+function A:OnEncounterEnd(encounterID, encounterName, _, _, success)
+    local won = success == 1 or success == true
+    local instance = GetInstanceInfo()
+    ns.Feats:Note(string.format("%s %s (%s) in %s", won and "Killed" or "Wiped on", tostring(encounterName),
+        tostring(encounterID), tostring(instance)))
+    if not won then return end
     local final = finalEncounterID()
-    if final and final == encounterID then self:PostInstance() end
+    -- the Encounter Journal knows the last boss; if it doesn't, our own list of final bosses
+    if (final and final == encounterID) or ns.Feats.IsFinalBoss(instance, encounterName) then
+        self:PostInstance()
+    end
+end
+
+-- BOSS_KILL: same as a successful ENCOUNTER_END, in case only one of them fires
+function A:OnBossKill(encounterID, encounterName)
+    local final = finalEncounterID()
+    if (final and final == encounterID) or ns.Feats.IsFinalBoss(GetInstanceInfo(), encounterName) then
+        self:PostInstance()
+    end
 end
 
 function A:OnChallengeCompleted()
@@ -419,6 +434,12 @@ function A:Init()
     ns.On("CHAT_MSG_LOOT", function(text) A:OnLoot(text) end)
     ns.On("ENCOUNTER_END", function(...) A:OnEncounterEnd(...) end)
     ns.On("CHALLENGE_MODE_COMPLETED", function() A:OnChallengeCompleted() end)
+    ns.On("BOSS_KILL", function(...) A:OnBossKill(...) end)
+    -- finishing a dungeon queued through the group finder
+    ns.On("LFG_COMPLETION_REWARD", function()
+        ns.Feats:Note("Dungeon Finder: dungeon completed")
+        A:PostInstance()
+    end)
     ns.On("ZONE_CHANGED_NEW_AREA", function() A:OnZoneChanged() end)
     ns.On("PLAYER_DEAD", function() A:OnDeath() end)
     self:InitDeaths()

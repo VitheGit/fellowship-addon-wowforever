@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.4
+
+- Fixed dungeon and raid completions not being noticed in WoW Forever, which meant no Fellowship Achievement (for example, The Stockade). The game doesn't say which boss is the last one, so Fellowship now has its own list of final bosses for every classic dungeon and raid. Any wing's last boss counts for Scarlet Monastery and Dire Maul.
+- Finishing a dungeon you queued for through the group finder also counts.
+- `/fship dungeons` now lists the boss kills it has seen since you logged in. With `/fship debug` on, it also says why a run didn't earn an achievement (for example, someone in the group isn't in the fellowship).
+
 ## 0.11.3
 
 - The Dungeons tab no longer lists every zone and battleground. WoW Forever's group finder list includes those, so it's now used only to add level ranges and pictures to real dungeons and raids.

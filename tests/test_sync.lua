@@ -1180,10 +1180,21 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
     eq(count, 2, "raid achievement")
     eq(earned["raid|molten core|normal"].category, "raid", "raid category")
     assert(cara:logContains("cleared |cffffd100[Molten Core (Normal)]"), "raid announced")
+    -- no Encounter Journal info (WoW Forever): the built-in final boss names finish the run
+    local stocks = { name = "The Stockade", type = "party", difficulty = "Normal", id = 34, bosses = {} }
+    for _, c in ipairs({ anna, bob, cara }) do c.instance = stocks; c:fire("ZONE_CHANGED_NEW_AREA") end
+    joinGroup(anna, { bob, cara })
+    anna:fire("ENCOUNTER_END", 1716, "Targorr the Dread", 1, 5, 1); w:advance(2)
+    assert(not feats(cara)["dungeon|the stockade|normal"], "a middle boss finished the Stockade")
+    anna:fire("ENCOUNTER_END", 1717, "Bazil Thredd", 1, 5, 1); w:advance(3)
+    assert(feats(cara)["dungeon|the stockade|normal"], "Bazil Thredd didn't finish the Stockade")
+    anna:slash("/fship dungeons")
+    assert(anna:logContains("Killed Bazil Thredd (1717) in The Stockade"), "boss kill listed by /fship dungeons")
+    for _, c in ipairs({ anna, bob, cara }) do c.instance = nil; c:fire("ZONE_CHANGED_NEW_AREA") end
     -- achievements survive pruning and reach someone who joins later
     anna.ns.settings.maxEvents = 1
     anna.ns.Store:Prune(anna.ns.Store:ActiveId())
-    eq(select(2, feats(anna)), 2, "pruned")
+    eq(select(2, feats(anna)), 3, "pruned")
     -- Achievements tab: Dungeons and Raids cards, from the Dungeon Finder list (levels, art)
     -- and the Encounter Journal, sorted by level; completed ones carry the date
     local lfg = {
@@ -1210,7 +1221,7 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
     local byName = {}
     for i, c in ipairs(cards) do byName[c.name] = c; c.index = i end
     eq(#cards, #bare, "game's dungeons merged with the built-in list (random queue skipped)")
-    eq(done, 1, "dungeons done")
+    eq(done, 2, "dungeons done (Deadmines, Stockade)")
     assert(byName["The Deadmines"].done and byName["The Deadmines"].done.t > 0, "Deadmines completed with a date")
     eq(byName["The Deadmines"].minLevel, 17, "recommended level range")
     eq(byName["Wailing Caverns"].minLevel, 16, "the game's levels win over the built-in ones")

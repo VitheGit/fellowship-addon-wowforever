@@ -136,18 +136,22 @@ function F:OnInstanceComplete(category, instance, difficulty)
     local f, fid = ns.Store:Active()
     if not f or f.pendingFrom or not instance or instance == "" then return nil, "no fellowship" end
     local players = self:GroupPlayers()
-    if not players then return nil, "unknown player" end
-    if #players < 2 then return nil, "solo" end
+    if not players then self:Note("No achievement: couldn't read everyone's name"); return nil, "unknown player" end
+    if #players < 2 then self:Note("No achievement: you need at least two players"); return nil, "solo" end
     for _, name in ipairs(players) do
-        if not ns.Store:IsMember(fid, name) then return nil, "not everyone is a member" end
+        if not ns.Store:IsMember(fid, name) then
+            self:Note("No achievement: " .. ns.Short(name) .. " isn't in the fellowship")
+            return nil, "not everyone is a member"
+        end
     end
     local d = { "feat", F.Title(instance, difficulty), category, instance, difficulty or "", "" }
     local key = F.KeyOf(d)
     local earned = self:Earned(fid)
-    if earned[key] then return nil, "already earned" end
+    if earned[key] then self:Note("Already earned: " .. d[2]); return nil, "already earned" end
     table.sort(players, function(a, b) return ns.Short(a):lower() < ns.Short(b):lower() end)
     d[6] = ns.Truncate(table.concat(players, ","), 900)
     local e = ns.Sync:Publish("M", d)
+    self:Note("Fellowship Achievement earned: " .. d[2])
     if e and self:IsFirst(e) and self:MarkAnnounced(e) then
         ns.Echo(F.Format(e))
         local sound = SOUNDKIT and (SOUNDKIT.UI_PERSONAL_ACHIEVEMENT_EARNED or SOUNDKIT.LEVELUP)
@@ -226,6 +230,62 @@ local BUILTIN = {
         { "Naxxramas", 60, 60, "NAXXRAMAS" },
     },
 }
+
+-- The last boss (or bosses: wings, or several ways to finish) of each instance, for when the
+-- Encounter Journal can't tell us which boss ends it. Matched against ENCOUNTER_END's name.
+local FINAL_BOSSES = {
+    ["ragefire chasm"] = { "Bazzalan", "Taragaman the Hungerer" },
+    ["wailing caverns"] = { "Mutanus the Devourer" },
+    ["deadmines"] = { "Edwin VanCleef", "Cookie" },
+    ["shadowfang keep"] = { "Archmage Arugal" },
+    ["blackfathom deeps"] = { "Aku'mai" },
+    ["stockade"] = { "Bazil Thredd", "Dextren Ward" },
+    ["gnomeregan"] = { "Mekgineer Thermaplugg" },
+    ["razorfen kraul"] = { "Charlga Razorflank" },
+    ["scarlet monastery"] = { "High Inquisitor Whitemane", "Herod", "Arcanist Doan", "Bloodmage Thalnos" },
+    ["razorfen downs"] = { "Amnennar the Coldbringer" },
+    ["uldaman"] = { "Archaedas" },
+    ["zul'farrak"] = { "Chief Ukorz Sandscalp" },
+    ["maraudon"] = { "Princess Theradras" },
+    ["temple of atal'hakkar"] = { "Shade of Eranikus" },
+    ["sunken temple"] = { "Shade of Eranikus" },
+    ["blackrock depths"] = { "Emperor Dagran Thaurissan" },
+    ["lower blackrock spire"] = { "Overlord Wyrmthalak" },
+    ["upper blackrock spire"] = { "General Drakkisath" },
+    ["blackrock spire"] = { "Overlord Wyrmthalak", "General Drakkisath" },
+    ["dire maul"] = { "Immol'thar", "Prince Tortheldrin", "Alzzin the Wildshaper", "King Gordok" },
+    ["scholomance"] = { "Darkmaster Gandling" },
+    ["stratholme"] = { "Baron Rivendare", "Balnazzar" },
+    ["zul'gurub"] = { "Hakkar" },
+    ["ruins of ahn'qiraj"] = { "Ossirian the Unscarred" },
+    ["onyxia's lair"] = { "Onyxia" },
+    ["molten core"] = { "Ragnaros" },
+    ["blackwing lair"] = { "Nefarian" },
+    ["temple of ahn'qiraj"] = { "C'Thun" },
+    ["naxxramas"] = { "Kel'Thuzad" },
+}
+local FINAL_BY_KEY = {}
+
+function F.IsFinalBoss(instance, bossName)
+    if not instance or not bossName then return false end
+    if not next(FINAL_BY_KEY) then
+        for inst, bosses in pairs(FINAL_BOSSES) do
+            local set = {}
+            for _, b in ipairs(bosses) do set[F.NameKey(b)] = true end
+            FINAL_BY_KEY[F.NameKey(inst)] = set
+        end
+    end
+    local set = FINAL_BY_KEY[F.NameKey(instance)]
+    return set ~= nil and set[F.NameKey(bossName)] == true
+end
+
+-- Recent boss kills and dungeon completions this session, shown by /fship dungeons.
+F.recent = {}
+function F:Note(text)
+    table.insert(self.recent, date("%H:%M") .. " " .. text)
+    if #self.recent > 8 then table.remove(self.recent, 1) end
+    ns.Debug(text)
+end
 
 local catalog, builtAt, fromGame
 
@@ -311,6 +371,14 @@ function F:Diagnose()
         end
     end
     if shown > 15 then ns.Output("  ... and " .. (shown - 15) .. " more") end
+    local name, instanceType = GetInstanceInfo()
+    ns.Output("  You are in: " .. tostring(name) .. " (" .. tostring(instanceType) .. ")")
+    if #self.recent == 0 then
+        ns.Output("  No boss kills seen since you logged in.")
+    else
+        ns.Output("  Boss kills seen since you logged in:")
+        for _, line in ipairs(self.recent) do ns.Output("    " .. line) end
+    end
 end
 
 -- Cards for one Achievements sub-tab ("dungeon" or "raid"), by level range like the
