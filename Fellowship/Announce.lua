@@ -29,6 +29,7 @@ local SUBTYPE_GROUP = {
 }
 
 function A.GroupOf(e)
+    if ns.Feats.IsFeat(e) then return nil end
     if e.k == "A" then return "achievement" end
     if e.k == "M" then return SUBTYPE_GROUP[e.d and e.d[1]] or "level" end
     return nil
@@ -36,6 +37,8 @@ end
 
 -- Should this event be shown to me (chat echo and the window)?
 function A.ShouldShow(e)
+    -- Fellowship Achievements: everyone in the group posts one; show only the first
+    if ns.Feats.IsFeat(e) then return ns.Feats:IsFirst(e) end
     local group = A.GroupOf(e)
     if not group then return true end
     if e.a == ns.me then return true end -- your own things always show in the window
@@ -45,6 +48,14 @@ function A.ShouldShow(e)
         local q = tonumber(e.d[4]) or 0
         return q >= (s.lootMinQuality or 4)
     end
+    return true
+end
+
+-- Should this event be printed in chat? Like ShouldShow, but a Fellowship Achievement is
+-- printed only once even when several members of the group post it at the same moment.
+function A.ShouldEcho(e)
+    if not A.ShouldShow(e) then return false end
+    if ns.Feats.IsFeat(e) then return ns.Feats:MarkAnnounced(e) end
     return true
 end
 
@@ -188,14 +199,42 @@ function A:PostInstance(keyLevel, onTime)
     if postedRun == key then return end
     postedRun = key
     local _, _, _, difficultyName = GetInstanceInfo()
+    local feat, _, together = ns.Feats:OnInstanceComplete(instanceType == "raid" and "raid" or "dungeon", name,
+        difficultyName or "")
+    -- the whole group is the fellowship: one "Loot Kills has completed ..." line instead of
+    -- one "<name> completed ..." per member
+    if feat or together then return end
     share("instance", { instanceType == "raid" and "raid" or "dungeon", name, difficultyName or "",
         keyLevel or "", onTime == nil and "" or (onTime and "1" or "0") })
 end
 
-function A:OnEncounterEnd(encounterID, _, _, _, success)
-    if success ~= 1 and success ~= true then return end
+function A:OnEncounterEnd(encounterID, encounterName, _, _, success)
+    local won = success == 1 or success == true
+    local instance = GetInstanceInfo()
+    ns.Feats:Note(string.format("%s %s (%s) in %s", won and "Killed" or "Wiped on", tostring(encounterName),
+        tostring(encounterID), tostring(instance)))
+    if not won then return end
     local final = finalEncounterID()
-    if final and final == encounterID then self:PostInstance() end
+    -- the Encounter Journal knows the last boss; if it doesn't, our own list of final bosses
+    -- the game's own boss count for this instance, where it keeps one (lockouts)
+    local allDown = false
+    if GetInstanceLockTimeRemaining then
+        local ok, _, _, total, complete = pcall(GetInstanceLockTimeRemaining)
+        allDown = ok and (tonumber(total) or 0) > 0 and (tonumber(complete) or 0) >= tonumber(total)
+    end
+    if (final and final == encounterID) or ns.Feats.IsFinalBoss(instance, encounterName) or allDown then
+        self:PostInstance()
+    else
+        ns.Feats:Note("  (not the last boss" .. (final and "" or ", as far as Fellowship knows") .. ")")
+    end
+end
+
+-- BOSS_KILL: same as a successful ENCOUNTER_END, in case only one of them fires
+function A:OnBossKill(encounterID, encounterName)
+    local final = finalEncounterID()
+    if (final and final == encounterID) or ns.Feats.IsFinalBoss(GetInstanceInfo(), encounterName) then
+        self:PostInstance()
+    end
 end
 
 function A:OnChallengeCompleted()
@@ -407,6 +446,30 @@ function A:Init()
     ns.On("CHAT_MSG_LOOT", function(text) A:OnLoot(text) end)
     ns.On("ENCOUNTER_END", function(...) A:OnEncounterEnd(...) end)
     ns.On("CHALLENGE_MODE_COMPLETED", function() A:OnChallengeCompleted() end)
+    ns.On("BOSS_KILL", function(...) A:OnBossKill(...) end)
+    ns.On("SCENARIO_COMPLETED", function()
+        ns.Feats:Note("Scenario completed")
+        A:PostInstance()
+    end)
+    -- backup: a final boss seen dead, in case the game doesn't report the encounter
+    local function inInstance()
+        local _, t = GetInstanceInfo()
+        return t == "party" or t == "raid"
+    end
+    ns.On("UNIT_HEALTH", function(unit)
+        if unit and (unit == "target" or unit == "focus" or unit:find("^boss") or unit:find("^nameplate"))
+            and inInstance() then
+            safely(function() ns.Feats:CheckDead(unit) end)
+        end
+    end)
+    ns.On("PLAYER_TARGET_CHANGED", function()
+        if inInstance() then safely(function() ns.Feats:CheckDead("target") end) end
+    end)
+    -- finishing a dungeon queued through the group finder
+    ns.On("LFG_COMPLETION_REWARD", function()
+        ns.Feats:Note("Dungeon Finder: dungeon completed")
+        A:PostInstance()
+    end)
     ns.On("ZONE_CHANGED_NEW_AREA", function() A:OnZoneChanged() end)
     ns.On("PLAYER_DEAD", function() A:OnDeath() end)
     self:InitDeaths()

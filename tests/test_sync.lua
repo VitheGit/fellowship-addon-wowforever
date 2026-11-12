@@ -38,9 +38,10 @@ local function count(client, kind)
 end
 
 -- Three friends: Anna founds, invites Bob and Cara.
-local function setup()
+local function setup(before)
     local w = World.new()
     local anna, bob, cara = w:client("Anna"), w:client("Bob"), w:client("Cara", "Area52")
+    if before then before(anna, bob, cara) end
     anna:login(); bob:login(); cara:login()
     w:advance(1)
     anna:slash("/fship create Friday Night Crew")
@@ -1101,12 +1102,270 @@ test("messages sent while the game blocks addon messages go out once it allows t
     assert(bob:logContains("during the boss fight"), "message lost during lockdown")
 end)
 
+-- Put `c` in a group with `others` ({ client or { name, realm, player } }).
+local function joinGroup(c, others, raid)
+    c.group, c.raid = {}, raid
+    for i, o in ipairs(others) do
+        local u = { name = o.name or o[1], realm = o.realm or o[2], player = o.player ~= false and o[3] ~= false }
+        c.group[i] = u
+        c.units[(raid and "raid" or "party") .. i] = u
+    end
+end
+
+local function feats(c)
+    local fid = c.ns.Store:ActiveId()
+    local earned = c.ns.Feats:Earned(fid)
+    local n = 0
+    for _ in pairs(earned) do n = n + 1 end
+    return earned, n
+end
+
+test("Fellowship Achievements: dungeons and raids completed with only fellowship members", function()
+    local w, anna, bob, cara = setup()
+    local dana = w:client("Dana"); dana:login(); w:advance(1) -- not in the fellowship
+    local dm = { name = "Deadmines", type = "party", difficulty = "Normal", id = 36, bosses = { 11, 12 } }
+    -- a stranger in the group: no achievement (but the dungeon is still announced)
+    for _, c in ipairs({ anna, bob }) do c.instance = dm end
+    joinGroup(anna, { bob, dana }); joinGroup(bob, { anna, dana })
+    anna:fire("ENCOUNTER_END", 12, "Boss 2", 1, 5, 1); bob:fire("ENCOUNTER_END", 12, "Boss 2", 1, 5, 1)
+    w:advance(3)
+    local _, n = feats(cara)
+    eq(n, 0, "earned with a non-member in the group")
+    assert(cara:logContains("completed Deadmines (Normal)"), "dungeon still announced")
+    -- solo doesn't count
+    cara.instance = dm; cara.group = nil
+    cara:fire("ENCOUNTER_END", 12, "Boss 2", 1, 5, 1); w:advance(3)
+    _, n = feats(anna)
+    eq(n, 0, "earned solo")
+    -- all three members (plus an NPC follower): earned once, announced once
+    for _, c in ipairs({ anna, bob, cara }) do c:fire("ZONE_CHANGED_NEW_AREA"); c.instance = nil; c:fire("ZONE_CHANGED_NEW_AREA") end
+    for _, c in ipairs({ anna, bob, cara }) do c.instance = dm end
+    local follower = { "Captain Garrick", "", false }
+    joinGroup(anna, { bob, cara, follower }); joinGroup(bob, { anna, cara, follower }); joinGroup(cara, { anna, bob, follower })
+    local before = #bob.log
+    for _, c in ipairs({ anna, bob, cara }) do c:fire("ENCOUNTER_END", 12, "Boss 2", 1, 5, 1) end
+    w:advance(5)
+    for _, c in ipairs({ anna, bob, cara }) do
+        local earned, count = feats(c)
+        eq(count, 1, c.name .. " achievements")
+        local a = earned["dungeon|deadmines|normal"]
+        assert(a, c.name .. " has no Deadmines achievement")
+        eq(#a.members, 3, "members recorded")
+        eq(table.concat(a.members, ","), "Anna-Silvermoon,Bob-Silvermoon,Cara-Area52", "members")
+        assert(a.t > 0, "date")
+    end
+    local shown = 0
+    for i = before + 1, #bob.log do
+        if bob.log[i]:find("Friday Night Crew has completed Deadmines!", 1, true) then shown = shown + 1 end
+    end
+    eq(shown, 1, "announced once in bob's chat")
+    for i = before + 1, #bob.log do
+        assert(not bob.log[i]:find("completed Deadmines (Normal)", 1, true), "per-member line when the group was all fellowship")
+    end
+    -- the Activity feed shows it once too
+    local fid = bob.ns.Store:ActiveId()
+    local inFeed = 0
+    for _, e in ipairs(bob.ns.Store:Sorted(fid)) do
+        if bob.ns.Feats.IsFeat(e) and bob.ns.Announce.ShouldShow(e) then inFeed = inFeed + 1 end
+    end
+    eq(inFeed, 1, "one feed line")
+    -- doing it again doesn't add another; a raid is its own achievement
+    local stored = #bob:history()
+    for _, c in ipairs({ anna, bob, cara }) do c:fire("ZONE_CHANGED_NEW_AREA") end
+    anna.instance = nil; anna:fire("ZONE_CHANGED_NEW_AREA"); anna.instance = dm
+    anna:fire("ENCOUNTER_END", 12, "Boss 2", 1, 5, 1); w:advance(3)
+    eq(#bob:history(), stored, "nothing new for a repeat run with the whole fellowship")
+    anna.instance = { name = "Molten Core", type = "raid", difficulty = "Normal", id = 409, bosses = { 21, 22 } }
+    anna:fire("ZONE_CHANGED_NEW_AREA")
+    joinGroup(anna, { bob, cara }, true)
+    anna:fire("ENCOUNTER_END", 22, "Ragnaros", 14, 20, 1); w:advance(3)
+    local earned, count = feats(cara)
+    eq(count, 2, "raid achievement")
+    eq(earned["raid|molten core|normal"].category, "raid", "raid category")
+    assert(cara:logContains("Friday Night Crew has completed Molten Core!"), "raid announced")
+    -- no Encounter Journal info (WoW Forever): the built-in final boss names finish the run
+    local stocks = { name = "Stormwind Stockade", type = "party", difficulty = "Normal", id = 34, bosses = {} }
+    for _, c in ipairs({ anna, bob, cara }) do c.instance = stocks; c:fire("ZONE_CHANGED_NEW_AREA") end
+    joinGroup(anna, { bob, cara })
+    anna:fire("ENCOUNTER_END", 1716, "Targorr the Dread", 1, 5, 1); w:advance(2)
+    assert(not feats(cara)["dungeon|stormwind stockade|normal"], "a middle boss finished the Stockade")
+    anna:fire("ENCOUNTER_END", 1717, "Bazil Thredd", 1, 5, 1); w:advance(3)
+    assert(feats(cara)["dungeon|stormwind stockade|normal"], "Bazil Thredd didn't finish the Stockade")
+    anna:slash("/fship dungeons")
+    assert(anna:logContains("Killed Bazil Thredd (1717) in Stormwind Stockade"), "boss kill listed by /fship dungeons")
+    -- WoW Forever's own dungeons: Excavation Site ends with the Relic Guardian
+    local dig = { name = "Excavation Site: Wetlands", type = "party", difficulty = "Normal", id = 2001, bosses = {} }
+    anna.instance = dig; anna:fire("ZONE_CHANGED_NEW_AREA")
+    anna:fire("ENCOUNTER_END", 3481, "Shadetooth", 1, 5, 1); w:advance(2)
+    assert(not feats(cara)["dungeon|excavation site: wetlands|normal"], "Shadetooth finished the dig")
+    anna:fire("ENCOUNTER_END", 3482, "Relic Guardian", 1, 5, 1); w:advance(3)
+    assert(feats(cara)["dungeon|excavation site: wetlands|normal"], "Relic Guardian didn't finish the dig")
+    -- every WoW Forever dungeon has a final boss on the list, under the names the game uses
+    for inst, boss in pairs({ ["Hall of Thanes"] = "Durgen Dirgehammer", ["The Drowned City"] = "Min'loth the Serpent",
+            ["Krol'dok Stronghold"] = "Overseer Mugg", ["Alcaz Prison"] = "Blazeroar",
+            ["Blackmaw Hold"] = "the Unbound Spirit", ["The Shaper's Terrace"] = "Nanaya",
+            ["Ruins of Lordaeron"] = "Rath'mael",
+            ["City of Dalaran"] = "Shade of the Archmage", ["Barrows Deep"] = "Sonya Darkhallow", ["Sunken Temple"] = "Shade of Eranikus" }) do
+        assert(anna.ns.Feats.IsFinalBoss(inst, boss), boss .. " should finish " .. inst)
+    end
+    assert(not anna.ns.Feats.IsFinalBoss("Blackmaw Hold", "Withermaw"), "first boss of Blackmaw Hold")
+    -- no encounter events at all: seeing the final boss dead (target or nameplate) finishes it
+    local sfk = { name = "Shadowfang Keep", type = "party", difficulty = "Normal", id = 33, bosses = {} }
+    anna.instance = sfk; anna:fire("ZONE_CHANGED_NEW_AREA")
+    anna.units.target = { name = "Lord Godfrey", player = false, dead = false }
+    anna:fire("UNIT_HEALTH", "target"); w:advance(2)
+    assert(not feats(cara)["dungeon|shadowfang keep|normal"], "counted while the boss was alive")
+    anna.units.target.dead = true
+    anna:fire("UNIT_HEALTH", "target"); anna:fire("PLAYER_TARGET_CHANGED"); w:advance(3)
+    assert(feats(cara)["dungeon|shadowfang keep|normal"], "final boss seen dead didn't count")
+    anna.units.target = nil
+    for _, c in ipairs({ anna, bob, cara }) do c.instance = nil; c:fire("ZONE_CHANGED_NEW_AREA") end
+    -- achievements survive pruning and reach someone who joins later
+    anna.ns.settings.maxEvents = 1
+    anna.ns.Store:Prune(anna.ns.Store:ActiveId())
+    eq(select(2, feats(anna)), 5, "pruned")
+    -- Achievements tab: Dungeons and Raids cards, from the Dungeon Finder list (levels, art)
+    -- and the Encounter Journal, sorted by level; completed ones carry the date
+    local lfg = {
+        [1] = { "The Deadmines", 1, 1, 15, 25, 0, 17, 26, 0, 0, "DEADMINES" },
+        [2] = { "Wailing Caverns", 1, 1, 15, 25, 0, 16, 23, 0, 0, "WAILINGCAVERNS" },
+        [3] = { "The Deadmines", 1, 2, 60, 60, 0, 60, 60, 0, 0, "DEADMINES" }, -- heroic
+        [4] = { "Random Classic Dungeon", 6, 1, 15, 60, 0, 15, 60, 0, 0, "" },
+        [5] = { "Molten Core", 2, 3, 60, 60, 0, 60, 60, 0, 0, "MOLTENCORE" },
+        -- WoW Forever's group finder also lists zones and battlegrounds (level 1)
+        [6] = { "Alterac Mountains", 1, 1, 1, 1, 0, 1, 1, 0, 0, "" },
+        [7] = { "Arathi Basin", 1, 1, 1, 1, 0, 1, 1, 0, 0, "" },
+        [8] = { "Shadowfang Keep", 1, 1, 1, 1, 0, 1, 1, 0, 0, "" },
+    }
+    anna.env.GetLFGDungeonInfo = function(id) if lfg[id] then return unpack(lfg[id]) end end
+    anna.env.EJ_GetInstanceByIndex = function(i, isRaid)
+        local list = isRaid and { "Molten Core", "Onyxia's Lair" } or { "Deadmines", "Hall of Thanes" }
+        if list[i] then return i, list[i], "", "", "Interface\\EJ\\" .. list[i] end
+    end
+    local fid = anna.ns.Store:ActiveId()
+    -- no dungeon list from the game: the built-in one still gives every card
+    local bare = cara.ns.Feats:Cards(cara.ns.Store:ActiveId(), "dungeon")
+    assert(#bare >= 20, "built-in dungeon list")
+    local cards, done = anna.ns.Feats:Cards(fid, "dungeon")
+    local byName = {}
+    for i, c in ipairs(cards) do byName[c.name] = c; c.index = i end
+    eq(#cards, #bare, "game's dungeons merged with the built-in list (random queue skipped)")
+    eq(done, 4, "dungeons done (Deadmines, Stockade, Excavation Site, Shadowfang Keep)")
+    assert(byName["The Deadmines"].done and byName["The Deadmines"].done.t > 0, "Deadmines completed with a date")
+    eq(byName["The Deadmines"].minLevel, 17, "recommended level range")
+    eq(byName["Wailing Caverns"].minLevel, 16, "the game's levels win over the built-in ones")
+    eq(byName["Wailing Caverns"].maxLevel, 23, "game max level")
+    eq(byName["The Deadmines"].art, "Interface\\LFGFrame\\UI-LFG-BACKGROUND-DEADMINES", "dungeon finder art")
+    eq(byName["Hall of Thanes"].ejArt, "Interface\\EJ\\Hall of Thanes", "journal art")
+    assert(not byName["Wailing Caverns"].done, "Wailing Caverns incomplete")
+    assert(byName["Ragefire Chasm"].index < byName["Shadowfang Keep"].index, "sorted by level")
+    assert(not byName["Random Classic Dungeon"], "random queue is not a dungeon")
+    assert(not byName["Alterac Mountains"] and not byName["Arathi Basin"], "zones are not dungeons")
+    eq(byName["Shadowfang Keep"].minLevel, 22, "a level-1 entry doesn't replace the real range")
+    local raids, raidsDone = anna.ns.Feats:Cards(fid, "raid")
+    eq(#raids, 8, "raid cards"); eq(raidsDone, 1, "raids done")
+    anna:slash("/fs")
+    anna.ns.UI:SelectTab("feats")
+    local p
+    for _, f in ipairs(anna.frames) do if type(rawget(f, "cards")) == "table" then p = f end end
+    assert(p, "achievements panel")
+    local function statusOf(name)
+        for _, c in ipairs(p.cards) do
+            if c.card and c.card.name == name then return c.status:GetText() end
+        end
+    end
+    assert(statusOf("The Deadmines"):find("Completed: ", 1, true), "completed card")
+    assert(statusOf("Wailing Caverns"):find("|cffff3333Incomplete", 1, true), "incomplete card in red")
+    p.subTabs.raid:Click()
+    assert(statusOf("Molten Core"):find("Completed: ", 1, true), "raids sub-tab")
+end)
+
+local function chan(c) return c.ns.Channel end
+
+test("hidden channel: one message reaches everyone; unique name and password per fellowship", function()
+    local w, anna, bob, cara = setup()
+    w:advance(10)
+    local name = chan(anna):Name()
+    assert(chan(anna):Ready() and chan(bob):Ready() and chan(cara):Ready(), "not everyone joined the channel")
+    eq(chan(bob):Name(), name, "bob on another channel"); eq(chan(cara):Name(), name, "cara on another channel")
+    assert(name:match("^Fs%w+$") and #name == 12, "channel name " .. name)
+    assert(not name:lower():find("friday", 1, true), "name gives away the fellowship")
+    local ch = w.channels[name:lower()]
+    assert(ch.password and #ch.password == 10, "no password")
+    eq(chan(anna):PeerCount(), 2, "anna hasn't heard bob and cara on the channel")
+    -- a chat line: one channel message, no whispers
+    local sent, viaChannel = w.sent, w.channelSent
+    anna:slash("/fs one message for all"); w:advance(1)
+    eq(w.channelSent - viaChannel, 1, "channel messages for one chat line")
+    eq(w.sent - sent, 1, "whispers sent as well")
+    assert(bob:logContains("one message for all") and cara:logContains("one message for all"), "not delivered")
+    -- the join notices stay out of chat
+    for _, c in ipairs({ anna, bob, cara }) do assert(not c:logContains(name), "channel name shown in chat") end
+    -- another fellowship with the same name gets a different channel
+    local w2 = World.new()
+    local x = w2:client("Xan"); x:login(); w2:advance(1)
+    x:slash("/fship create Friday Night Crew"); w2:advance(10)
+    assert(chan(x):Name() ~= name, "two fellowships share a channel")
+    x:slash("/fship channel")
+    assert(x:logContains("Fellowship channel: joined"), "/fship channel status")
+end)
+
+test("hidden channel: a taken name moves everyone to the same next name", function()
+    local w, anna, bob, cara = setup()
+    w:advance(10)
+    local name = chan(anna):Name()
+    for _, c in ipairs({ anna, bob, cara }) do c.env.LeaveChannelByName(name) end
+    w.channels[name:lower()] = { name = name, password = "someoneelse", members = { ["Zed-Elsewhere"] = true } }
+    for _, c in ipairs({ anna, bob, cara }) do chan(c):Refresh() end
+    w:advance(10)
+    for _, c in ipairs({ anna, bob, cara }) do eq(chan(c):Name(), name .. "2", c.name .. "'s channel") end
+    assert(chan(anna):Ready(), "not joined")
+    bob:slash("/fs after the move"); w:advance(1)
+    assert(anna:logContains("after the move") and cara:logContains("after the move"), "not delivered")
+    assert(not w.channels[name:lower()].members["Anna-Silvermoon"], "joined the stranger's channel")
+end)
+
+test("hidden channel: members without it still get whispers; removal moves to a new channel", function()
+    local w, anna, bob, cara = setup(function(_, _, cara) cara.channelSlotsFull = true end)
+    w:advance(30)
+    assert(chan(anna):Ready() and chan(bob):Ready(), "anna and bob not on the channel")
+    assert(not chan(cara):Ready(), "cara has no free channel slot")
+    anna:slash("/fs whisper fallback"); w:advance(2)
+    assert(bob:logContains("whisper fallback"), "bob (channel) missed it")
+    assert(cara:logContains("whisper fallback"), "cara (whispers) missed it")
+    cara:slash("/fs from cara"); w:advance(2)
+    assert(anna:logContains("from cara") and bob:logContains("from cara"), "cara's whispers")
+    -- no channel support at all in this game client: whispers only, nothing breaks
+    -- removing a member moves the others to a fresh channel and password
+    local old = chan(anna):Name()
+    cara.channelSlotsFull = false; w:advance(360) -- retried every few minutes
+    eq(chan(cara):Name(), old, "cara joined once a slot was free")
+    anna:slash("/fship remove Cara Area52"); w:advance(15)
+    local new = chan(anna):Name()
+    assert(new ~= old, "removal didn't move the channel")
+    eq(chan(bob):Name(), new, "bob didn't move")
+    assert(not w.channels[new:lower()].members["Cara-Area52"], "removed member is on the new channel")
+    anna:slash("/fs after removal"); w:advance(2)
+    assert(bob:logContains("after removal"), "bob missed it")
+    assert(not cara:logContains("after removal"), "removed member still hears the fellowship")
+end)
+
+test("no channel support in the client: whispers only", function()
+    local w, anna, bob, cara = setup(function(a, b, c) a.noChannels = true; b.noChannels = true; c.noChannels = true end)
+    w:advance(10)
+    assert(not chan(anna):Ready(), "channel without support")
+    anna:slash("/fs plain whispers"); w:advance(2)
+    assert(bob:logContains("plain whispers") and cara:logContains("plain whispers"), "whispers broken")
+    anna:slash("/fship channel")
+    assert(anna:logContains("using whispers"), "status")
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")
     w:advance(2)
     anna:slash("/fs")
-    for _, tab in ipairs({ "chat", "achievements", "members" }) do anna.ns.UI:SelectTab(tab) end
+    for _, tab in ipairs({ "chat", "achievements", "feats", "members" }) do anna.ns.UI:SelectTab(tab) end
     w:advance(1)
     anna:slash("/fship who")
     anna:slash("/fship help")

@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.10.2"
+ns.VERSION = "0.12.0"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -316,7 +316,9 @@ function ns.FormatEvent(e)
             .. ((pts and pts > 0) and (" (" .. pts .. " pts)") or "")
     elseif e.k == "M" then
         local sub = d[1]
-        if sub == "level" then
+        if sub == "feat" then
+            return ns.Feats.Format(e)
+        elseif sub == "level" then
             return who .. " reached level " .. (tonumber(d[2]) or "?") .. "!"
         elseif sub == "mount" then
             local spellID = tonumber(d[3])
@@ -437,7 +439,7 @@ ns.Listen("EVENTS_ADDED", function(fid, added, live)
         end
         table.sort(late, function(a, b) return a.t < b.t end)
         for _, e in ipairs(late) do
-            local show = (e.k == "C" and ns.settings.echoChat) or (e.k ~= "C" and ns.Announce.ShouldShow(e))
+            local show = (e.k == "C" and ns.settings.echoChat) or (e.k ~= "C" and ns.Announce.ShouldEcho(e))
             if show then
                 local ago = now - e.t
                 ns.Echo((ns.FormatEvent(e) or "") .. (ago >= 60 and (" |cff808080(" .. ns.Ago(e.t) .. ")|r") or ""))
@@ -453,7 +455,7 @@ ns.Listen("EVENTS_ADDED", function(fid, added, live)
             if e.k == "C" and ns.settings.echoChat then
                 ns.Echo(ns.FormatEvent(e) or "")
             elseif e.k == "A" or e.k == "M" then
-                if ns.Announce.ShouldShow(e) then ns.Echo(ns.FormatEvent(e) or "") end
+                if ns.Announce.ShouldEcho(e) then ns.Echo(ns.FormatEvent(e) or "") end
             elseif ns.MEMBERSHIP_KINDS[e.k] then
                 ns.Echo(ns.FormatEvent(e) or "")
             end
@@ -489,6 +491,7 @@ ns.On("PLAYER_LOGIN", function()
     ns.Store:SetClass(ns.me, classToken)
     ns.Comm:Init()
     ns.Sync:Init()
+    ns.Channel:Init()
     ns.Announce:Init()
     ns.UI:Init()
     ns.Menu:Init()
@@ -523,6 +526,8 @@ local HELP = {
     "|cffffd100/fship tab|r - show/hide Fellowship in the chat tab you're typing in (or right-click a chat tab)",
     "|cffffd100/fship settings|r - choose what gets shared and shown",
     "|cffffd100/fship minimap|r - show or hide the minimap button",
+    "|cffffd100/fship channel|r - check the hidden fellowship channel",
+    "|cffffd100/fship dungeons|r - recent boss kills and why a run did or didn't count",
 }
 
 function ns.HandleSlash(input)
@@ -592,6 +597,10 @@ function ns.HandleSlash(input)
     elseif cmd == "debug" then
         ns.settings.debug = not ns.settings.debug
         ns.Print("Debug messages " .. (ns.settings.debug and "on" or "off") .. ".")
+    elseif cmd == "channel" then
+        ns.Channel:PrintStatus()
+    elseif cmd == "dungeons" then
+        ns.Feats:Diagnose()
     elseif cmd == "version" then
         ns.Print("Fellowship " .. ns.VERSION)
     elseif cmd == "minimap" then

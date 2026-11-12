@@ -6,7 +6,7 @@ World.__index = World
 
 local ADDON_DIR = (arg and arg[0] and arg[0]:match("^(.*)/tests/")) or "."
 ADDON_DIR = ADDON_DIR .. "/Fellowship/"
-local FILES = { "Core.lua", "Serializer.lua", "Store.lua", "Comm.lua", "Sync.lua", "Announce.lua", "Menu.lua", "Minimap.lua", "UI.lua" }
+local FILES = { "Core.lua", "Serializer.lua", "Store.lua", "Comm.lua", "Channel.lua", "Sync.lua", "Announce.lua", "Feats.lua", "Menu.lua", "Minimap.lua", "UI.lua" }
 
 local function deepcopy(v)
     if type(v) ~= "table" then
@@ -19,7 +19,8 @@ local function deepcopy(v)
 end
 
 function World.new()
-    return setmetatable({ time = 1000, epoch = 1762700000, clients = {}, timers = {}, mail = {}, seq = 0 }, World)
+    return setmetatable({ time = 1000, epoch = 1762700000, clients = {}, timers = {}, mail = {}, seq = 0,
+        channels = {} }, World)
 end
 
 function World:schedule(at, fn, owner)
@@ -131,6 +132,11 @@ function Client:login()
             local u = client.units[unit]; return u and u.name
         end,
         UnitExists = function(unit) return client.units[unit] ~= nil end,
+        UnitIsDead = function(unit) return client.units[unit] ~= nil and client.units[unit].dead == true end,
+        -- group: set client.group = { { name, realm, player = true|false }, ... } (not including you)
+        IsInGroup = function() return client.group ~= nil and #client.group > 0 end,
+        IsInRaid = function() return client.raid == true end,
+        GetNumGroupMembers = function() return client.group and (#client.group + 1) or 0 end,
         UnitIsPlayer = function(unit) return client.units[unit] and client.units[unit].player end,
         UnitFactionGroup = function(unit) if unit == "player" then return "Alliance" end return client.units[unit] and client.units[unit].faction end,
         UnitLevel = function() return client.level or 60 end,
@@ -194,6 +200,32 @@ function Client:login()
             SendAddonMessage = function(prefix, text, channel, target)
                 assert(#text <= 255, "addon message too long: " .. #text)
                 assert(#prefix <= 16)
+                if channel == "CHANNEL" then
+                    local name = client.myChannels and client.myChannels[tonumber(target)]
+                    local ch = name and world.channels[name:lower()]
+                    if not ch or not ch.members[client.full] then return 9 end
+                    if client.lockdown then return 11 end
+                    local b = client.bucket
+                    b.tokens = math.min(10, b.tokens + (world.time - b.last))
+                    b.last = world.time
+                    if b.tokens < 1 then world.throttled = (world.throttled or 0) + 1; return 3 end
+                    b.tokens = b.tokens - 1
+                    world.sent = (world.sent or 0) + 1
+                    world.channelSent = (world.channelSent or 0) + 1
+                    local from = client.name .. " " .. client.realm
+                    world:schedule(world.time + 0.05, function()
+                        for full in pairs(ch.members) do
+                            local dest = world.clients[full:lower()]
+                            if dest and dest.online and dest ~= client
+                                and not (world.dropper and world.dropper(from, dest.name .. " " .. dest.realm, text)) then
+                                local idx
+                                for i, n in pairs(dest.myChannels or {}) do if n:lower() == name:lower() then idx = i end end
+                                dest:fire("CHAT_MSG_ADDON", prefix, text, "CHANNEL", from, "", 0, idx, ch.name)
+                            end
+                        end
+                    end)
+                    return 0
+                end
                 if client.lockdown then return 11 end -- addon messages blocked (e.g. combat in an instance)
                 -- server-side throttle: 10 burst, 1/sec
                 local b = client.bucket
@@ -219,6 +251,41 @@ function Client:login()
             end,
         },
     }
+    -- custom chat channels (password protected; numbered per client)
+    client.myChannels = {}
+    if not client.noChannels then
+        base.JoinTemporaryChannel = function(name, password)
+            local ch = world.channels[name:lower()]
+            if not ch then
+                ch = { name = name, password = password, members = {} }
+                world.channels[name:lower()] = ch
+            elseif (ch.password or "") ~= (password or "") then
+                client:system("Wrong password for " .. name .. ".")
+                return
+            end
+            for _, n in pairs(client.myChannels) do if n:lower() == name:lower() then return end end
+            if client.channelSlotsFull then return end
+            ch.members[client.full] = true
+            local i = 1
+            while client.myChannels[i] do i = i + 1 end
+            client.myChannels[i] = name
+        end
+        base.GetChannelName = function(name)
+            for i, n in pairs(client.myChannels) do
+                if type(name) == "string" and n:lower() == name:lower() then return i, n end
+            end
+            return 0
+        end
+        base.LeaveChannelByName = function(name)
+            for i, n in pairs(client.myChannels) do
+                if n:lower() == name:lower() then
+                    client.myChannels[i] = nil
+                    local ch = world.channels[n:lower()]
+                    if ch then ch.members[client.full] = nil end
+                end
+            end
+        end
+    end
     client.log2 = {}
     base.ChatFrame1 = { AddMessage = function(_, m) table.insert(client.log, m) end, GetID = function() return 1 end }
     base.ChatFrame2 = { AddMessage = function(_, m) table.insert(client.log2, m) end, GetID = function() return 2 end }
@@ -283,6 +350,11 @@ end
 
 function Client:logout()
     self:fire("PLAYER_LOGOUT")
+    for _, n in pairs(self.myChannels or {}) do -- temporary channels end with the session
+        local ch = self.world.channels[n:lower()]
+        if ch then ch.members[self.full] = nil end
+    end
+    self.myChannels = {}
     self.saved = deepcopy(self.env.FellowshipDB)
     if self.accountOf then self.accountOf.saved = self.saved end
     self.online = false

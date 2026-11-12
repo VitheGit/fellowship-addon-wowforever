@@ -1,4 +1,4 @@
--- UI: the Fellowship window (Chat feed, Achievements, Members) and the invite popup.
+-- UI: the Fellowship window (Chat, Activity, Achievements, Members) and the invite popup.
 local _, ns = ...
 local UI = {}
 ns.UI = UI
@@ -18,6 +18,10 @@ local ROSTER_COLUMNS = {
     { key = "seen", title = "Last Online", width = 110 },
 }
 local ROSTER_ROWS, ROW_HEIGHT = 15, 18
+
+-- Achievements tab: dungeon/raid cards, two per row like the game's dungeon picker
+local CARD_W, CARD_H, CARD_GAP, CARD_ROWS = 310, 100, 8, 3
+local GREEN, RED = "|cff40ff40", "|cffff3333"
 local rosterSort = { key = "default", reverse = false }
 local RANK_ORDER = { admin = 1, inviter = 2, member = 3 }
 local GREY = "|cff808080"
@@ -48,6 +52,15 @@ local function makeLog(parent)
     return smf
 end
 
+-- The template's X button closes through the game's panel manager (HideUIPanel), which is
+-- blocked for addons during combat. Hide the frame directly instead, so X works in combat.
+local function fixCloseButton(f)
+    local close = f.CloseButton or (f.GetName and f:GetName() and _G[f:GetName() .. "CloseButton"])
+    if type(close) == "table" and close.SetScript then
+        close:SetScript("OnClick", function() f:Hide() end)
+    end
+end
+
 local function makeButton(parent, text, width, onClick)
     local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     b:SetSize(width, 22)
@@ -73,6 +86,7 @@ end
 function UI:Build()
     if frame then return end
     frame = CreateFrame("Frame", "FellowshipFrame", UIParent, "BasicFrameTemplateWithInset")
+    fixCloseButton(frame)
     frame:SetSize(660, 440)
     frame:SetPoint("CENTER")
     frame:SetMovable(true)
@@ -94,7 +108,8 @@ function UI:Build()
     end)
 
     -- Tabs
-    local tabs = { { "chat", "Chat" }, { "achievements", "Activity" }, { "members", "Members" } }
+    local tabs = { { "chat", "Chat" }, { "achievements", "Activity" }, { "feats", "Achievements" },
+        { "members", "Members" } }
     for i, t in ipairs(tabs) do
         local b = makeButton(frame, t[2], 110, function() UI:SelectTab(t[1]) end)
         b:SetPoint("TOPLEFT", 12 + (i - 1) * 114, -28)
@@ -147,6 +162,91 @@ function UI:Build()
     ach.log:SetPoint("TOPLEFT", 4, -4)
     ach.log:SetPoint("BOTTOMRIGHT", -4, 4)
     panels.achievements = ach
+
+    -- Achievements: Fellowship Achievements, with Dungeons and Raids sub-tabs
+    local feats = panel()
+    feats.category = "dungeon"
+    feats.subTabs = {}
+    for i, t in ipairs({ { "dungeon", "Dungeons" }, { "raid", "Raids" } }) do
+        local b = makeButton(feats, t[2], 100, function()
+            feats.category = t[1]
+            feats.offset = 0
+            UI:Refresh()
+        end)
+        b:SetPoint("TOPLEFT", 4 + (i - 1) * 104, -2)
+        feats.subTabs[t[1]] = b
+    end
+    feats.count = feats:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    feats.count:SetPoint("TOPRIGHT", -8, -6)
+    feats.cards = {}
+    for i = 1, CARD_ROWS * 2 do
+        local col, rowN = (i - 1) % 2, math.floor((i - 1) / 2)
+        local card = CreateFrame("Button", nil, feats)
+        card:SetSize(CARD_W, CARD_H)
+        card:SetPoint("TOPLEFT", 4 + col * (CARD_W + CARD_GAP), -30 - rowN * (CARD_H + CARD_GAP))
+        card.fill = card:CreateTexture(nil, "BACKGROUND")
+        card.fill:SetAllPoints()
+        card.fill:SetColorTexture(0.12, 0.09, 0.06, 1)
+        card.art = card:CreateTexture(nil, "BORDER")
+        card.art:SetPoint("TOPLEFT", 2, -2)
+        card.art:SetPoint("BOTTOMRIGHT", -2, 2)
+        -- darker band along the top so the name and status stay readable on any picture
+        card.band = card:CreateTexture(nil, "ARTWORK")
+        card.band:SetPoint("TOPLEFT", 2, -2)
+        card.band:SetPoint("TOPRIGHT", -2, -2)
+        card.band:SetHeight(32)
+        card.band:SetColorTexture(0, 0, 0, 0.45)
+        card.shade = card:CreateTexture(nil, "ARTWORK")
+        card.shade:SetPoint("BOTTOMLEFT", 2, 2)
+        card.shade:SetPoint("BOTTOMRIGHT", -2, 2)
+        card.shade:SetHeight(22)
+        card.shade:SetColorTexture(0, 0, 0, 0.4)
+        -- thin gold-brown frame
+        for _, edge in ipairs({ { "TOPLEFT", "TOPRIGHT", nil, 2 }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, 2 },
+                { "TOPLEFT", "BOTTOMLEFT", 2, nil }, { "TOPRIGHT", "BOTTOMRIGHT", 2, nil } }) do
+            local t = card:CreateTexture(nil, "OVERLAY")
+            t:SetPoint(edge[1]); t:SetPoint(edge[2])
+            if edge[3] then t:SetWidth(edge[3]) else t:SetHeight(edge[4]) end
+            t:SetColorTexture(0.45, 0.33, 0.16, 1)
+        end
+        card.name = card:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        card.name:SetPoint("TOPLEFT", 12, -9)
+        card.name:SetPoint("RIGHT", card, "RIGHT", -180, 0)
+        card.name:SetJustifyH("LEFT")
+        card.name:SetWordWrap(false)
+        card.status = card:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        card.status:SetPoint("TOPRIGHT", -10, -11)
+        card.status:SetJustifyH("RIGHT")
+        card.check = card:CreateTexture(nil, "OVERLAY")
+        card.check:SetSize(18, 18)
+        card.check:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
+        card.check:SetPoint("RIGHT", card.status, "LEFT", -4, 0)
+        card.level = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        card.level:SetPoint("BOTTOMLEFT", 12, 7)
+        card.with = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        card.with:SetPoint("BOTTOMRIGHT", -10, 7)
+        card.with:SetPoint("LEFT", card, "LEFT", 90, 0)
+        card.with:SetJustifyH("RIGHT")
+        card.with:SetWordWrap(false)
+        card.glow = card:CreateTexture(nil, "HIGHLIGHT")
+        card.glow:SetPoint("TOPLEFT", 2, -2)
+        card.glow:SetPoint("BOTTOMRIGHT", -2, 2)
+        card.glow:SetColorTexture(1, 1, 1, 0.08)
+        card:SetScript("OnEnter", function(self) if self.card then UI:ShowFeatTooltip(self, self.card) end end)
+        card:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+        card:Hide()
+        feats.cards[i] = card
+    end
+    feats.empty = feats:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    feats.empty:SetPoint("CENTER", 0, -10)
+    feats.empty:SetWidth(460)
+    feats.offset = 0 -- in rows of two cards
+    feats:EnableMouseWheel(true)
+    feats:SetScript("OnMouseWheel", function(_, delta)
+        feats.offset = math.max(0, feats.offset - delta)
+        UI:Refresh()
+    end)
+    panels.feats = feats
 
     -- Members: a roster laid out like the guild window
     local mem = panel()
@@ -387,6 +487,7 @@ end
 function UI:BuildSettings()
     if settingsFrame then return end
     local f = CreateFrame("Frame", "FellowshipSettingsFrame", UIParent, "BasicFrameTemplateWithInset")
+    fixCloseButton(f)
     settingsFrame = f
     f:SetSize(470, 506)
     f:SetPoint("CENTER", 40, -20)
@@ -612,6 +713,90 @@ local function renderMembers(p, fid)
     end
 end
 
+-- Show a picture cropped (not stretched) to fill the card.
+local function setArt(tex, card)
+    -- Dungeon Finder picture first, then the Encounter Journal's; SetTexture returns false
+    -- when the game has no such file, so a wrong guess just falls through to the next one
+    local tries = {}
+    if card.art then tries[#tries + 1] = { card.art, 1, 1, 2 } end
+    if card.ejArt then tries[#tries + 1] = { card.ejArt, 0.68359375, 0.7421875, 174 / 95 } end
+    for _, t in ipairs(tries) do
+        if tex:SetTexture(t[1]) ~= false then
+            local w, h = CARD_W - 4, CARD_H - 4
+            -- both pictures are less wide than a card: trim top and bottom instead of stretching
+            local keep = math.min(1, t[4] / (w / h))
+            local top = (1 - keep) / 2
+            tex:SetTexCoord(0, t[2], top * t[3], (top + keep) * t[3])
+            tex:Show()
+            return
+        end
+    end
+    tex:Hide()
+end
+
+local function renderFeats(p, fid)
+    for cat, b in pairs(p.subTabs) do
+        if cat == p.category then b:Disable() else b:Enable() end
+    end
+    local cards, completed = ns.Feats:Cards(fid, p.category)
+    p.count:SetText(string.format("%d / %d completed", completed, #cards))
+    local rows = math.ceil(#cards / 2)
+    p.offset = math.max(0, math.min(p.offset or 0, rows - CARD_ROWS))
+    for i, f in ipairs(p.cards) do
+        local c = cards[i + p.offset * 2]
+        f.card = c
+        if c then
+            setArt(f.art, c)
+            f.name:SetText(ns.Escape(c.name))
+            if c.minLevel and c.maxLevel and c.maxLevel > 0 then
+                f.level:SetText(c.minLevel == c.maxLevel and ("LV " .. c.minLevel)
+                    or ("LV " .. c.minLevel .. "-" .. c.maxLevel))
+            else
+                f.level:SetText("")
+            end
+            if c.done then
+                f.status:SetText(GREEN .. "Completed: " .. date("%b %d, %Y", c.done.t) .. "|r")
+                f.check:Show()
+                f.art:SetVertexColor(1, 1, 1)
+                f.with:SetText(ns.Feats.JoinNames(c.done.members, true))
+            else
+                f.status:SetText(RED .. "Incomplete|r")
+                f.check:Hide()
+                f.art:SetVertexColor(0.7, 0.7, 0.7) -- not done yet: a little dimmer
+                f.with:SetText("")
+            end
+            f:Show()
+        else
+            f:Hide()
+        end
+    end
+    if #cards == 0 then
+        p.empty:SetText(p.category == "raid" and "No raids to show yet." or "No dungeons to show yet.")
+        p.empty:Show()
+    else
+        p.empty:Hide()
+    end
+end
+
+function UI:ShowFeatTooltip(owner, c)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(ns.Escape(c.name), 1, 0.82, 0)
+    if c.done then
+        GameTooltip:AddLine((c.category == "raid" and "Cleared " or "Completed ")
+            .. date("%b %d, %Y at %H:%M", c.done.t), 0.25, 1, 0.25)
+        GameTooltip:AddLine("Difficulty: " .. table.concat(c.done.difficulties, ", "), 1, 1, 1)
+        if #c.done.members > 0 then
+            GameTooltip:AddLine("With " .. ns.Feats.JoinNames(c.done.members, false), 0.8, 0.8, 0.8, true)
+        end
+    else
+        GameTooltip:AddLine("Incomplete", 1, 0.2, 0.2)
+        GameTooltip:AddLine((c.category == "raid" and "Clear" or "Complete")
+            .. " it with a group made up only of fellowship members.", 0.6, 0.6, 0.6, true)
+    end
+    GameTooltip:Show()
+end
+
 function UI:ShowMemberTooltip(owner, m)
     if not GameTooltip then return end
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
@@ -698,6 +883,8 @@ function UI:Refresh()
         renderSidebar(p, fid)
     elseif activeTab == "achievements" then
         renderFeed(p.log, fid, function(e) return (e.k == "A" or e.k == "M") and ns.Announce.ShouldShow(e) end)
+    elseif activeTab == "feats" then
+        renderFeats(p, fid)
     else
         renderMembers(p, fid)
     end

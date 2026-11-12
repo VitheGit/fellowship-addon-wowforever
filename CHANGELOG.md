@@ -1,5 +1,75 @@
 # Changelog
 
+## 0.12.0
+
+- Fellowship chat and announcements now go through a hidden, password-protected chat channel. One message reaches everyone online at once, instead of one whisper per member, so big fellowships no longer see messages arrive late.
+- Each fellowship gets its own channel. The name and password are codes only members' addons know, not your fellowship's name. If the name is ever taken, everyone moves to the same backup name automatically. Removing a member moves the fellowship to a new channel and password.
+- The channel is hidden from your chat windows, and its join notices are hidden too.
+- Members without the channel still get every message by whisper. That covers anyone on an older version, or with all 10 channel slots in use.
+- New `/fship channel` command shows whether you're on the channel and how many members are heard on it.
+
+## 0.11.10
+
+- Fixed the X button not closing the Fellowship window (and the Settings window) while you're in combat.
+
+## 0.11.9
+
+- Fellowship Achievements now read "Loot Kills has completed Gnomeregan!" (your fellowship's name), instead of naming one member. The difficulty is added when it isn't Normal.
+- When everyone in the group is in the fellowship, the separate "<name> completed Gnomeregan" lines from each member are no longer posted.
+
+## 0.11.8
+
+- City of Dalaran now completes when Shade of the Archmage dies.
+- The Barrow Deeps raid (coming December 9) is ready: it completes when Sonya Darkhallow dies.
+
+## 0.11.7
+
+- Added WoW Forever's new dungeons to the Dungeons tab and to the final-boss list: Hall of Thanes (Durgen Dirgehammer), Ruins of Lordaeron (Rath'mael), Excavation Site (Relic Guardian), The Drowned City (Min'loth the Serpent), Krol'dok Stronghold (Overseer Mugg), Alcaz Prison (Blazeroar), Blackmaw Hold (the Unbound Spirit) and Shaper's Terrace (Nanaya). City of Dalaran and the Barrow Deeps raid get cards too, but their last bosses aren't known yet.
+- Level ranges now match WoW Forever's dungeon list.
+
+## 0.11.6
+
+- Excavation Site counts now: killing the Relic Guardian finishes it, in any zone's Excavation Site. Its card shows up in the Dungeons tab once your fellowship has completed it.
+- A dungeon also counts as finished when the game's own lockout shows every boss is dead, or when a scenario is completed.
+
+## 0.11.5
+
+- Fixed the Stockade not counting. WoW Forever calls it "Stormwind Stockade", which Fellowship didn't recognise, so killing Bazil Thredd or Dextren Ward didn't finish the run. If a dungeon's name isn't recognised, a known final boss now counts on its own.
+- Another way to notice a finished dungeon: if the game doesn't report the boss fight, seeing the final boss dead (targeted, on its nameplate or boss frame) now counts too. Clicking the boss's corpse to loot it is enough.
+- Added the newer final bosses in case WoW Forever uses them: Randolph Moloch (Stockade), Captain Cookie and Vanessa VanCleef (Deadmines), Lord Godfrey (Shadowfang Keep), Lava Guard Gordoth (Ragefire Chasm).
+- The `/fship dungeons` boss log is now saved, so you can check it after a reload or on your next login.
+
+## 0.11.4
+
+- Fixed dungeon and raid completions not being noticed in WoW Forever, which meant no Fellowship Achievement (for example, The Stockade). The game doesn't say which boss is the last one, so Fellowship now has its own list of final bosses for every classic dungeon and raid. Any wing's last boss counts for Scarlet Monastery and Dire Maul.
+- Finishing a dungeon you queued for through the group finder also counts.
+- `/fship dungeons` now lists the boss kills it has seen since you logged in. With `/fship debug` on, it also says why a run didn't earn an achievement (for example, someone in the group isn't in the fellowship).
+
+## 0.11.3
+
+- The Dungeons tab no longer lists every zone and battleground. WoW Forever's group finder list includes those, so it's now used only to add level ranges and pictures to real dungeons and raids.
+- Level ranges of "LV 1" from that list are ignored, so each dungeon keeps its real range.
+
+## 0.11.2
+
+- Fixed the Achievements tab showing "No dungeons to show yet". Fellowship now has its own list of every dungeon and raid, with level ranges, so the cards always show. If the game also provides its dungeon list, its level ranges and pictures are used.
+- New `/fship dungeons` command, which shows what the game's dungeon lists give the addon. It helps with fixing missing pictures.
+
+## 0.11.1
+
+- The Achievements tab now has **Dungeons** and **Raids** sub-tabs, with a card for each one showing its picture and level range, like the game's dungeon picker.
+- Each card says **Completed: date** in green, or **Incomplete** in red. Hover a card to see who was there and on which difficulty.
+- Cards are sorted by level. Any difficulty completes a card.
+
+## 0.11.0
+
+- New Achievements tab with Fellowship Achievements, earned together. Complete a dungeon or clear a raid (final boss down) where everyone in your group is in the fellowship, and it's marked complete with the date and who was there.
+- Each dungeon and raid is its own achievement per difficulty, so Deadmines (Normal) and Deadmines (Heroic) count separately. Groups need at least two players; NPC followers don't count against you.
+- The fellowship sees "Fellowship Achievement: completed [Deadmines (Normal)] with ..." once, even though everyone in the group's addon notices it.
+- Dungeons and raids you haven't done together yet are listed in grey underneath, so you can see what's left.
+- Fellowship Achievements are kept forever (never trimmed with old history), and new members get them when they join.
+- Everyone needs 0.11.0 to earn them; older versions still store them and show them as a milestone.
+
 ## 0.10.2
 
 - Fixed chat lines that some members never saw. A message that got lost on the way is now noticed and fetched as soon as the next message arrives, or within two minutes at most, and it shows up in chat (marked with how long ago it was sent) instead of only in the window.
