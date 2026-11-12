@@ -269,6 +269,8 @@ local FINAL_BOSSES = {
     ["blackwing lair"] = { "Nefarian" },
     ["temple of ahn'qiraj"] = { "C'Thun" },
     ["naxxramas"] = { "Kel'Thuzad" },
+    -- WoW Forever's own dungeons
+    ["excavation site"] = { "Relic Guardian" },
 }
 local FINAL_BY_KEY = {}
 
@@ -281,7 +283,8 @@ function F.IsFinalBoss(instance, bossName)
             FINAL_BY_KEY[F.NameKey(inst)] = set
         end
     end
-    local set = FINAL_BY_KEY[F.NameKey(instance)]
+    -- "Excavation Site: Wetlands" and the like: a WoW Forever dungeon that exists in several zones
+    local set = FINAL_BY_KEY[F.NameKey(instance)] or FINAL_BY_KEY[F.NameKey((tostring(instance):match("^(.-):")))]
     if set then return set[F.NameKey(bossName)] == true end
     -- an instance name we don't recognise: go by the boss alone (these names are unique)
     for _, bosses in pairs(FINAL_BY_KEY) do

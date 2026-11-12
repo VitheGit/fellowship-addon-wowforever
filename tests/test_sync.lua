@@ -1190,6 +1190,13 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
     assert(feats(cara)["dungeon|stormwind stockade|normal"], "Bazil Thredd didn't finish the Stockade")
     anna:slash("/fship dungeons")
     assert(anna:logContains("Killed Bazil Thredd (1717) in Stormwind Stockade"), "boss kill listed by /fship dungeons")
+    -- WoW Forever's own dungeons: Excavation Site ends with the Relic Guardian
+    local dig = { name = "Excavation Site: Wetlands", type = "party", difficulty = "Normal", id = 2001, bosses = {} }
+    anna.instance = dig; anna:fire("ZONE_CHANGED_NEW_AREA")
+    anna:fire("ENCOUNTER_END", 3481, "Shadetooth", 1, 5, 1); w:advance(2)
+    assert(not feats(cara)["dungeon|excavation site: wetlands|normal"], "Shadetooth finished the dig")
+    anna:fire("ENCOUNTER_END", 3482, "Relic Guardian", 1, 5, 1); w:advance(3)
+    assert(feats(cara)["dungeon|excavation site: wetlands|normal"], "Relic Guardian didn't finish the dig")
     -- no encounter events at all: seeing the final boss dead (target or nameplate) finishes it
     local sfk = { name = "Shadowfang Keep", type = "party", difficulty = "Normal", id = 33, bosses = {} }
     anna.instance = sfk; anna:fire("ZONE_CHANGED_NEW_AREA")
@@ -1204,7 +1211,7 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
     -- achievements survive pruning and reach someone who joins later
     anna.ns.settings.maxEvents = 1
     anna.ns.Store:Prune(anna.ns.Store:ActiveId())
-    eq(select(2, feats(anna)), 4, "pruned")
+    eq(select(2, feats(anna)), 5, "pruned")
     -- Achievements tab: Dungeons and Raids cards, from the Dungeon Finder list (levels, art)
     -- and the Encounter Journal, sorted by level; completed ones carry the date
     local lfg = {
@@ -1231,7 +1238,7 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
     local byName = {}
     for i, c in ipairs(cards) do byName[c.name] = c; c.index = i end
     eq(#cards, #bare, "game's dungeons merged with the built-in list (random queue skipped)")
-    eq(done, 3, "dungeons done (Deadmines, Stockade, Shadowfang Keep)")
+    eq(done, 4, "dungeons done (Deadmines, Stockade, Excavation Site, Shadowfang Keep)")
     assert(byName["The Deadmines"].done and byName["The Deadmines"].done.t > 0, "Deadmines completed with a date")
     eq(byName["The Deadmines"].minLevel, 17, "recommended level range")
     eq(byName["Wailing Caverns"].minLevel, 16, "the game's levels win over the built-in ones")

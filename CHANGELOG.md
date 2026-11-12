@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.6
+
+- Excavation Site counts now: killing the Relic Guardian finishes it, in any zone's Excavation Site. Its card shows up in the Dungeons tab once your fellowship has completed it.
+- A dungeon also counts as finished when the game's own lockout shows every boss is dead, or when a scenario is completed.
+
 ## 0.11.5
 
 - Fixed the Stockade not counting. WoW Forever calls it "Stormwind Stockade", which Fellowship didn't recognise, so killing Bazil Thredd or Dextren Ward didn't finish the run. If a dungeon's name isn't recognised, a known final boss now counts on its own.
