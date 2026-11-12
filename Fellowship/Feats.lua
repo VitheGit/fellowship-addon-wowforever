@@ -173,6 +173,8 @@ local LFG_ART = "Interface\\LFGFrame\\UI-LFG-BACKGROUND-"
 local ALIASES = {
     stockade = "stormwindstockade", stockades = "stormwindstockade", stormwindstockades = "stormwindstockade",
     templeofatalhakkar = "sunkentemple",
+    barrowsdeep = "barrowdeeps", barrowsdeeps = "barrowdeeps", barrowdeep = "barrowdeeps",
+    dalaran = "cityofdalaran",
 }
 
 function F.NameKey(name)
@@ -286,6 +288,8 @@ local FINAL_BOSSES = {
     ["alcaz prison"] = { "Blazeroar" },
     ["blackmaw hold"] = { "The Unbound Spirit" },
     ["shaper's terrace"] = { "Nanaya" },
+    ["city of dalaran"] = { "Shade of the Archmage" },
+    ["barrow deeps"] = { "Sonya Darkhallow" },
 }
 local FINAL_BY_KEY = {}
 

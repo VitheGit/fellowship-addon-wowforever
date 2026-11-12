@@ -1201,7 +1201,8 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
     for inst, boss in pairs({ ["Hall of Thanes"] = "Durgen Dirgehammer", ["The Drowned City"] = "Min'loth the Serpent",
             ["Krol'dok Stronghold"] = "Overseer Mugg", ["Alcaz Prison"] = "Blazeroar",
             ["Blackmaw Hold"] = "the Unbound Spirit", ["The Shaper's Terrace"] = "Nanaya",
-            ["Ruins of Lordaeron"] = "Rath'mael", ["Sunken Temple"] = "Shade of Eranikus" }) do
+            ["Ruins of Lordaeron"] = "Rath'mael",
+            ["City of Dalaran"] = "Shade of the Archmage", ["Barrows Deep"] = "Sonya Darkhallow", ["Sunken Temple"] = "Shade of Eranikus" }) do
         assert(anna.ns.Feats.IsFinalBoss(inst, boss), boss .. " should finish " .. inst)
     end
     assert(not anna.ns.Feats.IsFinalBoss("Blackmaw Hold", "Withermaw"), "first boss of Blackmaw Hold")
