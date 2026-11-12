@@ -212,7 +212,13 @@ function A:OnEncounterEnd(encounterID, encounterName, _, _, success)
     if not won then return end
     local final = finalEncounterID()
     -- the Encounter Journal knows the last boss; if it doesn't, our own list of final bosses
-    if (final and final == encounterID) or ns.Feats.IsFinalBoss(instance, encounterName) then
+    -- the game's own boss count for this instance, where it keeps one (lockouts)
+    local allDown = false
+    if GetInstanceLockTimeRemaining then
+        local ok, _, _, total, complete = pcall(GetInstanceLockTimeRemaining)
+        allDown = ok and (tonumber(total) or 0) > 0 and (tonumber(complete) or 0) >= tonumber(total)
+    end
+    if (final and final == encounterID) or ns.Feats.IsFinalBoss(instance, encounterName) or allDown then
         self:PostInstance()
     else
         ns.Feats:Note("  (not the last boss" .. (final and "" or ", as far as Fellowship knows") .. ")")
@@ -437,6 +443,10 @@ function A:Init()
     ns.On("ENCOUNTER_END", function(...) A:OnEncounterEnd(...) end)
     ns.On("CHALLENGE_MODE_COMPLETED", function() A:OnChallengeCompleted() end)
     ns.On("BOSS_KILL", function(...) A:OnBossKill(...) end)
+    ns.On("SCENARIO_COMPLETED", function()
+        ns.Feats:Note("Scenario completed")
+        A:PostInstance()
+    end)
     -- backup: a final boss seen dead, in case the game doesn't report the encounter
     local function inInstance()
         local _, t = GetInstanceInfo()
