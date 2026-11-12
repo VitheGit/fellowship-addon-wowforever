@@ -172,7 +172,7 @@ local LFG_ART = "Interface\\LFGFrame\\UI-LFG-BACKGROUND-"
 -- Different names for the same place (WoW Forever calls it "Stormwind Stockade").
 local ALIASES = {
     stockade = "stormwindstockade", stockades = "stormwindstockade", stormwindstockades = "stormwindstockade",
-    sunkentemple = "templeofatalhakkar",
+    templeofatalhakkar = "sunkentemple",
 }
 
 function F.NameKey(name)
@@ -203,34 +203,42 @@ end
 -- the game's own numbers win when it does give them. art = Dungeon Finder picture name.
 local BUILTIN = {
     dungeon = {
+        { "Hall of Thanes", 13, 18, nil },
         { "Ragefire Chasm", 13, 18, "RAGEFIRECHASM" },
-        { "Hall of Thanes", 13, 20, nil },
-        { "Wailing Caverns", 15, 24, "WAILINGCAVERNS" },
-        { "Ruins of Lordaeron", 15, 22, nil },
+        { "Ruins of Lordaeron", 15, 20, nil },
+        { "Wailing Caverns", 17, 24, "WAILINGCAVERNS" },
         { "The Deadmines", 17, 26, "DEADMINES" },
-        { "Shadowfang Keep", 20, 30, "SHADOWFANGKEEP" },
+        { "Shadowfang Keep", 22, 30, "SHADOWFANGKEEP" },
         { "Blackfathom Deeps", 24, 32, "BLACKFATHOMDEEPS" },
         { "Stormwind Stockade", 24, 32, "STORMWINDSTOCKADES" },
+        { "Excavation Site: Wetlands", 26, 31, nil },
+        { "City of Dalaran", 28, 33, nil },
         { "Gnomeregan", 29, 38, "GNOMEREGAN" },
-        { "Razorfen Kraul", 30, 40, "RAZORFENKRAUL" },
-        { "Scarlet Monastery", 30, 45, "SCARLETMONASTERY" },
-        { "Razorfen Downs", 40, 50, "RAZORFENDOWNS" },
-        { "Uldaman", 42, 52, "ULDAMAN" },
+        { "Razorfen Kraul", 29, 38, "RAZORFENKRAUL" },
+        { "Scarlet Monastery", 30, 46, "SCARLETMONASTERY" },
+        { "The Drowned City", 35, 40, nil },
+        { "Razorfen Downs", 37, 46, "RAZORFENDOWNS" },
+        { "Krol'dok Stronghold", 40, 45, nil },
+        { "Uldaman", 41, 51, "ULDAMAN" },
         { "Zul'Farrak", 44, 54, "ZULFARAK" },
         { "Maraudon", 46, 55, "MARAUDON" },
-        { "The Temple of Atal'Hakkar", 50, 60, "SUNKENTEMPLE" },
+        { "Alcaz Prison", 48, 53, nil },
+        { "Sunken Temple", 50, 60, "SUNKENTEMPLE" },
         { "Blackrock Depths", 52, 60, "BLACKROCKDEPTHS" },
+        { "Dire Maul", 54, 60, "DIREMAUL" },
+        { "Blackmaw Hold", 55, 60, nil },
         { "Lower Blackrock Spire", 55, 60, "BLACKROCKSPIRE" },
-        { "Upper Blackrock Spire", 58, 60, "BLACKROCKSPIRE" },
-        { "Dire Maul", 56, 60, "DIREMAUL" },
         { "Scholomance", 58, 60, "SCHOLOMANCE" },
+        { "Shaper's Terrace", 58, 60, nil },
         { "Stratholme", 58, 60, "STRATHOLME" },
+        { "Upper Blackrock Spire", 59, 60, "BLACKROCKSPIRE" },
     },
     raid = {
         { "Zul'Gurub", 60, 60, "ZULGURUB" },
         { "Ruins of Ahn'Qiraj", 60, 60, "AQRUINS" },
         { "Onyxia's Lair", 60, 60, "ONYXIASLAIR" },
         { "Molten Core", 60, 60, "MOLTENCORE" },
+        { "Barrow Deeps", 60, 60, nil },
         { "Blackwing Lair", 60, 60, "BLACKWINGLAIR" },
         { "Temple of Ahn'Qiraj", 60, 60, "AQTEMPLE" },
         { "Naxxramas", 60, 60, "NAXXRAMAS" },
@@ -269,8 +277,15 @@ local FINAL_BOSSES = {
     ["blackwing lair"] = { "Nefarian" },
     ["temple of ahn'qiraj"] = { "C'Thun" },
     ["naxxramas"] = { "Kel'Thuzad" },
-    -- WoW Forever's own dungeons
+    -- WoW Forever's own dungeons (from published guides; boss order can vary in some)
+    ["hall of thanes"] = { "Durgen Dirgehammer" },
+    ["ruins of lordaeron"] = { "Rath'mael" },
     ["excavation site"] = { "Relic Guardian" },
+    ["drowned city"] = { "Min'loth the Serpent", "Min'loth" },
+    ["krol'dok stronghold"] = { "Overseer Mugg" },
+    ["alcaz prison"] = { "Blazeroar" },
+    ["blackmaw hold"] = { "The Unbound Spirit" },
+    ["shaper's terrace"] = { "Nanaya" },
 }
 local FINAL_BY_KEY = {}
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.7
+
+- Added WoW Forever's new dungeons to the Dungeons tab and to the final-boss list: Hall of Thanes (Durgen Dirgehammer), Ruins of Lordaeron (Rath'mael), Excavation Site (Relic Guardian), The Drowned City (Min'loth the Serpent), Krol'dok Stronghold (Overseer Mugg), Alcaz Prison (Blazeroar), Blackmaw Hold (the Unbound Spirit) and Shaper's Terrace (Nanaya). City of Dalaran and the Barrow Deeps raid get cards too, but their last bosses aren't known yet.
+- Level ranges now match WoW Forever's dungeon list.
+
 ## 0.11.6
 
 - Excavation Site counts now: killing the Relic Guardian finishes it, in any zone's Excavation Site. Its card shows up in the Dungeons tab once your fellowship has completed it.

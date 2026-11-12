@@ -1197,6 +1197,14 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
     assert(not feats(cara)["dungeon|excavation site: wetlands|normal"], "Shadetooth finished the dig")
     anna:fire("ENCOUNTER_END", 3482, "Relic Guardian", 1, 5, 1); w:advance(3)
     assert(feats(cara)["dungeon|excavation site: wetlands|normal"], "Relic Guardian didn't finish the dig")
+    -- every WoW Forever dungeon has a final boss on the list, under the names the game uses
+    for inst, boss in pairs({ ["Hall of Thanes"] = "Durgen Dirgehammer", ["The Drowned City"] = "Min'loth the Serpent",
+            ["Krol'dok Stronghold"] = "Overseer Mugg", ["Alcaz Prison"] = "Blazeroar",
+            ["Blackmaw Hold"] = "the Unbound Spirit", ["The Shaper's Terrace"] = "Nanaya",
+            ["Ruins of Lordaeron"] = "Rath'mael", ["Sunken Temple"] = "Shade of Eranikus" }) do
+        assert(anna.ns.Feats.IsFinalBoss(inst, boss), boss .. " should finish " .. inst)
+    end
+    assert(not anna.ns.Feats.IsFinalBoss("Blackmaw Hold", "Withermaw"), "first boss of Blackmaw Hold")
     -- no encounter events at all: seeing the final boss dead (target or nameplate) finishes it
     local sfk = { name = "Shadowfang Keep", type = "party", difficulty = "Normal", id = 33, bosses = {} }
     anna.instance = sfk; anna:fire("ZONE_CHANGED_NEW_AREA")
@@ -1249,9 +1257,9 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
     assert(byName["Ragefire Chasm"].index < byName["Shadowfang Keep"].index, "sorted by level")
     assert(not byName["Random Classic Dungeon"], "random queue is not a dungeon")
     assert(not byName["Alterac Mountains"] and not byName["Arathi Basin"], "zones are not dungeons")
-    eq(byName["Shadowfang Keep"].minLevel, 20, "a level-1 entry doesn't replace the real range")
+    eq(byName["Shadowfang Keep"].minLevel, 22, "a level-1 entry doesn't replace the real range")
     local raids, raidsDone = anna.ns.Feats:Cards(fid, "raid")
-    eq(#raids, 7, "raid cards"); eq(raidsDone, 1, "raids done")
+    eq(#raids, 8, "raid cards"); eq(raidsDone, 1, "raids done")
     anna:slash("/fs")
     anna.ns.UI:SelectTab("feats")
     local p
