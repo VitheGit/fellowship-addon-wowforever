@@ -52,6 +52,15 @@ local function makeLog(parent)
     return smf
 end
 
+-- The template's X button closes through the game's panel manager (HideUIPanel), which is
+-- blocked for addons during combat. Hide the frame directly instead, so X works in combat.
+local function fixCloseButton(f)
+    local close = f.CloseButton or (f.GetName and f:GetName() and _G[f:GetName() .. "CloseButton"])
+    if type(close) == "table" and close.SetScript then
+        close:SetScript("OnClick", function() f:Hide() end)
+    end
+end
+
 local function makeButton(parent, text, width, onClick)
     local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     b:SetSize(width, 22)
@@ -77,6 +86,7 @@ end
 function UI:Build()
     if frame then return end
     frame = CreateFrame("Frame", "FellowshipFrame", UIParent, "BasicFrameTemplateWithInset")
+    fixCloseButton(frame)
     frame:SetSize(660, 440)
     frame:SetPoint("CENTER")
     frame:SetMovable(true)
@@ -477,6 +487,7 @@ end
 function UI:BuildSettings()
     if settingsFrame then return end
     local f = CreateFrame("Frame", "FellowshipSettingsFrame", UIParent, "BasicFrameTemplateWithInset")
+    fixCloseButton(f)
     settingsFrame = f
     f:SetSize(470, 506)
     f:SetPoint("CENTER", 40, -20)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.10
+
+- Fixed the X button not closing the Fellowship window (and the Settings window) while you're in combat.
+
 ## 0.11.9
 
 - Fellowship Achievements now read "Loot Kills has completed Gnomeregan!" (your fellowship's name), instead of naming one member. The difficulty is added when it isn't Normal.
