@@ -10,7 +10,7 @@ and read everything they missed.
   (including keystone level), and deaths (in red, with the zone)
 - Fellowship Achievements (Achievements tab): every dungeon and raid you complete with a group
   made up only of fellowship members is marked complete, with the date and who was there
-- Wishlists (Wishlist tab): shift-click or drag in the items you're hunting for. Gear is a
+- Wishlists (Wishlist tab): type part of a name ("ore") and pick from the list, or shift-click or drag in the items you're hunting for. Gear is a
   one-time wish (granted when you loot it); materials like ore are "always wanted", with an
   optional amount and your bag/bank count. Item tooltips show "Wanted by", the wanter is pinged
   when a member loots their item, and members get reminders at loot rolls and mailboxes

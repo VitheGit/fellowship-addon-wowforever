@@ -417,6 +417,14 @@ function UI:Build()
     wl.empty:SetWidth(520)
     local function addFromBox()
         local text = wl.input:GetText()
+        -- typed a name: take the top suggestion
+        local top = wl.suggest and wl.suggest:IsShown() and wl.suggest.results and wl.suggest.results[1]
+        if top and not text:find("|H", 1, true) then
+            wl.input:SetText("")
+            wl.suggest:Hide()
+            ns.Wishlist:AddAndSay(top.id)
+            return
+        end
         wl.input:SetText("")
         if ns.Trim(text) ~= "" then
             local item, want, note = ns.Wishlist.ParseCommand(text)
@@ -438,6 +446,54 @@ function UI:Build()
         end
     end
     wl.dropItem = dropItem
+    -- suggestions while typing: "ore" -> Copper Ore, Iron Ore...
+    local SUGGEST_ROWS = 10
+    local sug = CreateFrame("Frame", nil, wl, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    sug:SetPoint("BOTTOMLEFT", wl.input, "TOPLEFT", -6, 2)
+    sug:SetSize(320, SUGGEST_ROWS * 18 + 28)
+    sug:SetFrameStrata("DIALOG")
+    local sbg = sug:CreateTexture(nil, "BACKGROUND")
+    sbg:SetAllPoints()
+    sbg:SetColorTexture(0.05, 0.05, 0.05, 0.95)
+    sug.rows = {}
+    for i = 1, SUGGEST_ROWS do
+        local b = CreateFrame("Button", nil, sug)
+        b:SetSize(310, 18)
+        b:SetPoint("BOTTOMLEFT", 5, 22 + (i - 1) * 18) -- best match nearest the box
+        b:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+        b.icon = b:CreateTexture(nil, "ARTWORK")
+        b.icon:SetSize(16, 16)
+        b.icon:SetPoint("LEFT", 2, 0)
+        b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        b.text:SetPoint("LEFT", 22, 0)
+        b.text:SetPoint("RIGHT", -4, 0)
+        b.text:SetJustifyH("LEFT")
+        b.text:SetWordWrap(false)
+        b:SetScript("OnClick", function(self)
+            if not self.hit then return end
+            wl.input:SetText("")
+            sug:Hide()
+            ns.Wishlist:AddAndSay(self.hit.id)
+        end)
+        b:SetScript("OnEnter", function(self)
+            if not self.hit or not GameTooltip then return end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetHyperlink("item:" .. self.hit.id)
+            GameTooltip:Show()
+        end)
+        b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+        sug.rows[i] = b
+    end
+    sug.footer = sug:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    sug.footer:SetPoint("BOTTOMLEFT", 8, 5)
+    sug.footer:SetPoint("BOTTOMRIGHT", -8, 5)
+    sug.footer:SetJustifyH("LEFT")
+    sug:Hide()
+    wl.suggest = sug
+    wl.input:SetScript("OnTextChanged", function(self, userInput)
+        UI:UpdateSuggestions(self:GetText())
+    end)
+    wl.input:SetScript("OnEscapePressed", function(self) sug:Hide(); self:ClearFocus() end)
     wl.input:SetScript("OnReceiveDrag", dropItem)
     wl.input:SetScript("OnMouseDown", dropItem)
     -- an empty item slot to drop items on, and the whole tab accepts a dropped item too
@@ -810,6 +866,42 @@ function UI:Toggle()
 end
 
 function UI.WishlistPanelForTest() return panels.wishlist end
+
+function UI:UpdateSuggestions(text)
+    local wl = panels.wishlist
+    local sug = wl and wl.suggest
+    if not sug then return end
+    text = tostring(text or "")
+    if text:find("|H", 1, true) or #ns.Trim(text) < 2 then sug:Hide(); return end
+    local results, total = ns.ItemSearch:Search(text, #sug.rows)
+    sug.results = results
+    local progress = ns.ItemSearch:Progress()
+    if #results == 0 then
+        sug.footer:SetText(progress and ("No match yet. Still learning items (" .. progress .. "%).")
+            or "No items match. Shift-click the item instead.")
+    else
+        local more = (total or 0) > #results and (#results .. " of " .. total .. " matches. ") or ""
+        sug.footer:SetText(more .. "Click one to add it, or press Enter for the top one."
+            .. (progress and (" Learning items " .. progress .. "%.") or ""))
+    end
+    local GetColor = function(q)
+        local c = q and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[q]
+        return (c and c.hex) or "|cffffffff"
+    end
+    for i, b in ipairs(sug.rows) do
+        local h = results[i]
+        b.hit = h
+        if h then
+            local fn = (C_Item and C_Item.GetItemIconByID) or GetItemIcon
+            b.icon:SetTexture((fn and fn(h.id)) or "Interface\\Icons\\INV_Misc_QuestionMark")
+            b.text:SetText(GetColor(h.quality) .. ns.Escape(h.name) .. "|r")
+            b:Show()
+        else
+            b:Hide()
+        end
+    end
+    sug:Show()
+end
 
 function UI:Show(tab)
     self:Build()

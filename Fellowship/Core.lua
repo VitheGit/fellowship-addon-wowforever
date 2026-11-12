@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.13.1"
+ns.VERSION = "0.14.0"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -500,6 +500,7 @@ ns.On("PLAYER_LOGIN", function()
     ns.Sync:Init()
     ns.Channel:Init()
     ns.Announce:Init()
+    ns.ItemSearch:Init()
     ns.Wishlist:Init()
     ns.UI:Init()
     ns.Menu:Init()

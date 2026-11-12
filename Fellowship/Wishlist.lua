@@ -235,6 +235,9 @@ function W:OnList(sender, fid, records)
         end
     end
     all[key] = { name = name, v = v, items = items }
+    for _, e in ipairs(items) do
+        if e.name and not ns.ItemSearch:Learn(e.id) then ns.ItemSearch:Learn(e.id, e.name, e.quality) end
+    end
     if key == ns.meKey then self:UpdateCounts(true) end -- our own list, restored from a friend
     ns.Fire("WISHLIST_CHANGED", fid, key)
 end
@@ -476,6 +479,7 @@ end
 
 local function addTooltip(tooltip, id)
     if not tooltip or not id or not tooltip.AddLine then return end
+    ns.ItemSearch:Learn(id)
     local lines = W:TooltipLines(id)
     for _, line in ipairs(lines) do tooltip:AddLine(line, 1, 1, 1, true) end
     if #lines > 0 and tooltip.Show and tooltip.IsShown and tooltip:IsShown() then tooltip:Show() end

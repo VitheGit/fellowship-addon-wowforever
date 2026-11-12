@@ -150,7 +150,9 @@ function A:OnLoot(text)
     if not itemString or not name then return end
     local q = itemQuality(link)
     -- wishlist: a wish of yours granted, or something another member wants (any quality)
-    local granted, wanters = ns.Wishlist:OnOwnLoot(tonumber(itemString:match("^item:(%d+)")))
+    local itemID = tonumber(itemString:match("^item:(%d+)"))
+    ns.ItemSearch:Learn(itemID, name, q)
+    local granted, wanters = ns.Wishlist:OnOwnLoot(itemID)
     if granted then ns.Print("|cff33ff99Wish granted!|r " .. link .. " is off your wishlist.") end
     if granted or #wanters > 0 then
         return ns.Sync:Publish("M", { "loot", itemString, name, q or "", granted and "1" or "", table.concat(wanters, ",") })

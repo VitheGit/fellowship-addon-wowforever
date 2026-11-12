@@ -112,6 +112,15 @@ broadcast like events (channel, then whispers). Loot of a wished-for item is pos
 loot event with field 5 `"1"` (wish granted) and field 6 the wanters' names, so older versions
 still show "X looted [Item]".
 
+## Item search
+
+Addons can't search items by name, so `ItemSearch.lua` keeps an account-wide index
+(`FellowshipDB.items.names`). Items seen in loot, tooltips and friends' wishlists are learned
+directly. A background scan first checks item numbers 1..300000 locally with
+`GetItemInfoInstant` (no server traffic), then asks the server for the names of the ones that
+exist, about 20 per second, pausing in combat and instances. It restarts (keeping known names)
+when `GetBuildInfo` changes.
+
 ## Persistence and pruning
 
 `FellowshipDB` (account-wide SavedVariables) holds every fellowship's log, plus per

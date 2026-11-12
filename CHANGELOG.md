@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.0
+
+- **Item search in the Wishlist box.** Start typing a name, like "ore", and a list pops up with Copper Ore, Tin Ore, Iron Ore and so on. Click one to add it, or press Enter to add the top match. Typing several words narrows it down ("iron ore").
+- The game doesn't let addons search items by name, so Fellowship learns item names itself. It remembers every item you loot, hover or see linked, and slowly asks the game about the rest in the background. This takes about 20 to 30 minutes of play the first time, and it pauses in combat and in dungeons and raids. It's done once per account, and again only to pick up new items after a patch. Until it finishes, the list shows how far along it is.
+
 ## 0.13.1
 
 - Fixed adding items to the wishlist. With the Wishlist tab open, shift-clicking an item in your bags, a loot window, a vendor or a chat link now adds it straight away, instead of opening the "split stack" box.

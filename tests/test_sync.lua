@@ -1365,6 +1365,13 @@ local ORE = "|cffffffff|Hitem:2770:1::|h[Copper Ore]|h|r"
 local BOW = "|cffa335ee|Hitem:900:4::|h[Epic Bow]|h|r"
 local HAT = "|cff1eff00|Hitem:950:2::|h[Green Hat]|h|r"
 
+ITEM_DB = {
+    [2770] = { "Copper Ore", 1, 7 }, [2771] = { "Tin Ore", 1, 7 }, [2772] = { "Iron Ore", 1, 7 },
+    [2775] = { "Silver Ore", 2, 7 }, [3858] = { "Mithril Ore", 1, 7 }, [2840] = { "Copper Bar", 1, 7 },
+    [900] = { "Epic Bow", 4, 2 }, [950] = { "Green Hat", 2, 4 }, [7911] = { "Truesilver Ore", 2, 7 },
+    [4000] = { "Boots of the Oregon Trail", 3, 4 }, [12345] = { "Thing", 1, 15 },
+}
+
 local function withItems(...)
     local clients = { ... }
     return function()
@@ -1372,7 +1379,22 @@ local function withItems(...)
             c.bags = c.bags or {}
             c.globals = c.globals or {}
             c.globals.GetItemCount = function(id) return c.bags[id] or 0 end
-            c.globals.GetItemInfoInstant = function(id) return id, nil, nil, nil, nil, id == 2770 and 7 or 2 end
+            c.globals.GetItemInfoInstant = function(id)
+                if not ITEM_DB[id] then return nil end
+                return id, nil, nil, nil, nil, ITEM_DB[id][3]
+            end
+            c.globals.GetItemInfo = function(id)
+                if type(id) == "string" then
+                    for k, v in pairs(ITEM_DB) do
+                        if v[1] == id and (not c.serverSlow or c.cached[k]) then return v[1], "|cffffffff|Hitem:" .. k .. "|h[" .. v[1] .. "]|h|r", v[2] end
+                    end
+                    return nil
+                end
+                local v = ITEM_DB[id]
+                if not v then return "Item " .. tostring(id), nil, nil end
+                if c.serverSlow and not (c.cached and c.cached[id]) then return nil end
+                return v[1], "|cffffffff|Hitem:" .. id .. "|h[" .. v[1] .. "]|h|r", v[2]
+            end
             c.globals.GetLootRollItemLink = function(rollID) return c.rolls and c.rolls[rollID] end
             c.globals.PlaySound = function(id) c.sounds = (c.sounds or 0) + 1 end
             c.globals.SOUNDKIT = { RAID_WARNING = 8959 }
@@ -1567,6 +1589,64 @@ test("wishlist: shift-clicking a stack with the Wishlist tab open adds it instea
     anna.ns.UI.WishlistPanelForTest().dropItem()
     assert(anna.ns.Wishlist:Find(900), "bow added by dropping it")
     eq(anna.cursor, nil, "cursor cleared")
+end)
+
+test("item search: learns item names slowly in the background and finds them as you type", function()
+    local before = function(anna, bob, cara)
+        withItems(anna, bob, cara)()
+        anna.serverSlow, anna.cached = true, {}
+        anna.globals.C_Item = {
+            GetItemQualityByID = function() return 1 end,
+            RequestLoadItemDataByID = function(id)
+                anna.requests = (anna.requests or 0) + 1
+                anna.world:schedule(anna.world.time + 0.5, function()
+                    anna.cached[id] = true
+                    anna:fire("GET_ITEM_INFO_RECEIVED", id, true)
+                end)
+            end,
+        }
+        anna.globals.GetBuildInfo = function() return "1.60.1", anna.build or "70399" end
+        anna.globals.InCombatLockdown = function() return anna.inCombat == true end
+    end
+    local w, anna = setup(before)
+    local S = anna.ns.ItemSearch
+    S.MAX_ID = 20000
+    eq(#S:Search("ore"), 0, "nothing known before the scan")
+    anna.inCombat = true
+    w:advance(60)
+    eq(S:Count(), 0, "paused in combat")
+    anna.inCombat = false
+    w:advance(60)
+    eq(S:Progress(), nil, "scan finished")
+    eq(S:Count(), 11, "every item learned")
+    assert(anna.requests <= 11, "each item asked about once")
+    local names = {}
+    for _, h in ipairs(S:Search("ore")) do names[#names + 1] = h.name end
+    eq(table.concat(names, ","), "Tin Ore,Iron Ore,Copper Ore,Silver Ore,Mithril Ore,Truesilver Ore,Boots of the Oregon Trail",
+        "word matches first, shortest first")
+    eq(S:Search("iron ore")[1].name, "Iron Ore", "several words")
+    eq(S:Search("cop")[1].name, "Copper Bar", "prefix")
+    eq(#S:Search("o"), 0, "needs two letters")
+    -- typing in the wishlist box shows suggestions; Enter adds the top one
+    anna.ns.UI:Show("wishlist")
+    local wl = anna.ns.UI.WishlistPanelForTest()
+    wl.input:SetText("silver o")
+    wl.input._scripts.OnTextChanged(wl.input, true)
+    assert(wl.suggest:IsShown(), "suggestions shown")
+    eq(wl.suggest.results[1].name, "Silver Ore", "top suggestion")
+    wl.input._scripts.OnEnterPressed(wl.input)
+    assert(anna.ns.Wishlist:Find(2775), "silver ore added")
+    -- clicking a suggestion
+    wl.input:SetText("mithril")
+    wl.input._scripts.OnTextChanged(wl.input, true)
+    wl.suggest.rows[1]:Click()
+    assert(anna.ns.Wishlist:Find(3858), "mithril added by clicking")
+    -- names survive a relog; a patch only looks for new items
+    anna:logout(); w:advance(5)
+    anna.build = "70500"
+    anna:login(); w:advance(2)
+    eq(anna.ns.ItemSearch:Count(), 11, "names kept")
+    eq(anna.ns.ItemSearch:Search("tin")[1].name, "Tin Ore", "search works right after login")
 end)
 
 test("UI builds and renders without errors", function()
