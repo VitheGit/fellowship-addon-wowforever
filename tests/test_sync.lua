@@ -1529,6 +1529,46 @@ test("wishlist: older versions ignore it, removed members' lists disappear, UI m
     eq(anna.ns.Wishlist:Find(2770).mode, "once", "switched")
 end)
 
+test("wishlist: shift-clicking a stack with the Wishlist tab open adds it instead of splitting", function()
+    local before = function(anna, bob, cara)
+        withItems(anna, bob, cara)()
+        local split = { shown = false }
+        function split:IsShown() return self.shown end
+        function split:Hide() self.shown = false end
+        function split:OpenStackSplitFrame() self.shown = true end
+        anna.split = split
+        anna.globals.StackSplitFrame = split
+        anna.globals.IsModifiedClick = function() return true end
+        anna.globals.HandleModifiedItemClick = function() return false end
+        anna.globals.hooksecurefunc = function(a, b, c)
+            local env = anna.env
+            if type(a) == "table" then
+                local orig = a[b]; a[b] = function(...) local r = orig(...); c(...); return r end
+            else
+                local orig = env[a]; rawset(env, a, function(...) local r = orig(...); b(...); return r end)
+            end
+        end
+        anna.globals.GetCursorInfo = function() return anna.cursor and "item", 2770, anna.cursor end
+        anna.globals.ClearCursor = function() anna.cursor = nil end
+    end
+    local w, anna = setup(before)
+    local env = anna.env
+    -- tab closed: shift-click behaves normally (splits the stack)
+    env.HandleModifiedItemClick(ORE); anna.split:OpenStackSplitFrame()
+    eq(#anna.ns.Wishlist:Mine(), 0, "not added while the window is closed")
+    anna.split:Hide()
+    anna.ns.UI:Show("wishlist")
+    -- a bag click: HandleModifiedItemClick returns false, then the bag opens the splitter
+    env.HandleModifiedItemClick(ORE); anna.split:OpenStackSplitFrame()
+    assert(anna.ns.Wishlist:Find(2770), "ore added")
+    assert(not anna.split:IsShown(), "stack splitter closed")
+    -- dropping an item picked up from the bags onto the tab
+    anna.cursor = BOW
+    anna.ns.UI.WishlistPanelForTest().dropItem()
+    assert(anna.ns.Wishlist:Find(900), "bow added by dropping it")
+    eq(anna.cursor, nil, "cursor cleared")
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")

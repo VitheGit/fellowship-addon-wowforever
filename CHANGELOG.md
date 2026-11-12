@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.13.1
+
+- Fixed adding items to the wishlist. With the Wishlist tab open, shift-clicking an item in your bags, a loot window, a vendor or a chat link now adds it straight away, instead of opening the "split stack" box.
+- Fixed dragging an item onto the Wishlist tab. There's now an empty slot next to the box to drop items on, and dropping anywhere on the tab works too.
+
 ## 0.13.0
 
 - New **Wishlist** tab. Add the items you're hunting for by shift-clicking them into the box, dragging them from your bags, right-clicking an item link in chat, or typing `/fship wish [item]`.

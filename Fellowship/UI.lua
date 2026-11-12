@@ -392,7 +392,9 @@ function UI:Build()
             GameTooltip:Show()
         end)
         row:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+        row:SetScript("OnReceiveDrag", function() if wl.dropItem then wl.dropItem() end end)
         row:SetScript("OnClick", function(self, button)
+            if wl.dropItem and wl.dropItem() then return end
             if not self.wish then return end
             if button == "RightButton" and self.mine then
                 UI:OpenWishMenu(self, self.wish)
@@ -423,19 +425,43 @@ function UI:Build()
     end
     wl.input = makeInput(wl, 255, function() end)
     wl.input:SetScript("OnEnterPressed", function(self) addFromBox(); self:ClearFocus() end)
-    wl.input:SetPoint("BOTTOMLEFT", 10, 4)
-    wl.input:SetWidth(280)
+    wl.input:SetPoint("BOTTOMLEFT", 40, 4)
+    wl.input:SetWidth(250)
     -- drag an item from your bags onto the box (or the Add button)
     local function dropItem()
-        local kind, _, link = GetCursorInfo and GetCursorInfo()
+        if not GetCursorInfo then return end
+        local kind, _, link = GetCursorInfo() -- (not "GetCursorInfo and GetCursorInfo()": that keeps one value)
         if kind == "item" and link then
             if ClearCursor then ClearCursor() end
             ns.Wishlist:AddAndSay(link)
             return true
         end
     end
+    wl.dropItem = dropItem
     wl.input:SetScript("OnReceiveDrag", dropItem)
     wl.input:SetScript("OnMouseDown", dropItem)
+    -- an empty item slot to drop items on, and the whole tab accepts a dropped item too
+    wl.slot = CreateFrame("Button", nil, wl)
+    wl.slot:SetSize(26, 26)
+    wl.slot:SetPoint("BOTTOMLEFT", 6, 2)
+    wl.slot.tex = wl.slot:CreateTexture(nil, "ARTWORK")
+    wl.slot.tex:SetAllPoints()
+    wl.slot.tex:SetTexture("Interface\\PaperDoll\\UI-Backpack-EmptySlot")
+    wl.slot:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    wl.slot:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    wl.slot:SetScript("OnReceiveDrag", dropItem)
+    wl.slot:SetScript("OnClick", dropItem)
+    wl.slot:SetScript("OnEnter", function(self)
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine("Drop an item here to add it")
+        GameTooltip:AddLine("Or shift-click any item while this tab is open.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    wl.slot:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    wl:EnableMouse(true)
+    wl:SetScript("OnReceiveDrag", dropItem)
+    wl:SetScript("OnMouseDown", dropItem)
     wl.add = makeButton(wl, "Add", 70, function() if not dropItem() then addFromBox() end end)
     wl.add:SetScript("OnReceiveDrag", dropItem)
     wl.add:SetPoint("LEFT", wl.input, "RIGHT", 6, 0)
@@ -443,7 +469,7 @@ function UI:Build()
     wl.hint:SetPoint("LEFT", wl.add, "RIGHT", 10, 0)
     wl.hint:SetPoint("RIGHT", wl, "RIGHT", -6, 0)
     wl.hint:SetJustifyH("LEFT")
-    wl.hint:SetText("Shift-click or drag an item into the box. Right-click a row to change it.")
+    wl.hint:SetText("Shift-click any item while this tab is open, or drop it on the slot. Right-click a row to change it.")
     panels.wishlist = wl
 
     -- No fellowship yet: a "Create Fellowship" screen
@@ -531,16 +557,43 @@ function UI:Init()
     }
     -- Shift-clicking an item, spell or achievement while typing in the Fellowship window links it there.
     local function insertLink(link)
-        if type(link) ~= "string" then return end
-        for _, eb in ipairs({ panels.chat and panels.chat.input, panels.wishlist and panels.wishlist.input }) do
-            if eb and eb.HasFocus and eb:HasFocus() then eb:Insert(link) end
-        end
+        local eb = panels.chat and panels.chat.input
+        if type(link) == "string" and eb and eb.HasFocus and eb:HasFocus() then eb:Insert(link) end
+    end
+    -- Wishlist tab open: shift-clicking an item (bags, chat links, loot, vendors) adds it, instead of
+    -- splitting the stack. Typing in a chat box still gets the link as usual.
+    local suppressSplit = 0
+    local function onModifiedItemClick(link)
+        local wl = panels.wishlist
+        if type(link) ~= "string" or not link:find("item:", 1, true) then return end
+        if not (wl and wl:IsShown() and frame and frame:IsShown()) then return end
+        if IsModifiedClick and not IsModifiedClick("CHATLINK") then return end
+        local active = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
+            or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
+        local focused = wl.input.HasFocus and wl.input:HasFocus()
+        if active and not focused then return end
+        suppressSplit = GetTime() + 0.5
+        ns.Wishlist:AddAndSay(link)
+        -- the bag opens the stack splitter after this; close it
+        C_Timer.After(0, function()
+            if StackSplitFrame and StackSplitFrame.IsShown and StackSplitFrame:IsShown() then StackSplitFrame:Hide() end
+        end)
     end
     if hooksecurefunc then
         if ChatFrameUtil and ChatFrameUtil.InsertLink then
             hooksecurefunc(ChatFrameUtil, "InsertLink", insertLink)
         elseif ChatEdit_InsertLink then
             hooksecurefunc("ChatEdit_InsertLink", insertLink)
+        end
+        if HandleModifiedItemClick then hooksecurefunc("HandleModifiedItemClick", onModifiedItemClick) end
+        if StackSplitFrame and StackSplitFrame.OpenStackSplitFrame then
+            hooksecurefunc(StackSplitFrame, "OpenStackSplitFrame", function(self)
+                if GetTime() < suppressSplit then self:Hide() end
+            end)
+        elseif OpenStackSplitFrame then
+            hooksecurefunc("OpenStackSplitFrame", function()
+                if GetTime() < suppressSplit and StackSplitFrame then StackSplitFrame:Hide() end
+            end)
         end
     end
     StaticPopupDialogs["FELLOWSHIP_WISH_AMOUNT"] = {
@@ -755,6 +808,8 @@ function UI:Toggle()
     self:Build()
     if frame:IsShown() then frame:Hide() else frame:Show() end
 end
+
+function UI.WishlistPanelForTest() return panels.wishlist end
 
 function UI:Show(tab)
     self:Build()
