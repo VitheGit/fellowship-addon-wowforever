@@ -18,6 +18,7 @@ S.FIND_PER_TICK = 4000 -- local existence checks per tick
 S.NAMES_PER_TICK = 4   -- server name requests per tick (ticks are 0.2s: about 20 per second)
 S.TICK = 0.2
 S.START_DELAY = 45     -- let login traffic settle first
+S.SCAN_VERSION = 2     -- bump to make everyone scan again (2: 0.14.0's scan learned nothing on WoW Forever)
 
 local db
 
@@ -39,9 +40,9 @@ function S:Init()
     db.names = db.names or {}
     db.quality = db.quality or {}
     local b = build()
-    if type(db.scan) ~= "table" or db.scan.build ~= b then
+    if type(db.scan) ~= "table" or db.scan.build ~= b or db.scan.sv ~= S.SCAN_VERSION then
         -- new install or a patch: look for new items again (names already learned are kept)
-        db.scan = { build = b, phase = "find", next = 1, todo = {} }
+        db.scan = { build = b, sv = S.SCAN_VERSION, phase = "find", next = 1, todo = {} }
     end
     ns.On("GET_ITEM_INFO_RECEIVED", function(id, success)
         if success ~= false then S:Learn(id) end
@@ -55,8 +56,8 @@ end
 function S:Learn(id, name, quality)
     id = tonumber(id)
     if not db or not id then return nil end
-    if not name and GetItemInfo then
-        local n, _, q = GetItemInfo(id)
+    if not name then
+        local n, _, q = ns.GetItemInfo(id)
         name, quality = n, quality or q
     end
     if type(name) == "string" and name ~= "" then
@@ -158,4 +159,18 @@ function S:Search(text, limit)
         end
     end
     return out, #hits
+end
+
+-- /fship items: what the index knows, and which item lookups this client has
+function S:PrintStatus()
+    local scan = db and db.scan or {}
+    local p = self:Progress()
+    ns.Print(string.format("Item search knows %d items. Scan: %s%s.", self:Count(), tostring(scan.phase),
+        p and (" " .. p .. "%, " .. #(scan.todo or {}) .. " names left") or ""))
+    local function has(v) return v and "yes" or "no" end
+    ns.Output(string.format("  C_Item.GetItemInfo %s, GetItemInfo %s, GetItemInfoInstant %s, RequestLoadItemDataByID %s",
+        has(C_Item and C_Item.GetItemInfo), has(GetItemInfo),
+        has((C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant), has(C_Item and C_Item.RequestLoadItemDataByID)))
+    local name = ns.GetItemInfo(2770)
+    ns.Output("  Item 2770 exists: " .. has(instant(2770)) .. ", name: " .. tostring(name))
 end

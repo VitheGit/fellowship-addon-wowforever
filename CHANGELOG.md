@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.1
+
+- Fixed item search finding nothing. WoW Forever only offers item lookups through the game's newer item functions, so the background scan couldn't read any names, and wishlist counts could read 0. The scan now starts over once, by itself, and fills in properly.
+- New `/fship items` command shows how many items search knows and how far the scan has got.
+
 ## 0.14.0
 
 - **Item search in the Wishlist box.** Start typing a name, like "ore", and a list pops up with Copper Ore, Tin Ore, Iron Ore and so on. Click one to add it, or press Enter to add the top match. Typing several words narrows it down ("iron ore").

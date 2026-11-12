@@ -1649,6 +1649,27 @@ test("item search: learns item names slowly in the background and finds them as 
     eq(anna.ns.ItemSearch:Search("tin")[1].name, "Tin Ore", "search works right after login")
 end)
 
+test("item search and bag counts use C_Item when the old item globals are gone", function()
+    local before = function(anna, bob, cara)
+        withItems(anna, bob, cara)()
+        local gi, gc = anna.globals.GetItemInfo, anna.globals.GetItemCount
+        anna.globals.C_Item = { GetItemInfo = gi, GetItemCount = gc, GetItemInfoInstant = anna.globals.GetItemInfoInstant,
+            GetItemQualityByID = function() return 1 end }
+        anna.globals.GetItemInfo, anna.globals.GetItemCount, anna.globals.GetItemInfoInstant = false, false, false
+    end
+    local w, anna = setup(before)
+    for _, k in ipairs({ "GetItemInfo", "GetItemCount", "GetItemInfoInstant" }) do rawset(anna.env, k, nil) end
+    anna.ns.ItemSearch.MAX_ID = 20000
+    anna.bags[2770] = 9
+    w:advance(120)
+    eq(anna.ns.ItemSearch:Count(), 11, "items learned through C_Item")
+    eq(anna.ns.ItemSearch:Search("ore")[1].name, "Tin Ore", "search works")
+    anna.ns.Wishlist:Add(2770, 20)
+    eq(anna.ns.Wishlist:Find(2770).have, 9, "bag count through C_Item")
+    anna:slash("/fship items")
+    assert(anna:logContains("Item search knows 11 items"), "status command")
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")

@@ -28,7 +28,7 @@ local COUNT_DELAY = 30      -- bag counts are re-shared at most this often
 ---------------------------------------------------------------------------
 local function info(id)
     local name, link, quality
-    if GetItemInfo then name, link, quality = GetItemInfo(id) end
+    name, link, quality = ns.GetItemInfo(id)
     return name, link, quality
 end
 
@@ -286,13 +286,14 @@ function W:Add(item, want, note, mode)
         local name, _, quality = info(id)
         if not name and type(item) == "string" then name = item:match("|h%[(.-)%]|h") end
         e = { id = id, mode = mode or W.DefaultMode(id), want = 0, have = 0, name = name, quality = quality }
+        if name then ns.ItemSearch:Learn(id, name, quality) end
         items[#items + 1] = e
     elseif mode then
         e.mode = mode
     end
     if want then e.want = math.max(0, math.min(9999, math.floor(want))) end
     if note and ns.Trim(note) ~= "" then e.note = ns.Truncate(ns.Trim(note):gsub("%c", ""), W.MAX_NOTE) end
-    if e.mode == "always" and GetItemCount then e.have = GetItemCount(id, true) or 0 end
+    if e.mode == "always" then e.have = ns.GetItemCount(id, true) or 0 end
     self:Publish()
     return e
 end
@@ -309,7 +310,7 @@ function W:SetMode(id, mode)
     local e = self:Find(id)
     if not e or e.mode == mode then return end
     e.mode = mode
-    if mode == "always" and GetItemCount then e.have = GetItemCount(id, true) or 0 end
+    if mode == "always" then e.have = ns.GetItemCount(id, true) or 0 end
     self:Publish()
 end
 
@@ -338,11 +339,11 @@ end
 -- Bag + bank counts for "always" items; shared (debounced) when they change.
 local countQueued = false
 function W:UpdateCounts(quiet)
-    if not GetItemCount then return end
+    if not ns.HasItemCount() then return end
     local changed = false
     for _, e in ipairs(self:Mine()) do
         if e.mode == "always" then
-            local n = GetItemCount(e.id, true) or 0
+            local n = ns.GetItemCount(e.id, true) or 0
             if n ~= (e.have or 0) then e.have = n; changed = true end
         end
     end
@@ -437,13 +438,13 @@ end
 local mailed = {} -- "key:id" -> GetTime()
 function W:OnMailbox()
     local fid = ns.Store:ActiveId()
-    if not fid or not GetItemCount then return end
+    if not fid or not ns.HasItemCount() then return end
     local now, lines = GetTime(), {}
     for _, l in ipairs(self:AllLists(fid)) do
         local key = ns.Key(l.name)
         if key ~= ns.meKey then
             for _, e in ipairs(l.items) do
-                local n = GetItemCount(e.id) or 0
+                local n = ns.GetItemCount(e.id) or 0
                 local tag = key .. ":" .. e.id
                 if n > 0 and not W.Stocked(e) and (not mailed[tag] or now - mailed[tag] >= MAIL_EVERY) then
                     mailed[tag] = now

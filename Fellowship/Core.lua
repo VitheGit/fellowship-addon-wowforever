@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.14.0"
+ns.VERSION = "0.14.1"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -134,6 +134,24 @@ function ns.Debug(msg)
     if ns.settings and ns.settings.debug then
         DEFAULT_CHAT_FRAME:AddMessage("|cff808080[Fellowship debug]|r " .. tostring(msg))
     end
+end
+
+-- Item lookups: newer clients only have these under C_Item (the old globals are gone), so
+-- always look them up at call time, C_Item first.
+function ns.GetItemInfo(item)
+    local fn = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+    if not fn or item == nil then return nil end
+    return fn(item)
+end
+
+function ns.GetItemCount(id, includeBank)
+    local fn = (C_Item and C_Item.GetItemCount) or GetItemCount
+    if not fn or not id then return nil end
+    return fn(id, includeBank)
+end
+
+function ns.HasItemCount()
+    return ((C_Item and C_Item.GetItemCount) or GetItemCount) ~= nil
 end
 
 function ns.Now()
@@ -329,7 +347,7 @@ function ns.FormatEvent(e)
             return who .. " added a new pet: [" .. ns.Escape(d[2]) .. "]"
         elseif sub == "toy" then
             local itemID = tonumber(d[3])
-            local link = itemID and GetItemInfo and select(2, GetItemInfo(itemID))
+            local link = itemID and select(2, ns.GetItemInfo(itemID))
             return who .. " added a new toy: " .. (link or ("[" .. ns.Escape(d[2]) .. "]"))
         elseif sub == "loot" then
             local line = who .. " looted " .. ns.Announce.ItemLink(d[2], d[3], d[4])
@@ -612,6 +630,8 @@ function ns.HandleSlash(input)
         ns.Channel:PrintStatus()
     elseif cmd == "wish" or cmd == "wishlist" then
         ns.Wishlist:Slash(rest)
+    elseif cmd == "items" then
+        ns.ItemSearch:PrintStatus()
     elseif cmd == "unwish" then
         ns.Wishlist:SlashRemove(rest)
     elseif cmd == "dungeons" then

@@ -105,7 +105,7 @@ function A:OnToy(itemID)
         local _, toyName = C_ToyBox.GetToyInfo(itemID)
         name = toyName
     end
-    if not name and GetItemInfo then name = GetItemInfo(itemID) end
+    if not name then name = ns.GetItemInfo(itemID) end
     if name then share("collection", { "toy", name, itemID }) end
 end
 
@@ -125,10 +125,8 @@ local function itemQuality(link)
         local q = C_Item.GetItemQualityByID(link)
         if q then return q end
     end
-    if GetItemInfo then
-        local _, _, q = GetItemInfo(link)
-        return q
-    end
+    local _, _, q = ns.GetItemInfo(link)
+    return q
 end
 
 function A:OnLoot(text)
