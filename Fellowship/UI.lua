@@ -25,6 +25,12 @@ local GREEN, RED = "|cff40ff40", "|cffff3333"
 local rosterSort = { key = "default", reverse = false }
 local RANK_ORDER = { admin = 1, inviter = 2, member = 3 }
 local GREY = "|cff808080"
+local WISH_ROWS, WISH_ROW_H = 14, 20
+-- Wishlist columns: { x, width } for My Wishlist and Fellowship Wishes
+local WISH_COLS = {
+    mine = { { 24, 250, "Item" }, { 278, 100, "Kind" }, { 382, 70, "Have" }, { 456, 170, "Note" } },
+    all = { { 24, 250, "Item" }, { 278, 350, "Wanted by" } },
+}
 
 local NEW_DIVIDER = "|cff33ff99----------  new since you were last here  ----------|r"
 local TIME_COLOR = "|cff808080"
@@ -109,10 +115,10 @@ function UI:Build()
 
     -- Tabs
     local tabs = { { "chat", "Chat" }, { "achievements", "Activity" }, { "feats", "Achievements" },
-        { "members", "Members" } }
+        { "members", "Members" }, { "wishlist", "Wishlist" } }
     for i, t in ipairs(tabs) do
-        local b = makeButton(frame, t[2], 110, function() UI:SelectTab(t[1]) end)
-        b:SetPoint("TOPLEFT", 12 + (i - 1) * 114, -28)
+        local b = makeButton(frame, t[2], 98, function() UI:SelectTab(t[1]) end)
+        b:SetPoint("TOPLEFT", 12 + (i - 1) * 101, -28)
         tabButtons[t[1]] = b
     end
 
@@ -334,6 +340,112 @@ function UI:Build()
     mem.leave:SetPoint("BOTTOMRIGHT", -4, 4)
     panels.members = mem
 
+    -- Wishlist: my list (editable) and everyone's, grouped by item
+    local wl = panel()
+    wl.view = "mine"
+    wl.subTabs = {}
+    for i, t in ipairs({ { "mine", "My Wishlist" }, { "all", "Fellowship Wishes" } }) do
+        local b = makeButton(wl, t[2], 130, function()
+            wl.view = t[1]
+            wl.offset = 0
+            UI:Refresh()
+        end)
+        b:SetPoint("TOPLEFT", 4 + (i - 1) * 134, -2)
+        wl.subTabs[t[1]] = b
+    end
+    wl.count = wl:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    wl.count:SetPoint("TOPRIGHT", -8, -8)
+    wl.cols = {}
+    for i = 1, 4 do
+        local fs = wl:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        fs:SetJustifyH("LEFT")
+        wl.cols[i] = fs
+    end
+    wl.rows = {}
+    for i = 1, WISH_ROWS do
+        local row = CreateFrame("Button", nil, wl)
+        row:SetPoint("TOPLEFT", 4, -46 - (i - 1) * WISH_ROW_H)
+        row:SetPoint("RIGHT", wl, "RIGHT", -4, 0)
+        row:SetHeight(WISH_ROW_H)
+        row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        if i % 2 == 0 then
+            local bg = row:CreateTexture(nil, "BACKGROUND")
+            bg:SetAllPoints()
+            bg:SetColorTexture(1, 1, 1, 0.03)
+        end
+        row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+        row.icon = row:CreateTexture(nil, "ARTWORK")
+        row.icon:SetSize(WISH_ROW_H - 2, WISH_ROW_H - 2)
+        row.icon:SetPoint("LEFT", 2, 0)
+        row.cells = {}
+        for c = 1, 4 do
+            local fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            fs:SetJustifyH("LEFT")
+            fs:SetWordWrap(false)
+            row.cells[c] = fs
+        end
+        row:SetScript("OnEnter", function(self)
+            if not self.wish or not GameTooltip then return end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetHyperlink("item:" .. self.wish.id)
+            if self.wish.note then GameTooltip:AddLine("Note: " .. ns.Escape(self.wish.note), 1, 0.82, 0, true) end
+            GameTooltip:Show()
+        end)
+        row:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+        row:SetScript("OnClick", function(self, button)
+            if not self.wish then return end
+            if button == "RightButton" and self.mine then
+                UI:OpenWishMenu(self, self.wish)
+            elseif IsShiftKeyDown() then
+                local insert = (ChatFrameUtil and ChatFrameUtil.InsertLink) or ChatEdit_InsertLink
+                if insert then insert(ns.Wishlist.Link(self.wish)) end
+            end
+        end)
+        row:Hide()
+        wl.rows[i] = row
+    end
+    wl.offset = 0
+    wl:EnableMouseWheel(true)
+    wl:SetScript("OnMouseWheel", function(_, delta)
+        wl.offset = math.max(0, wl.offset - delta * 3)
+        UI:Refresh()
+    end)
+    wl.empty = wl:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    wl.empty:SetPoint("CENTER", 0, 0)
+    wl.empty:SetWidth(520)
+    local function addFromBox()
+        local text = wl.input:GetText()
+        wl.input:SetText("")
+        if ns.Trim(text) ~= "" then
+            local item, want, note = ns.Wishlist.ParseCommand(text)
+            ns.Wishlist:AddAndSay(item, want, note)
+        end
+    end
+    wl.input = makeInput(wl, 255, function() end)
+    wl.input:SetScript("OnEnterPressed", function(self) addFromBox(); self:ClearFocus() end)
+    wl.input:SetPoint("BOTTOMLEFT", 10, 4)
+    wl.input:SetWidth(280)
+    -- drag an item from your bags onto the box (or the Add button)
+    local function dropItem()
+        local kind, _, link = GetCursorInfo and GetCursorInfo()
+        if kind == "item" and link then
+            if ClearCursor then ClearCursor() end
+            ns.Wishlist:AddAndSay(link)
+            return true
+        end
+    end
+    wl.input:SetScript("OnReceiveDrag", dropItem)
+    wl.input:SetScript("OnMouseDown", dropItem)
+    wl.add = makeButton(wl, "Add", 70, function() if not dropItem() then addFromBox() end end)
+    wl.add:SetScript("OnReceiveDrag", dropItem)
+    wl.add:SetPoint("LEFT", wl.input, "RIGHT", 6, 0)
+    wl.hint = wl:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    wl.hint:SetPoint("LEFT", wl.add, "RIGHT", 10, 0)
+    wl.hint:SetPoint("RIGHT", wl, "RIGHT", -6, 0)
+    wl.hint:SetJustifyH("LEFT")
+    wl.hint:SetText("Shift-click or drag an item into the box. Right-click a row to change it.")
+    panels.wishlist = wl
+
     -- No fellowship yet: a "Create Fellowship" screen
     local none = panel()
     none.heading = none:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
@@ -419,8 +531,10 @@ function UI:Init()
     }
     -- Shift-clicking an item, spell or achievement while typing in the Fellowship window links it there.
     local function insertLink(link)
-        local eb = panels.chat and panels.chat.input
-        if type(link) == "string" and eb and eb.HasFocus and eb:HasFocus() then eb:Insert(link) end
+        if type(link) ~= "string" then return end
+        for _, eb in ipairs({ panels.chat and panels.chat.input, panels.wishlist and panels.wishlist.input }) do
+            if eb and eb.HasFocus and eb:HasFocus() then eb:Insert(link) end
+        end
     end
     if hooksecurefunc then
         if ChatFrameUtil and ChatFrameUtil.InsertLink then
@@ -429,7 +543,55 @@ function UI:Init()
             hooksecurefunc("ChatEdit_InsertLink", insertLink)
         end
     end
+    StaticPopupDialogs["FELLOWSHIP_WISH_AMOUNT"] = {
+        text = "How many %s do you want? Friends see your count and when you're stocked. (0 = no amount)",
+        button1 = ACCEPT or "Accept",
+        button2 = CANCEL or "Cancel",
+        hasEditBox = true,
+        OnShow = function(self, data)
+            local eb = self.editBox or self.EditBox
+            local e = ns.Wishlist:Find(data)
+            if eb then eb:SetText(e and e.want and e.want > 0 and tostring(e.want) or "") end
+        end,
+        OnAccept = function(self, data)
+            local eb = self.editBox or self.EditBox
+            if eb then ns.Wishlist:SetWant(data, eb:GetText()) end
+        end,
+        EditBoxOnEnterPressed = function(self)
+            local parent = self:GetParent()
+            ns.Wishlist:SetWant(parent.data, self:GetText())
+            parent:Hide()
+        end,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
+    }
+    StaticPopupDialogs["FELLOWSHIP_WISH_NOTE"] = {
+        text = "Note for %s (friends see it on your wishlist):",
+        button1 = ACCEPT or "Accept",
+        button2 = CANCEL or "Cancel",
+        hasEditBox = true,
+        maxLetters = ns.Wishlist.MAX_NOTE,
+        OnShow = function(self, data)
+            local eb = self.editBox or self.EditBox
+            local e = ns.Wishlist:Find(data)
+            if eb then eb:SetText(e and e.note or "") end
+        end,
+        OnAccept = function(self, data)
+            local eb = self.editBox or self.EditBox
+            if eb then ns.Wishlist:SetNote(data, eb:GetText()) end
+        end,
+        EditBoxOnEnterPressed = function(self)
+            local parent = self:GetParent()
+            ns.Wishlist:SetNote(parent.data, self:GetText())
+            parent:Hide()
+        end,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
+    }
     local function queue() UI:QueueRefresh() end
+    ns.Listen("WISHLIST_CHANGED", queue)
     ns.Listen("EVENTS_ADDED", queue)
     ns.Listen("PRESENCE", queue)
     ns.Listen("FELLOWSHIP_CHANGED", queue)
@@ -592,6 +754,12 @@ end
 function UI:Toggle()
     self:Build()
     if frame:IsShown() then frame:Hide() else frame:Show() end
+end
+
+function UI:Show(tab)
+    self:Build()
+    if tab then activeTab = tab end
+    if frame:IsShown() then self:Refresh() else frame:Show() end
 end
 
 function UI:SelectTab(tab)
@@ -819,6 +987,123 @@ function UI:ShowMemberTooltip(owner, m)
     GameTooltip:Show()
 end
 
+local function wishKind(e)
+    if e.mode == "always" then return "|cff66ccffAlways wanted|r" end
+    return "One-time"
+end
+
+local function placeColumns(p, cols)
+    for i, fs in ipairs(p.cols) do
+        local c = cols[i]
+        if c then
+            fs:ClearAllPoints()
+            fs:SetPoint("TOPLEFT", c[1] + 4, -30)
+            fs:SetText(c[3])
+            fs:Show()
+        else
+            fs:Hide()
+        end
+    end
+    for _, row in ipairs(p.rows) do
+        for i, fs in ipairs(row.cells) do
+            local c = cols[i]
+            if c then
+                fs:ClearAllPoints()
+                fs:SetPoint("LEFT", c[1], 0)
+                fs:SetWidth(c[2] - 6)
+                fs:Show()
+            else
+                fs:Hide()
+            end
+        end
+    end
+end
+
+local function itemIcon(id)
+    local fn = (C_Item and C_Item.GetItemIconByID) or GetItemIcon
+    return (fn and fn(id)) or "Interface\\Icons\\INV_Misc_QuestionMark"
+end
+
+local function renderWishlist(p, fid)
+    local W = ns.Wishlist
+    for view, b in pairs(p.subTabs) do
+        if view == p.view then b:Disable() else b:Enable() end
+    end
+    placeColumns(p, WISH_COLS[p.view])
+    local rows = {}
+    if p.view == "mine" then
+        for _, e in ipairs(W:Mine()) do
+            local have = ""
+            if e.mode == "always" then
+                if W.Stocked(e) then have = "|cff33ff99" .. e.have .. "/" .. e.want .. "|r"
+                elseif (e.want or 0) > 0 then have = e.have .. "/" .. e.want
+                else have = tostring(e.have or 0) end
+            end
+            rows[#rows + 1] = { wish = e, mine = true, cells = { W.Link(e), wishKind(e) .. (e.notify and " |cffffd100(ping)|r" or ""),
+                have, e.note and (GREY .. ns.Escape(e.note) .. "|r") or "" } }
+        end
+        p.count:SetText(#rows .. " / " .. W.MAX_ITEMS .. " items")
+        p.empty:SetText("Your wishlist is empty.\n\nShift-click an item into the box below, or drag one from your bags,\n"
+            .. "and your fellowship will see it in the item's tooltip.")
+    else
+        local byItem, order = {}, {}
+        for _, l in ipairs(W:AllLists(fid)) do
+            for _, e in ipairs(l.items) do
+                local g = byItem[e.id]
+                if not g then g = { wish = e, names = {} }; byItem[e.id] = g; order[#order + 1] = g end
+                local prog = W.Progress(e)
+                g.names[#g.names + 1] = ns.ColorName(l.name) .. (prog ~= "" and (GREY .. " (" .. prog .. ")|r") or "")
+            end
+        end
+        table.sort(order, function(a, b) return (a.wish.name or "") < (b.wish.name or "") end)
+        for _, g in ipairs(order) do
+            rows[#rows + 1] = { wish = g.wish, mine = false, cells = { W.Link(g.wish), table.concat(g.names, ", ") } }
+        end
+        p.count:SetText(#rows .. " items wanted")
+        p.empty:SetText("Nobody in your fellowship has a wishlist yet.")
+    end
+    if #rows == 0 then p.empty:Show() else p.empty:Hide() end
+    p.offset = math.max(0, math.min(p.offset or 0, #rows - WISH_ROWS))
+    for i, row in ipairs(p.rows) do
+        local r = rows[i + p.offset]
+        row.wish, row.mine = r and r.wish, r and r.mine
+        if r then
+            row.icon:SetTexture(itemIcon(r.wish.id))
+            for c, fs in ipairs(row.cells) do fs:SetText(r.cells[c] or "") end
+            row:Show()
+        else
+            row:Hide()
+        end
+    end
+end
+
+function UI:WishMenuItems(e)
+    local W, id = ns.Wishlist, e.id
+    local items = {}
+    if e.mode == "always" then
+        items[#items + 1] = { "Make it a one-time wish", function() W:SetMode(id, "once") end }
+        items[#items + 1] = { "Set amount wanted...", function()
+            StaticPopup_Show("FELLOWSHIP_WISH_AMOUNT", e.name or "this item", nil, id)
+        end }
+        items[#items + 1] = { e.notify and "Stop pinging me when a member loots it" or "Ping me when a member loots it",
+            function() W:SetNotify(id, not e.notify) end }
+    else
+        items[#items + 1] = { "Make it always wanted (materials)", function() W:SetMode(id, "always") end }
+    end
+    items[#items + 1] = { "Set note...", function() StaticPopup_Show("FELLOWSHIP_WISH_NOTE", e.name or "this item", nil, id) end }
+    items[#items + 1] = { "Remove from Wishlist", function() W:Remove(id) end }
+    return items
+end
+
+function UI:OpenWishMenu(owner, e)
+    if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
+    local items = self:WishMenuItems(e)
+    MenuUtil.CreateContextMenu(owner, function(_, root)
+        root:CreateTitle(e.name or ("Item " .. e.id))
+        for _, item in ipairs(items) do root:CreateButton(item[1], item[2]) end
+    end)
+end
+
 -- Right-click a member: whisper/invite to group, plus role and removal options for the Admin.
 function UI:MemberMenuItems(m)
     local items = {}
@@ -885,6 +1170,8 @@ function UI:Refresh()
         renderFeed(p.log, fid, function(e) return (e.k == "A" or e.k == "M") and ns.Announce.ShouldShow(e) end)
     elseif activeTab == "feats" then
         renderFeats(p, fid)
+    elseif activeTab == "wishlist" then
+        renderWishlist(p, fid)
     else
         renderMembers(p, fid)
     end

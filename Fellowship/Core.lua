@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.12.0"
+ns.VERSION = "0.13.0"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -332,7 +332,14 @@ function ns.FormatEvent(e)
             local link = itemID and GetItemInfo and select(2, GetItemInfo(itemID))
             return who .. " added a new toy: " .. (link or ("[" .. ns.Escape(d[2]) .. "]"))
         elseif sub == "loot" then
-            return who .. " looted " .. ns.Announce.ItemLink(d[2], d[3], d[4])
+            local line = who .. " looted " .. ns.Announce.ItemLink(d[2], d[3], d[4])
+            if d[6] and d[6] ~= "" then
+                local mine = ns.Wishlist.IsForMe(e)
+                line = line .. " - " .. (mine and "|cffffd100" or "") .. ns.Wishlist.WantersText(d[6])
+                    .. (mine and "|r" or "") .. " wanted this!"
+            end
+            if d[5] == "1" then line = line .. " |cff33ff99Wish granted!|r" end
+            return line
         elseif sub == "dungeon" or sub == "raid" then
             local diff = (d[3] and d[3] ~= "") and (" (" .. ns.Escape(d[3]) .. ")") or ""
             local key = ""
@@ -493,6 +500,7 @@ ns.On("PLAYER_LOGIN", function()
     ns.Sync:Init()
     ns.Channel:Init()
     ns.Announce:Init()
+    ns.Wishlist:Init()
     ns.UI:Init()
     ns.Menu:Init()
     ns.Menu:InitChatTab()
@@ -527,6 +535,8 @@ local HELP = {
     "|cffffd100/fship settings|r - choose what gets shared and shown",
     "|cffffd100/fship minimap|r - show or hide the minimap button",
     "|cffffd100/fship channel|r - check the hidden fellowship channel",
+    "|cffffd100/fship wish <item> [amount]|r - add an item to your wishlist (shift-click it; /fship wish alone opens the list)",
+    "|cffffd100/fship unwish <item>|r - take an item off your wishlist",
     "|cffffd100/fship dungeons|r - recent boss kills and why a run did or didn't count",
 }
 
@@ -599,6 +609,10 @@ function ns.HandleSlash(input)
         ns.Print("Debug messages " .. (ns.settings.debug and "on" or "off") .. ".")
     elseif cmd == "channel" then
         ns.Channel:PrintStatus()
+    elseif cmd == "wish" or cmd == "wishlist" then
+        ns.Wishlist:Slash(rest)
+    elseif cmd == "unwish" then
+        ns.Wishlist:SlashRemove(rest)
     elseif cmd == "dungeons" then
         ns.Feats:Diagnose()
     elseif cmd == "version" then

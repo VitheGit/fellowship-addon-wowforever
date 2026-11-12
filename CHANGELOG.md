@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.13.0
+
+- New **Wishlist** tab. Add the items you're hunting for by shift-clicking them into the box, dragging them from your bags, right-clicking an item link in chat, or typing `/fship wish [item]`.
+- **One-time wishes** (gear, mounts, recipes): when a fellowship member loots one, you get a ping and a sound, and everyone sees "Bob looted [Item] - Brad wanted this!". When you loot it yourself it comes off your list with "Wish granted!".
+- **Always wanted** (trade goods and reagents like ore, herbs and cloth): these stay on your list and don't post anything when you loot them. You can set an amount (right-click, "Set amount wanted"), and friends see your bag and bank count, like "14/40", or "stocked" once you have enough. Pings for these are off unless you turn them on for that item.
+- New items default to "always wanted" if they're trade goods or reagents, and one-time otherwise. Right-click a row to switch, set an amount, add a note, or remove it.
+- Hovering any item shows "Fellowship: wanted by ..." with each friend's count.
+- When a wanted item comes up in a loot roll, you see who wants it. When you open a mailbox with something a friend wants in your bags, you get one quiet reminder.
+- "Fellowship Wishes" view shows everything the fellowship wants, grouped by item.
+- Wishlists sync like chat, so offline members' lists still reach you. Older versions of Fellowship ignore them, so everyone needs 0.13.0 to see each other's lists.
+
 ## 0.12.0
 
 - Fellowship chat and announcements now go through a hidden, password-protected chat channel. One message reaches everyone online at once, instead of one whisper per member, so big fellowships no longer see messages arrive late.

@@ -1360,12 +1360,184 @@ test("no channel support in the client: whispers only", function()
     assert(anna:logContains("using whispers"), "status")
 end)
 
+-- Wishlists ---------------------------------------------------------------
+local ORE = "|cffffffff|Hitem:2770:1::|h[Copper Ore]|h|r"
+local BOW = "|cffa335ee|Hitem:900:4::|h[Epic Bow]|h|r"
+local HAT = "|cff1eff00|Hitem:950:2::|h[Green Hat]|h|r"
+
+local function withItems(...)
+    local clients = { ... }
+    return function()
+        for _, c in ipairs(clients) do
+            c.bags = c.bags or {}
+            c.globals = c.globals or {}
+            c.globals.GetItemCount = function(id) return c.bags[id] or 0 end
+            c.globals.GetItemInfoInstant = function(id) return id, nil, nil, nil, nil, id == 2770 and 7 or 2 end
+            c.globals.GetLootRollItemLink = function(rollID) return c.rolls and c.rolls[rollID] end
+            c.globals.PlaySound = function(id) c.sounds = (c.sounds or 0) + 1 end
+            c.globals.SOUNDKIT = { RAID_WARNING = 8959 }
+        end
+    end
+end
+
+local function chatMatch(c, pattern)
+    for _, l in ipairs(c.log) do if l:find(pattern) then return true end end
+    return false
+end
+
+local function tooltip(c, id)
+    return table.concat(c.ns.Wishlist:TooltipLines(id), " / ")
+end
+
+test("wishlist: items are shared live, kinds default by item type, tooltips say who wants them", function()
+    local before = function(anna, bob, cara) withItems(anna, bob, cara)() end
+    local w, anna, bob, cara = setup(before)
+    anna.bags[2770] = 14
+    anna:slash("/fship wish " .. BOW .. " for my hunter")
+    anna:slash("/fship wish " .. ORE .. " 40")
+    w:advance(2)
+    local W = anna.ns.Wishlist
+    eq(#W:Mine(), 2, "two wishes")
+    eq(W:Find(900).mode, "once", "gear is one-time")
+    eq(W:Find(900).note, "for my hunter", "note kept")
+    eq(W:Find(2770).mode, "always", "ore is always wanted")
+    eq(W:Find(2770).want, 40, "amount")
+    eq(W:Find(2770).have, 14, "bag count")
+    assert(tooltip(bob, 2770):find("wanted by .*Anna Silvermoon.*14/40"), "bob's ore tooltip: " .. tooltip(bob, 2770))
+    assert(tooltip(cara, 900):find("Anna Silvermoon"), "cara's bow tooltip")
+    assert(tooltip(anna, 900):find("on your wishlist"), "own tooltip")
+    eq(tooltip(bob, 12345), "", "unwanted item has no line")
+    -- adding the same item twice doesn't duplicate it; removing works
+    anna.ns.Wishlist:Add(BOW)
+    eq(#W:Mine(), 2, "no duplicate")
+    anna:slash("/fship wish " .. HAT)
+    w:advance(2)
+    assert(tooltip(bob, 950) ~= "", "hat shared")
+    anna:slash("/fship unwish " .. HAT)
+    w:advance(2)
+    eq(tooltip(bob, 950), "", "hat removed for bob")
+    -- typed names only work for items the game knows
+    local _, err = W:Add("Some Unknown Thing")
+    assert(err and err:find("Shift%-click"), "explains how to add")
+end)
+
+test("wishlist: offline members get lists from whoever is online, and a wiped list comes back", function()
+    local before = function(anna, bob, cara) withItems(anna, bob, cara)() end
+    local w, anna, bob, cara = setup(before)
+    cara:logout()
+    w:advance(5)
+    anna.ns.Wishlist:Add(BOW)
+    w:advance(2)
+    anna:logout()
+    w:advance(5)
+    cara:login()
+    w:advance(30)
+    assert(tooltip(cara, 900):find("Anna Silvermoon"), "cara learned anna's wish from bob")
+    -- anna's saved list is lost (reinstall); a friend restores it
+    anna.saved.fellowships[next(anna.saved.fellowships)].wishes = nil
+    anna:login()
+    w:advance(30)
+    eq(#anna.ns.Wishlist:Mine(), 1, "list restored from a friend")
+end)
+
+test("wishlist: loot pings the wanter, a one-time wish is granted, always-wanted stays quiet", function()
+    local before = function(anna, bob, cara) withItems(anna, bob, cara)() end
+    local w, anna, bob, cara = setup(before)
+    anna.ns.Wishlist:Add(BOW)
+    anna.ns.Wishlist:Add(ORE, 40)
+    anna.ns.Wishlist:Add(HAT) -- a green: normally too low to announce
+    w:advance(2)
+    -- bob loots the hat anna wants: anna is pinged, cara sees it too
+    bob:fire("CHAT_MSG_LOOT", "You receive loot: " .. HAT .. ".")
+    w:advance(2)
+    assert(chatMatch(anna, "looted .*Green Hat.* %- .*Anna Silvermoon.* wanted this!"), "anna pinged: " .. table.concat(anna.log, "\n", math.max(1, #anna.log - 4)))
+    eq(anna.sounds, 1, "anna heard a sound")
+    assert(chatMatch(cara, "Green Hat.*wanted this!"), "cara sees it")
+    assert(not cara.sounds, "no sound for cara")
+    -- bob loots ore: always-wanted without pings stays quiet
+    bob:fire("CHAT_MSG_LOOT", "You receive loot: " .. ORE .. "x5.")
+    w:advance(2)
+    assert(not chatMatch(anna, "Copper Ore.*wanted"), "no ore ping")
+    -- with pings on: one ping, then quiet for 10 minutes
+    anna.ns.Wishlist:SetNotify(2770, true)
+    w:advance(2)
+    bob:fire("CHAT_MSG_LOOT", "You receive loot: " .. ORE .. "x2.")
+    w:advance(2)
+    bob:fire("CHAT_MSG_LOOT", "You receive loot: " .. ORE .. "x2.")
+    w:advance(2)
+    local n = 0
+    for _, l in ipairs(anna.log) do if l:find("Copper Ore.*wanted this") then n = n + 1 end end
+    eq(n, 1, "one ore ping")
+    -- anna loots her own ore: no message; loots the bow: wish granted
+    anna:fire("CHAT_MSG_LOOT", "You receive loot: " .. ORE .. ".")
+    anna:fire("CHAT_MSG_LOOT", "You receive loot: " .. BOW .. ".")
+    w:advance(2)
+    assert(chatMatch(anna, "Wish granted!"), "anna told")
+    assert(chatMatch(bob, "Anna Silvermoon.*looted .*Epic Bow.*Wish granted!"), "bob sees it")
+    assert(not anna.ns.Wishlist:Find(900), "bow off the list")
+    assert(anna.ns.Wishlist:Find(2770), "ore still on the list")
+    eq(tooltip(bob, 900), "", "bob no longer sees the bow wanted")
+end)
+
+test("wishlist: counts update and show stocked; mailbox and loot roll reminders", function()
+    local before = function(anna, bob, cara) withItems(anna, bob, cara)() end
+    local w, anna, bob, cara = setup(before)
+    anna.ns.Wishlist:Add(ORE, 40)
+    anna.ns.Wishlist:Add(BOW)
+    w:advance(2)
+    -- bob at a mailbox with ore in his bags
+    bob.bags[2770] = 12
+    bob:fire("MAIL_SHOW")
+    assert(chatMatch(bob, "Anna Silvermoon.* wants .*item:2770.*0/40.* %- you have 12"), "mailbox reminder: " .. table.concat(bob.log, "\n", math.max(1, #bob.log - 3)))
+    local before2 = #bob.log
+    bob:fire("MAIL_SHOW")
+    eq(#bob.log, before2, "not repeated right away")
+    -- anna's bags fill up: friends see her stocked after a short delay
+    anna.bags[2770] = 40
+    anna:fire("BAG_UPDATE_DELAYED")
+    w:advance(35)
+    assert(tooltip(bob, 2770):find("stocked"), "stocked: " .. tooltip(bob, 2770))
+    cara.bags[2770] = 3
+    cara:fire("MAIL_SHOW")
+    assert(not chatMatch(cara, "wants .*item:2770"), "no mailbox reminder once stocked")
+    -- a loot roll for the bow in cara's group
+    cara.rolls = { [7] = BOW }
+    cara:fire("START_LOOT_ROLL", 7)
+    assert(chatMatch(cara, "Wishlist:.*Epic Bow.* is wanted by .*Anna Silvermoon"), "roll reminder")
+end)
+
+test("wishlist: older versions ignore it, removed members' lists disappear, UI menu works", function()
+    local before = function(anna, bob, cara) withItems(anna, bob, cara)() end
+    local w, anna, bob, cara = setup(before)
+    bob.ns.Wishlist:Add(BOW)
+    w:advance(2)
+    assert(tooltip(anna, 900):find("Bob Silvermoon"), "anna sees bob's wish")
+    -- garbage and lists for non-members are dropped
+    anna.ns.Wishlist:OnList("Bob-Silvermoon", anna.ns.Store:ActiveId(),
+        { { "WL" }, { "Evil-Stranger", "99999999999" }, { "900", "o", "0", "0", "", "", "", "" } })
+    eq(#anna.ns.Wishlist:Wanters(900), 1, "stranger ignored")
+    anna:slash("/fship remove bob silvermoon")
+    w:advance(2)
+    eq(tooltip(anna, 900), "", "removed member's wish gone")
+    -- right-click menu on my own row
+    anna.ns.Wishlist:Add(ORE)
+    local e = anna.ns.Wishlist:Find(2770)
+    local labels = {}
+    for _, item in ipairs(anna.ns.UI:WishMenuItems(e)) do labels[#labels + 1] = item[1] end
+    assert(table.concat(labels, "|"):find("Set amount"), "amount option")
+    anna.ns.UI:WishMenuItems(e)[1][2]() -- make it one-time
+    eq(anna.ns.Wishlist:Find(2770).mode, "once", "switched")
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")
     w:advance(2)
     anna:slash("/fs")
-    for _, tab in ipairs({ "chat", "achievements", "feats", "members" }) do anna.ns.UI:SelectTab(tab) end
+    anna.ns.Wishlist:Add("|cffa335ee|Hitem:900:4::|h[Epic Bow]|h|r")
+    for _, tab in ipairs({ "chat", "achievements", "feats", "members", "wishlist" }) do anna.ns.UI:SelectTab(tab) end
+    anna.ns.UI.panelsForTest = nil
+    anna:slash("/fship wish")
     w:advance(1)
     anna:slash("/fship who")
     anna:slash("/fship help")

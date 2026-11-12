@@ -11,6 +11,7 @@
 --   LNK fid proto | event                         an alt introduces itself with its Y (account) event
 --   PI  fid proto | level zone                   presence ping + where I am (a bounce means they logged off)
 --   CH  fid proto wantReply                      (channel only) "I'm listening on the fellowship channel"
+--   WL / WV                                      wishlists (see Wishlist.lua); older versions ignore them
 --
 -- Catch-up: whenever two members meet (login, periodic ping, new member) they swap HI
 -- vectors; each side REQuests only the ranges it is missing. Because every member keeps
@@ -186,6 +187,8 @@ function Sync:Hello(fid, target, wantReply)
     end
     if not f.hwm[ns.me] then rec[#rec + 1] = { ns.me, 0, ns.Store:GetClass(ns.me) } end
     send(target, rec)
+    -- a reply means they're online: compare wishlists too (they answer if theirs are newer)
+    if not wantReply then ns.Wishlist:SendSummary(fid, target, true) end
 end
 
 -- Cheap check that members we think are online still are: if they logged off,
@@ -502,6 +505,10 @@ function Sync:OnMessage(sender, records, viaChannel)
         self:OnPing(sender, records)
     elseif typ == "FL" then
         self:OnFloor(fid, records)
+    elseif typ == "WV" then
+        ns.Wishlist:OnSummary(sender, fid, records, h[4] == "1")
+    elseif typ == "WL" then
+        ns.Wishlist:OnList(sender, fid, records)
     end
 end
 
@@ -524,6 +531,21 @@ function Sync:Publish(kind, data, minTime)
     end
     self:AfterAdded(fid, { e }, true)
     return e
+end
+
+-- Raw records to one member (or ns.Channel.TARGET).
+function Sync:SendRaw(target, records, bulk)
+    if records then send(target, records, bulk) end
+end
+
+-- Raw records to everyone online: once on the channel, whispers for anyone not on it.
+function Sync:Broadcast(fid, records)
+    local viaChannel = ns.Channel:Ready()
+    if viaChannel then send(ns.Channel.TARGET, records) end
+    for _, name in ipairs(otherMembers(fid)) do
+        local key = ns.Key(name)
+        if online[key] and not (viaChannel and ns.Channel:HasPeer(key)) then send(name, records) end
+    end
 end
 
 -- Raw records to the fellowship channel (used for CH announcements).

@@ -10,6 +10,10 @@ and read everything they missed.
   (including keystone level), and deaths (in red, with the zone)
 - Fellowship Achievements (Achievements tab): every dungeon and raid you complete with a group
   made up only of fellowship members is marked complete, with the date and who was there
+- Wishlists (Wishlist tab): shift-click or drag in the items you're hunting for. Gear is a
+  one-time wish (granted when you loot it); materials like ore are "always wanted", with an
+  optional amount and your bag/bank count. Item tooltips show "Wanted by", the wanter is pinged
+  when a member loots their item, and members get reminders at loot rolls and mailboxes
 - Online/offline notices, plus each member's zone and level in the Members tab
 - A settings window (`/fship settings` or the Settings button) to choose what you share and
   what you see, for every kind of announcement
@@ -59,6 +63,8 @@ Everyone in the group needs the addon installed.
 | `/fship tab` | Show/hide Fellowship messages in the chat tab you are typing in (`/fship tab 2`, `/fship tab reset`). You can also right-click a chat tab and tick **Show Fellowship** |
 | `/fship settings` | Open the settings window |
 | `/fship minimap` | Show or hide the minimap button |
+| `/fship wish <item> [amount]` | Add an item to your wishlist (shift-click the item in); `/fship wish` alone opens the Wishlist tab |
+| `/fship unwish <item>` | Take an item off your wishlist |
 
 ## Roles
 
