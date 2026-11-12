@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.9
+
+- Fellowship Achievements now read "Loot Kills has completed Gnomeregan!" (your fellowship's name), instead of naming one member. The difficulty is added when it isn't Normal.
+- When everyone in the group is in the fellowship, the separate "<name> completed Gnomeregan" lines from each member are no longer posted.
+
 ## 0.11.8
 
 - City of Dalaran now completes when Shade of the Archmage dies.

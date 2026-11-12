@@ -199,7 +199,11 @@ function A:PostInstance(keyLevel, onTime)
     if postedRun == key then return end
     postedRun = key
     local _, _, _, difficultyName = GetInstanceInfo()
-    ns.Feats:OnInstanceComplete(instanceType == "raid" and "raid" or "dungeon", name, difficultyName or "")
+    local feat, _, together = ns.Feats:OnInstanceComplete(instanceType == "raid" and "raid" or "dungeon", name,
+        difficultyName or "")
+    -- the whole group is the fellowship: one "Loot Kills has completed ..." line instead of
+    -- one "<name> completed ..." per member
+    if feat or together then return end
     share("instance", { instanceType == "raid" and "raid" or "dungeon", name, difficultyName or "",
         keyLevel or "", onTime == nil and "" or (onTime and "1" or "0") })
 end

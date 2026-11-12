@@ -89,12 +89,14 @@ function F:MarkAnnounced(e)
     return true
 end
 
+-- "Loot Kills has completed Gnomeregan!" (difficulty shown when it isn't Normal)
 function F.Format(e)
     local d = e.d
-    local names = F.Members(d)
-    local with = #names > 0 and (" with " .. F.JoinNames(names, true)) or ""
-    local verb = d[3] == "raid" and "cleared " or "completed "
-    return GOLD .. "Fellowship Achievement:|r " .. verb .. GOLD .. "[" .. ns.Escape(d[2]) .. "]|r" .. with .. "!"
+    local f = ns.Store:Active()
+    local fellowship = f and f.name or "The fellowship"
+    local diff = d[5] or ""
+    local place = (diff ~= "" and diff ~= "Normal") and F.Title(d[4] or d[2], diff) or (d[4] or d[2])
+    return GOLD .. ns.Escape(fellowship) .. " has completed " .. ns.Escape(place) .. "!|r"
 end
 
 ---------------------------------------------------------------------------
@@ -147,7 +149,7 @@ function F:OnInstanceComplete(category, instance, difficulty)
     local d = { "feat", F.Title(instance, difficulty), category, instance, difficulty or "", "" }
     local key = F.KeyOf(d)
     local earned = self:Earned(fid)
-    if earned[key] then self:Note("Already earned: " .. d[2]); return nil, "already earned" end
+    if earned[key] then self:Note("Already earned: " .. d[2]); return nil, "already earned", true end
     table.sort(players, function(a, b) return ns.Short(a):lower() < ns.Short(b):lower() end)
     d[6] = ns.Truncate(table.concat(players, ","), 900)
     local e = ns.Sync:Publish("M", d)

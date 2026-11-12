@@ -1155,10 +1155,12 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
     end
     local shown = 0
     for i = before + 1, #bob.log do
-        if bob.log[i]:find("Fellowship Achievement:", 1, true) then shown = shown + 1 end
+        if bob.log[i]:find("Friday Night Crew has completed Deadmines!", 1, true) then shown = shown + 1 end
     end
     eq(shown, 1, "announced once in bob's chat")
-    assert(bob:logContains("[Deadmines (Normal)]"), "title in chat")
+    for i = before + 1, #bob.log do
+        assert(not bob.log[i]:find("completed Deadmines (Normal)", 1, true), "per-member line when the group was all fellowship")
+    end
     -- the Activity feed shows it once too
     local fid = bob.ns.Store:ActiveId()
     local inFeed = 0
@@ -1171,7 +1173,7 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
     for _, c in ipairs({ anna, bob, cara }) do c:fire("ZONE_CHANGED_NEW_AREA") end
     anna.instance = nil; anna:fire("ZONE_CHANGED_NEW_AREA"); anna.instance = dm
     anna:fire("ENCOUNTER_END", 12, "Boss 2", 1, 5, 1); w:advance(3)
-    eq(#bob:history(), stored + 1, "only the dungeon announcement is new") -- the normal dungeon line
+    eq(#bob:history(), stored, "nothing new for a repeat run with the whole fellowship")
     anna.instance = { name = "Molten Core", type = "raid", difficulty = "Normal", id = 409, bosses = { 21, 22 } }
     anna:fire("ZONE_CHANGED_NEW_AREA")
     joinGroup(anna, { bob, cara }, true)
@@ -1179,7 +1181,7 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
     local earned, count = feats(cara)
     eq(count, 2, "raid achievement")
     eq(earned["raid|molten core|normal"].category, "raid", "raid category")
-    assert(cara:logContains("cleared |cffffd100[Molten Core (Normal)]"), "raid announced")
+    assert(cara:logContains("Friday Night Crew has completed Molten Core!"), "raid announced")
     -- no Encounter Journal info (WoW Forever): the built-in final boss names finish the run
     local stocks = { name = "Stormwind Stockade", type = "party", difficulty = "Normal", id = 34, bosses = {} }
     for _, c in ipairs({ anna, bob, cara }) do c.instance = stocks; c:fire("ZONE_CHANGED_NEW_AREA") end
