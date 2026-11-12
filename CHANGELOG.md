@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.0
+
+- Fellowship chat and announcements now go through a hidden, password-protected chat channel. One message reaches everyone online at once, instead of one whisper per member, so big fellowships no longer see messages arrive late.
+- Each fellowship gets its own channel. The name and password are codes only members' addons know, not your fellowship's name. If the name is ever taken, everyone moves to the same backup name automatically. Removing a member moves the fellowship to a new channel and password.
+- The channel is hidden from your chat windows, and its join notices are hidden too.
+- Members without the channel still get every message by whisper. That covers anyone on an older version, or with all 10 channel slots in use.
+- New `/fship channel` command shows whether you're on the channel and how many members are heard on it.
+
 ## 0.11.10
 
 - Fixed the X button not closing the Fellowship window (and the Settings window) while you're in combat.

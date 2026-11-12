@@ -1,4 +1,5 @@
--- Sync: the fellowship protocol (all messages are whispers between members).
+-- Sync: the fellowship protocol (whispers between members; new events are also broadcast
+-- once on the hidden fellowship channel, see Channel.lua).
 --
 --   HI  fid proto wantReply | author hwm | ...   presence + "here is what I have"
 --   REQ fid proto           | author fromSeq | ... "send me author's events after fromSeq"
@@ -9,6 +10,7 @@
 --   DEC fid proto reason                         invitation declined
 --   LNK fid proto | event                         an alt introduces itself with its Y (account) event
 --   PI  fid proto | level zone                   presence ping + where I am (a bounce means they logged off)
+--   CH  fid proto wantReply                      (channel only) "I'm listening on the fellowship channel"
 --
 -- Catch-up: whenever two members meet (login, periodic ping, new member) they swap HI
 -- vectors; each side REQuests only the ranges it is missing. Because every member keeps
@@ -462,7 +464,7 @@ function Sync:Trusted(fid, f, key)
     return f.pendingFrom ~= nil and ns.Key(f.pendingFrom) == key
 end
 
-function Sync:OnMessage(sender, records)
+function Sync:OnMessage(sender, records, viaChannel)
     local h = records[1]
     if not h then return end
     local typ, fid, proto = h[1], h[2], h[3]
@@ -471,6 +473,7 @@ function Sync:OnMessage(sender, records)
     if key == ns.meKey then return end
 
     ns.Debug("<- " .. tostring(typ) .. " from " .. sender)
+    if viaChannel and (typ == "INV" or typ == "ACC" or typ == "DEC" or typ == "LNK") then return end
     if typ == "INV" then return self:OnInvite(sender, fid, h[4], records) end
     if typ == "ACC" then return self:OnAccept(sender, fid, records) end
     if typ == "DEC" then return self:OnDecline(sender, fid, h[4], records) end
@@ -485,8 +488,11 @@ function Sync:OnMessage(sender, records)
     self:MarkOnline(key)
     ns.Store:SetSeen(sender)
     self:NoteVersion(h[5])
+    if viaChannel then ns.Channel:PeerHeard(key) end
 
-    if typ == "HI" then
+    if typ == "CH" then
+        if viaChannel then ns.Channel:OnAnnounce(key, h[4] == "1") end
+    elseif typ == "HI" then
         self:OnHello(sender, fid, f, h[4] == "1", records)
     elseif typ == "REQ" then
         self:OnRequest(sender, fid, records)
@@ -507,11 +513,22 @@ function Sync:Publish(kind, data, minTime)
     if not f or f.pendingFrom then return nil end
     local e = ns.Store:NewLocalEvent(fid, kind, data, minTime)
     if not e then return nil end
+    -- once on the channel for everyone listening there; a whisper for anyone else online
+    local viaChannel = ns.Channel:Ready()
+    if viaChannel then sendEvents(ns.Channel.TARGET, fid, { e }, true, false) end
     for _, name in ipairs(otherMembers(fid)) do
-        if online[ns.Key(name)] then sendEvents(name, fid, { e }, true, false) end
+        local key = ns.Key(name)
+        if online[key] and not (viaChannel and ns.Channel:HasPeer(key)) then
+            sendEvents(name, fid, { e }, true, false)
+        end
     end
     self:AfterAdded(fid, { e }, true)
     return e
+end
+
+-- Raw records to the fellowship channel (used for CH announcements).
+function Sync:SendChannel(fid, records)
+    send(ns.Channel.TARGET, records)
 end
 
 function Sync:PostChat(text)

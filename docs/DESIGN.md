@@ -16,6 +16,12 @@ anyone can join), work across connected realms, and arrive in order.
   chunked at UTF-8 character boundaries and reassembled.
 - Sending uses a token bucket (10 burst, 1 per second, retried if the server returns
   `AddonMessageThrottle`). Live traffic (chat, presence) jumps ahead of bulk catch-up.
+- New events (chat, announcements) are also broadcast once on a **hidden fellowship
+  channel** (Channel.lua), so one message reaches every member listening there. Its name
+  and password are codes made from the fellowship id (and the number of removals, so a
+  removal moves everyone to a new channel). A taken name makes everyone try `<name>2`..`5`
+  in the same order. Members we haven't heard on the channel (older versions, no free
+  channel slot) still get whispers; catch-up, requests and presence stay on whispers.
 - Whispering an offline member produces "No player named X is currently playing".
   A chat filter hides those for players we just messaged, and marks them offline.
 

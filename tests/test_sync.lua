@@ -38,9 +38,10 @@ local function count(client, kind)
 end
 
 -- Three friends: Anna founds, invites Bob and Cara.
-local function setup()
+local function setup(before)
     local w = World.new()
     local anna, bob, cara = w:client("Anna"), w:client("Bob"), w:client("Cara", "Area52")
+    if before then before(anna, bob, cara) end
     anna:login(); bob:login(); cara:login()
     w:advance(1)
     anna:slash("/fship create Friday Night Crew")
@@ -1277,6 +1278,86 @@ test("Fellowship Achievements: dungeons and raids completed with only fellowship
     assert(statusOf("Wailing Caverns"):find("|cffff3333Incomplete", 1, true), "incomplete card in red")
     p.subTabs.raid:Click()
     assert(statusOf("Molten Core"):find("Completed: ", 1, true), "raids sub-tab")
+end)
+
+local function chan(c) return c.ns.Channel end
+
+test("hidden channel: one message reaches everyone; unique name and password per fellowship", function()
+    local w, anna, bob, cara = setup()
+    w:advance(10)
+    local name = chan(anna):Name()
+    assert(chan(anna):Ready() and chan(bob):Ready() and chan(cara):Ready(), "not everyone joined the channel")
+    eq(chan(bob):Name(), name, "bob on another channel"); eq(chan(cara):Name(), name, "cara on another channel")
+    assert(name:match("^Fs%w+$") and #name == 12, "channel name " .. name)
+    assert(not name:lower():find("friday", 1, true), "name gives away the fellowship")
+    local ch = w.channels[name:lower()]
+    assert(ch.password and #ch.password == 10, "no password")
+    eq(chan(anna):PeerCount(), 2, "anna hasn't heard bob and cara on the channel")
+    -- a chat line: one channel message, no whispers
+    local sent, viaChannel = w.sent, w.channelSent
+    anna:slash("/fs one message for all"); w:advance(1)
+    eq(w.channelSent - viaChannel, 1, "channel messages for one chat line")
+    eq(w.sent - sent, 1, "whispers sent as well")
+    assert(bob:logContains("one message for all") and cara:logContains("one message for all"), "not delivered")
+    -- the join notices stay out of chat
+    for _, c in ipairs({ anna, bob, cara }) do assert(not c:logContains(name), "channel name shown in chat") end
+    -- another fellowship with the same name gets a different channel
+    local w2 = World.new()
+    local x = w2:client("Xan"); x:login(); w2:advance(1)
+    x:slash("/fship create Friday Night Crew"); w2:advance(10)
+    assert(chan(x):Name() ~= name, "two fellowships share a channel")
+    x:slash("/fship channel")
+    assert(x:logContains("Fellowship channel: joined"), "/fship channel status")
+end)
+
+test("hidden channel: a taken name moves everyone to the same next name", function()
+    local w, anna, bob, cara = setup()
+    w:advance(10)
+    local name = chan(anna):Name()
+    for _, c in ipairs({ anna, bob, cara }) do c.env.LeaveChannelByName(name) end
+    w.channels[name:lower()] = { name = name, password = "someoneelse", members = { ["Zed-Elsewhere"] = true } }
+    for _, c in ipairs({ anna, bob, cara }) do chan(c):Refresh() end
+    w:advance(10)
+    for _, c in ipairs({ anna, bob, cara }) do eq(chan(c):Name(), name .. "2", c.name .. "'s channel") end
+    assert(chan(anna):Ready(), "not joined")
+    bob:slash("/fs after the move"); w:advance(1)
+    assert(anna:logContains("after the move") and cara:logContains("after the move"), "not delivered")
+    assert(not w.channels[name:lower()].members["Anna-Silvermoon"], "joined the stranger's channel")
+end)
+
+test("hidden channel: members without it still get whispers; removal moves to a new channel", function()
+    local w, anna, bob, cara = setup(function(_, _, cara) cara.channelSlotsFull = true end)
+    w:advance(30)
+    assert(chan(anna):Ready() and chan(bob):Ready(), "anna and bob not on the channel")
+    assert(not chan(cara):Ready(), "cara has no free channel slot")
+    anna:slash("/fs whisper fallback"); w:advance(2)
+    assert(bob:logContains("whisper fallback"), "bob (channel) missed it")
+    assert(cara:logContains("whisper fallback"), "cara (whispers) missed it")
+    cara:slash("/fs from cara"); w:advance(2)
+    assert(anna:logContains("from cara") and bob:logContains("from cara"), "cara's whispers")
+    -- no channel support at all in this game client: whispers only, nothing breaks
+    -- removing a member moves the others to a fresh channel and password
+    local old = chan(anna):Name()
+    cara.channelSlotsFull = false; w:advance(360) -- retried every few minutes
+    eq(chan(cara):Name(), old, "cara joined once a slot was free")
+    anna:slash("/fship remove Cara Area52"); w:advance(15)
+    local new = chan(anna):Name()
+    assert(new ~= old, "removal didn't move the channel")
+    eq(chan(bob):Name(), new, "bob didn't move")
+    assert(not w.channels[new:lower()].members["Cara-Area52"], "removed member is on the new channel")
+    anna:slash("/fs after removal"); w:advance(2)
+    assert(bob:logContains("after removal"), "bob missed it")
+    assert(not cara:logContains("after removal"), "removed member still hears the fellowship")
+end)
+
+test("no channel support in the client: whispers only", function()
+    local w, anna, bob, cara = setup(function(a, b, c) a.noChannels = true; b.noChannels = true; c.noChannels = true end)
+    w:advance(10)
+    assert(not chan(anna):Ready(), "channel without support")
+    anna:slash("/fs plain whispers"); w:advance(2)
+    assert(bob:logContains("plain whispers") and cara:logContains("plain whispers"), "whispers broken")
+    anna:slash("/fship channel")
+    assert(anna:logContains("using whispers"), "status")
 end)
 
 test("UI builds and renders without errors", function()

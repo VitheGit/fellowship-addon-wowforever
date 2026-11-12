@@ -1,4 +1,5 @@
--- Comm: whisper-based addon messaging with chunking, throttling and offline detection.
+-- Comm: addon messaging (whispers, plus the hidden fellowship channel) with chunking,
+-- throttling and offline detection.
 --
 -- Wire frame: "<msgId>:<index>:<total>:<data>", at most 255 bytes.
 -- Two queues: "live" (chat, presence, requests) always goes before "bulk" (history catch-up),
@@ -76,9 +77,12 @@ function Comm:Init()
     local addFilter = ChatFrame_AddMessageEventFilter
         or (ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter)
     if addFilter then addFilter("CHAT_MSG_SYSTEM", systemFilter) end
-    ns.On("CHAT_MSG_ADDON", function(prefix, text, channel, sender)
-        if prefix == ns.PREFIX and channel == "WHISPER" then
-            Comm:OnFrame(text, sender)
+    ns.On("CHAT_MSG_ADDON", function(prefix, text, channel, sender, _, _, localID, channelName)
+        if prefix ~= ns.PREFIX then return end
+        if channel == "WHISPER" then
+            Comm:OnFrame(text, sender, false)
+        elseif channel == "CHANNEL" and ns.Channel:IsOurs(channelName, localID) then
+            Comm:OnFrame(text, sender, true)
         end
     end)
     lastRefill = GetTime()
@@ -116,8 +120,15 @@ function Comm:Pending()
 end
 
 local function rawSend(item)
-    recentTargets[item.key] = GetTime() + 30
-    local result = C_ChatInfo.SendAddonMessage(ns.PREFIX, item.text, "WHISPER", item.target)
+    local result
+    if item.target == ns.Channel.TARGET then
+        local id = ns.Channel:Id()
+        if id == 0 then return "sent" end -- left the channel meanwhile; gap fill will cover it
+        result = C_ChatInfo.SendAddonMessage(ns.PREFIX, item.text, "CHANNEL", id)
+    else
+        recentTargets[item.key] = GetTime() + 30
+        result = C_ChatInfo.SendAddonMessage(ns.PREFIX, item.text, "WHISPER", item.target)
+    end
     local E = Enum and Enum.SendAddonMessageResult
     if not E or result == nil or result == true or result == E.Success then return "sent" end
     -- the game wouldn't send it right now (throttled, or addon messages locked down, e.g. in
@@ -126,7 +137,7 @@ local function rawSend(item)
         or result == E.AddonMessageLockdown or result == E.GeneralError then
         return "retry"
     end
-    if result == E.TargetOffline then
+    if result == E.TargetOffline and item.target ~= ns.Channel.TARGET then
         ns.Sync:MarkOffline(item.key)
         return "drop-target"
     end
@@ -163,17 +174,17 @@ function Comm:Pump()
     end
 end
 
-function Comm:OnFrame(text, sender)
+function Comm:OnFrame(text, sender, viaChannel)
     sender = ns.NormalizeName(sender)
     if not sender or type(text) ~= "string" then return end
     local id, idx, total, data = text:match("^(%w+):(%d+):(%d+):(.*)$")
     if not id then return end
     idx, total = tonumber(idx), tonumber(total)
     if total < 1 or total > 4000 or idx < 1 or idx > total then return end
-    if total == 1 then return self:Deliver(sender, data) end
+    if total == 1 then return self:Deliver(sender, data, viaChannel) end
 
     local now = GetTime()
-    local key = sender .. "|" .. id
+    local key = sender .. "|" .. id .. (viaChannel and "|c" or "")
     local p = partials[key]
     if not p or p.total ~= total then
         for k, old in pairs(partials) do
@@ -189,11 +200,11 @@ function Comm:OnFrame(text, sender)
     end
     if p.n == p.total then
         partials[key] = nil
-        self:Deliver(sender, table.concat(p.parts))
+        self:Deliver(sender, table.concat(p.parts), viaChannel)
     end
 end
 
-function Comm:Deliver(sender, data)
+function Comm:Deliver(sender, data, viaChannel)
     local records = ns.Serializer.Decode(data)
-    xpcall(function() ns.Sync:OnMessage(sender, records) end, geterrorhandler())
+    xpcall(function() ns.Sync:OnMessage(sender, records, viaChannel) end, geterrorhandler())
 end

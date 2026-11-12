@@ -13,6 +13,8 @@ and read everything they missed.
 - Online/offline notices, plus each member's zone and level in the Members tab
 - A settings window (`/fship settings` or the Settings button) to choose what you share and
   what you see, for every kind of announcement
+- Messages go out once on a hidden, password-protected fellowship channel (falling back to
+  whispers), so even big fellowships get chat instantly
 - Full history saved on every member's machine; when you log in, whoever is online
   fills in what you missed, even if the original author is offline now
 - "New since you were last here" divider and a login summary
