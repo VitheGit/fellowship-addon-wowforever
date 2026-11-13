@@ -350,6 +350,11 @@ function UI:Build()
     chat.log:SetPoint("TOPLEFT", 4, -28)
     chat.log:SetPoint("BOTTOMRIGHT", -(SIDEBAR + 10), 34)
     chat.input = makeInput(chat, 255, function(text) ns.Sync:PostChat(text) end)
+    -- Tab completes "@ka" to "@Kara "
+    chat.input:SetScript("OnTabPressed", function(self)
+        local done = ns.Mentions.Complete(self:GetText())
+        if done then self:SetText(done) end
+    end)
     chat.input:SetPoint("BOTTOMLEFT", 8, 4)
     chat.input:SetPoint("BOTTOMRIGHT", -(SIDEBAR + 10), 4)
 
@@ -948,6 +953,7 @@ UI.SETTINGS_ROWS = {
     { "Deaths", "shareDeaths", "showDeaths" },
     { "Rare mobs spotted", "shareRares", "showRares" },
     { "Online / offline notices", nil, "showPresence" },
+    { "Sound and alert when someone @mentions you", nil, "mentionAlert" },
     { "Zone and level (Members tab)", "shareLocation", nil },
 }
 
@@ -970,7 +976,7 @@ function UI:BuildSettings()
     local f = CreateFrame("Frame", "FellowshipSettingsFrame", UIParent, "BasicFrameTemplateWithInset")
     fixCloseButton(f)
     settingsFrame = f
-    f:SetSize(470, 506)
+    f:SetSize(470, 532)
     f:SetPoint("CENTER", 40, -20)
     f:SetMovable(true)
     f:EnableMouse(true)

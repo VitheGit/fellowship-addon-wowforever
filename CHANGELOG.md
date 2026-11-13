@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.17.0
+
+- **@mentions in Fellowship chat.** Type `@` and a name, like `@Kara`, to tag a member. They hear a short sound, see "Kara mentioned you in Fellowship chat" in the middle of the screen, and the game's icon flashes on their taskbar if the game is in the background.
+- Tags work on any of a member's characters. Use the first name (`@Kara`), or the full name (`@Kara Dunmore`) when two members share a first name. `@all` or `@everyone` tags the whole fellowship.
+- Tagged names are shown in orange in chat, so you can spot them.
+- Press **Tab** in the chat box after `@` and a few letters to finish the name.
+- Missed a mention while offline? The login summary now says "You were mentioned 2 times."
+- Don't want the sound? Turn off "Sound and alert when someone @mentions you" in Settings.
+- Nothing new is sent, so members on older versions still see the message, just without the sound or the orange name.
+
 ## 0.16.0
 
 - **A cleaner Fellowship window.** The row of buttons along the top is gone. Pages are now in a sidebar on the left, each with an icon: Chat, Calendar, Wishlist, Achievements and Members.

@@ -17,6 +17,8 @@ and read everything they missed.
   one-time wish (granted when you loot it); materials like ore are "always wanted", with an
   optional amount and your bag/bank count. Item tooltips show "Wanted by", the wanter is pinged
   when a member loots their item, and members get reminders at loot rolls and mailboxes
+- @mentions: type `@Kara` (or `@all`) in Fellowship chat to tag a member; they hear a sound,
+  see an alert and the game icon flashes. Tab finishes names, and it can be turned off in Settings
 - Online/offline notices, plus each member's zone and level in the Members tab
 - A clean window with a sidebar (Chat, Calendar, Wishlist, Achievements, Members), badges for anything new, and a feed with filters; resizable
 - A settings window (`/fship settings` or the gear) to choose what you share and

@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.16.0"
+ns.VERSION = "0.17.0"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -21,6 +21,7 @@ ns.defaults = {
     shareDeaths = true,       showDeaths = true,
     shareRares = true,        showRares = true,        -- rare mobs spotted
     showPresence = true,      -- "Bob came online / went offline"
+    mentionAlert = true,      -- sound + alert when someone @mentions you
     shareLocation = true,     -- zone and level in other members' Members tab
     -- minimap button
     minimapShow = true,
@@ -325,7 +326,7 @@ function ns.FormatEvent(e)
     local d = e.d or {}
     if e.k == "C" then
         local color = "|cff" .. ns.TextColor()
-        return who .. ": " .. color .. ns.SafeChat(d[1], color) .. "|r"
+        return who .. ": " .. color .. ns.Mentions.Highlight(ns.SafeChat(d[1], color), color) .. "|r"
     elseif e.k == "A" then
         local id = tonumber(d[1])
         local link = id and GetAchievementLink and GetAchievementLink(id)
@@ -440,8 +441,13 @@ function ns.ScheduleSummary(delay)
         if not fid then return end
         local chats, achievements = ns.Store:UnreadCounts(fid)
         if chats + achievements > 0 then
-            ns.Print(string.format("While you were away: %d message%s and %d achievement%s. Type /fs to read.",
-                chats, chats == 1 and "" or "s", achievements, achievements == 1 and "" or "s"))
+            local tagged = ns.Mentions.UnreadCount(fid)
+            ns.Print(string.format("While you were away: %d message%s and %d achievement%s.%s Type /fs to read.",
+                chats, chats == 1 and "" or "s", achievements, achievements == 1 and "" or "s",
+                tagged > 0 and string.format(" |cffff9933You were mentioned %d time%s.|r", tagged, tagged == 1 and "" or "s") or ""))
+            if tagged > 0 and ns.settings.mentionAlert ~= false and PlaySound and SOUNDKIT then
+                PlaySound(SOUNDKIT.TELL_MESSAGE or 3081)
+            end
         end
     end)
 end
@@ -539,7 +545,7 @@ end)
 -- Slash commands
 ---------------------------------------------------------------------------
 local HELP = {
-    "|cffffd100/fs <message>|r - talk to your fellowship",
+    "|cffffd100/fs <message>|r - talk to your fellowship (type @Name to tag someone, @all for everyone)",
     "|cffffd100/fs|r or |cffffd100/fship|r - open the Fellowship window",
     "|cffffd100/fship create <name>|r - start a new fellowship",
     "|cffffd100/fship invite <first> <last>|r - invite someone by full name (they need Fellowship installed)",

@@ -1865,6 +1865,58 @@ test("window: sidebar badges, feed filters and the hideable member list", functi
     assert(not p.members:IsShown(), "member list hidden on screen")
 end)
 
+test("@mentions: tagged members hear a sound and see an alert; Tab completes names", function()
+    local before = function(anna, bob, cara)
+        for _, c in ipairs({ anna, bob, cara }) do
+            c.globals = c.globals or {}
+            c.globals.PlaySound = function() c.sounds = (c.sounds or 0) + 1 end
+            c.globals.SOUNDKIT = { TELL_MESSAGE = 3081 }
+            c.globals.FlashClientIcon = function() c.flashed = true end
+            c.globals.UIErrorsFrame = { AddMessage = function(_, m) c.alert = m end }
+        end
+    end
+    local w, anna, bob, cara = setup(before)
+    bob:slash("/fs @anna want to run Gnomeregan?")
+    w:advance(2)
+    eq(anna.sounds, 1, "anna heard it"); assert(anna.flashed, "icon flashed")
+    eq(anna.alert, "Bob Silvermoon mentioned you in Fellowship chat")
+    assert(not cara.sounds, "cara wasn't tagged")
+    assert(anna:logContains("|cffff9933@anna|r"), "tag highlighted")
+    -- full name, and @all
+    cara:slash("/fs @Bob Silvermoon thanks!")
+    w:advance(2)
+    eq(bob.sounds, 1, "bob tagged by full name")
+    assert(bob:logContains("|cffff9933@Bob Silvermoon|r"), "full name highlighted")
+    anna:slash("/fs @all dungeon in 10")
+    w:advance(2)
+    eq(bob.sounds, 2, "bob by @all"); eq(cara.sounds, 1, "cara by @all")
+    eq(anna.sounds, 1, "you don't ping yourself")
+    -- not a member: nothing happens, text stays as typed
+    bob:slash("/fs email me @ home")
+    bob:slash("/fs @Zed hi")
+    w:advance(2)
+    eq(anna.sounds, 1, "no ping for non-members")
+    -- turned off
+    anna.ns.settings.mentionAlert = false
+    bob:slash("/fs @anna again")
+    w:advance(2)
+    eq(anna.sounds, 1, "setting turns it off")
+    anna.ns.settings.mentionAlert = true
+    -- Tab completion
+    local Mn = anna.ns.Mentions
+    eq(Mn.Complete("hey @b"), "hey @Bob ", "completes a first name")
+    eq(Mn.Complete("hey @"), "hey @Bob ", "first match alphabetically, never yourself")
+    eq(Mn.Complete("hey @zz"), nil, "no match")
+    eq(Mn.Complete("hi there"), nil, "only after @")
+    -- missed while offline: counted in the login summary
+    anna.ns.Store:MarkRead(anna.ns.Store:ActiveId())
+    anna:logout(); w:advance(5)
+    bob:slash("/fs @anna are you coming tonight?")
+    w:advance(2)
+    anna:login(); w:advance(30)
+    assert(anna:logContains("You were mentioned 1 time"), "away summary counts mentions")
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")

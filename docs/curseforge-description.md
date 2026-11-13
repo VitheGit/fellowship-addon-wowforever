@@ -17,6 +17,7 @@ No guild needed. No server, no website, no Discord. Just the addon.
 ### 💬 Private fellowship chat
 - Type `/fs hello!` to talk to your fellowship from anywhere
 - Names in **class colors**, messages in their own color so they never get lost among guild and party chat
+- **@mentions**: type `@Kara` or `@all` to tag someone. They hear a sound and get an alert, even if they're tabbed out (Tab finishes the name)
 - Send Fellowship to any chat tab you like: right-click a chat tab and tick **Show Fellowship**
 
 ### 📜 Never miss a thing
