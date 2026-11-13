@@ -350,10 +350,88 @@ function UI:Build()
     chat.log:SetPoint("TOPLEFT", 4, -28)
     chat.log:SetPoint("BOTTOMRIGHT", -(SIDEBAR + 10), 34)
     chat.input = makeInput(chat, 255, function(text) ns.Sync:PostChat(text) end)
-    -- Tab completes "@ka" to "@Kara "
+    -- Typing "@ka" pops up matching members above the box. Click one, or press Tab or Enter for
+    -- the highlighted one (Up/Down to move).
+    local MENTION_ROWS = 8
+    local ms = CreateFrame("Frame", nil, chat)
+    ms:SetPoint("BOTTOMLEFT", chat.input, "TOPLEFT", -6, 2)
+    ms:SetSize(240, 24)
+    ms:SetFrameStrata("DIALOG")
+    local msbg = ms:CreateTexture(nil, "BACKGROUND")
+    msbg:SetAllPoints()
+    msbg:SetColorTexture(0.05, 0.05, 0.05, 0.95)
+    ms.rows, ms.hits, ms.sel = {}, {}, 1
+    local function pick(hit)
+        if not hit then return end
+        chat.input:SetText(hit.text)
+        if chat.input.SetCursorPosition then chat.input:SetCursorPosition(#hit.text) end
+        ms:Hide()
+    end
+    for i = 1, MENTION_ROWS do
+        local b = CreateFrame("Button", nil, ms)
+        b:SetSize(230, 18)
+        b:SetPoint("BOTTOMLEFT", 5, 3 + (i - 1) * 18) -- best match nearest the box
+        b:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+        b.sel = b:CreateTexture(nil, "BACKGROUND")
+        b.sel:SetAllPoints()
+        b.sel:SetColorTexture(1, 0.6, 0.2, 0.25)
+        b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        b.text:SetPoint("LEFT", 4, 0)
+        b.text:SetPoint("RIGHT", -4, 0)
+        b.text:SetJustifyH("LEFT")
+        b:SetScript("OnClick", function(self) pick(self.hit); chat.input:SetFocus() end)
+        ms.rows[i] = b
+    end
+    ms:Hide()
+    chat.mentionSuggest = ms
+    local function showSel()
+        for i, b in ipairs(ms.rows) do if i == ms.sel then b.sel:Show() else b.sel:Hide() end end
+    end
+    function chat.updateMentions(text)
+        local hits = ns.Mentions.Suggest(text, nil, MENTION_ROWS)
+        ms.hits, ms.sel = hits, 1
+        if #hits == 0 then ms:Hide(); return end
+        for i, b in ipairs(ms.rows) do
+            local h = hits[i]
+            b.hit = h
+            if h then
+                b.text:SetText("@" .. (h.name and ns.ColorName(h.name) or ns.Escape(h.label)))
+                b:Show()
+            else
+                b:Hide()
+            end
+        end
+        ms:SetHeight(#hits * 18 + 6)
+        showSel()
+        ms:Show()
+    end
+    chat.input:HookScript("OnTextChanged", function(self, userInput)
+        if userInput == false then return end
+        chat.updateMentions(self:GetText())
+    end)
+    chat.input:HookScript("OnEditFocusLost", function()
+        -- let a click on a suggestion land first
+        C_Timer.After(0.2, function() if not chat.input:HasFocus() then ms:Hide() end end)
+    end)
     chat.input:SetScript("OnTabPressed", function(self)
+        if ms:IsShown() then pick(ms.hits[ms.sel]); return end
         local done = ns.Mentions.Complete(self:GetText())
         if done then self:SetText(done) end
+    end)
+    local send = chat.input:GetScript("OnEnterPressed")
+    chat.input:SetScript("OnEnterPressed", function(self)
+        if ms:IsShown() and ms.hits[ms.sel] then pick(ms.hits[ms.sel]); return end
+        send(self)
+    end)
+    chat.input:SetScript("OnEscapePressed", function(self)
+        if ms:IsShown() then ms:Hide() else self:ClearFocus() end
+    end)
+    if chat.input.SetAltArrowKeyMode then chat.input:SetAltArrowKeyMode(false) end
+    chat.input:SetScript("OnArrowPressed", function(_, key)
+        if not ms:IsShown() then return end
+        if key == "UP" then ms.sel = math.min(#ms.hits, ms.sel + 1)
+        elseif key == "DOWN" then ms.sel = math.max(1, ms.sel - 1) end
+        showSel()
     end)
     chat.input:SetPoint("BOTTOMLEFT", 8, 4)
     chat.input:SetPoint("BOTTOMRIGHT", -(SIDEBAR + 10), 4)

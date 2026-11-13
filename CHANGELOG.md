@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17.3
+
+- **Name suggestions for @mentions.** Type `@` in the Fellowship window's chat box and a list of members pops up above it, narrowing as you type (`@ka` shows Kara Dunmore, Kai...). Click a name, or press Tab or Enter to pick the highlighted one, and use Up/Down to move through the list. `@all` is in the list too. Escape closes it.
+- When two members share a first name, picking one fills in the full name so the right person is tagged.
+
 ## 0.17.2
 
 - **"I have" column in Fellowship Wishes.** Next to "Wanted by", you now see how many of each wanted item you have in your bags and bank, in green when you have some. Glance down the list to spot anything you could hand over. It updates as your bags change.

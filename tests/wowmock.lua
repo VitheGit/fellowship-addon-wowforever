@@ -47,6 +47,10 @@ local function newStub()
     local methods = {
         SetScript = function(self, name, fn) self._scripts[name] = fn end,
         GetScript = function(self, name) return self._scripts[name] end,
+        HookScript = function(self, name, fn)
+            local old = self._scripts[name]
+            self._scripts[name] = old and function(...) old(...); fn(...) end or fn
+        end,
         RegisterEvent = function(self, ev) self._events[ev] = true end,
         UnregisterEvent = function(self, ev) self._events[ev] = nil end,
         Show = function(self)

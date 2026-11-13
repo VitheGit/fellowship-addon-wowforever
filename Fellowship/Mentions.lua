@@ -98,6 +98,39 @@ function M.Complete(text, fid)
     return before .. "@" .. best .. " "
 end
 
+-- Suggestions while typing "@ka": members whose first name starts with "ka", for a list above
+-- the chat box. Each is { label = "Kara Dunmore", text = new box text }. Your own characters are
+-- left out; "@all" is offered too.
+function M.Suggest(text, fid, limit)
+    local before, prefix = tostring(text or ""):match("^(.-)@([^%s%p]*)$")
+    if not before then return {} end
+    if before ~= "" and not before:match("%s$") then return {} end -- an email, not a tag
+    fid = fid or ns.Store:ActiveId()
+    local p, out = prefix:lower(), {}
+    local roster = fid and ns.Store:Roster(fid) or {}
+    local me = roster[ns.meKey]
+    for first, list in pairs(M.Names(fid)) do
+        if first:sub(1, #p) == p then
+            local others = {}
+            for _, c in ipairs(list) do
+                if not (me and c.account == me.account) then others[#others + 1] = c end
+            end
+            for _, c in ipairs(others) do
+                local f, l = c.name:match("^([^%-]+)%-?(.*)$")
+                -- two members called Kara: insert the full name so the right one is tagged
+                local tag = (#list > 1 and l ~= "") and (f .. " " .. l) or f
+                out[#out + 1] = { label = ns.Short(c.name), name = c.name, text = before .. "@" .. tag .. " " }
+            end
+        end
+    end
+    table.sort(out, function(a, b) return a.label < b.label end)
+    if ("all"):sub(1, #p) == p then
+        out[#out + 1] = { label = "all (everyone in the fellowship)", text = before .. "@all " }
+    end
+    while limit and #out > limit do table.remove(out) end
+    return out
+end
+
 function M:Alert(e)
     if ns.settings.mentionAlert == false then return end
     if PlaySound and SOUNDKIT then PlaySound(SOUNDKIT.TELL_MESSAGE or 3081) end

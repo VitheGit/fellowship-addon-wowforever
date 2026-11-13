@@ -1930,6 +1930,21 @@ test("@mentions: tagged members hear a sound and see an alert; Tab completes nam
     eq(Mn.Complete("hey @"), "hey @Bob ", "first match alphabetically, never yourself")
     eq(Mn.Complete("hey @zz"), nil, "no match")
     eq(Mn.Complete("hi there"), nil, "only after @")
+    -- suggestions while typing
+    local hits = Mn.Suggest("hey @b")
+    eq(#hits, 1, "one member starts with b"); eq(hits[1].text, "hey @Bob ", "picking it fills the name")
+    eq(#Mn.Suggest("hey @a"), 1, "your own characters aren't suggested, @all is")
+    eq(#Mn.Suggest("mail me@b"), 0, "not inside a word")
+    anna.ns.UI:Show("chat")
+    local chat
+    for _, f in ipairs(anna.frames) do if rawget(f, "mentionSuggest") then chat = f end end
+    assert(chat, "chat panel has a suggestion list")
+    local input = chat.input
+    input:SetText("hey @"); input._scripts.OnTextChanged(input, true)
+    assert(chat.mentionSuggest:IsShown(), "list pops up after @")
+    input._scripts.OnEnterPressed(input)
+    eq(input:GetText(), "hey @Bob ", "Enter picks the top suggestion instead of sending")
+    assert(not chat.mentionSuggest:IsShown(), "list closes after picking")
     -- missed while offline: counted in the login summary
     anna.ns.Store:MarkRead(anna.ns.Store:ActiveId())
     anna:logout(); w:advance(5)
