@@ -29,7 +29,7 @@ local WISH_ROWS, WISH_ROW_H = 14, 20
 -- Wishlist columns: { x, width } for My Wishlist and Fellowship Wishes
 local WISH_COLS = {
     mine = { { 24, 250, "Item" }, { 278, 100, "Kind" }, { 382, 70, "Have" }, { 456, 170, "Note" } },
-    all = { { 24, 250, "Item" }, { 278, 350, "Wanted by" } },
+    all = { { 24, 250, "Item" }, { 278, 70, "I have" }, { 352, 276, "Wanted by" } },
 }
 
 local NEW_DIVIDER = "|cff33ff99----------  new since you were last here  ----------|r"
@@ -915,6 +915,10 @@ function UI:Init()
     }
     local function queue() UI:QueueRefresh() end
     ns.Listen("WISHLIST_CHANGED", queue)
+    -- bags changed: keep the "I have" column of Fellowship Wishes up to date
+    ns.On("BAG_UPDATE_DELAYED", function()
+        if activeTab == "wishlist" and panels.wishlist and panels.wishlist.view == "all" and UI:IsShown() then queue() end
+    end)
     ns.Listen("CALENDAR_CHANGED", queue)
     ns.Listen("EVENTS_ADDED", queue)
     ns.Listen("PRESENCE", queue)
@@ -1416,7 +1420,10 @@ local function renderWishlist(p, fid)
         end
         table.sort(order, function(a, b) return (a.wish.name or "") < (b.wish.name or "") end)
         for _, g in ipairs(order) do
-            rows[#rows + 1] = { wish = g.wish, mine = false, cells = { W.Link(g.wish), table.concat(g.names, ", ") } }
+            -- "I have": your bags + bank, so you can spot what you could hand over
+            local n = ns.HasItemCount() and (ns.GetItemCount(g.wish.id, true) or 0) or nil
+            local have = (not n and "") or (n > 0 and ("|cff33ff99" .. n .. "|r")) or (GREY .. "0|r")
+            rows[#rows + 1] = { wish = g.wish, mine = false, cells = { W.Link(g.wish), have, table.concat(g.names, ", ") } }
         end
         p.count:SetText(#rows .. " items wanted")
         p.empty:SetText("Nobody in your fellowship has a wishlist yet.")

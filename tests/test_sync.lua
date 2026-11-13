@@ -1591,6 +1591,28 @@ test("wishlist: shift-clicking a stack with the Wishlist tab open adds it instea
     eq(anna.cursor, nil, "cursor cleared")
 end)
 
+test("wishlist: Fellowship Wishes shows how many of each item you have", function()
+    local w, anna, bob = setup(function(a, b, c) withItems(a, b, c)() end)
+    bob.ns.Wishlist:Add(2770); bob.ns.Wishlist:Add(900)
+    w:advance(5)
+    anna.bags[2770] = 23
+    anna.ns.UI:Show("wishlist")
+    local p = anna.ns.UI.WishlistPanelForTest()
+    p.subTabs.all:Click()
+    local function cell(id, col)
+        for _, r in ipairs(p.rows) do
+            if r:IsShown() and r.wish and r.wish.id == id then return r.cells[col]:GetText() end
+        end
+    end
+    eq(p.cols[2]:GetText(), "I have", "column header")
+    assert(tostring(cell(2770, 2)):find("23", 1, true), "shows 23 ore")
+    assert(tostring(cell(900, 2)):find("0", 1, true), "shows 0 bows")
+    assert(tostring(cell(2770, 3)):find("Bob", 1, true), "wanted by Bob")
+    anna.bags[900] = 1
+    anna:fire("BAG_UPDATE_DELAYED"); w:advance(2)
+    assert(tostring(cell(900, 2)):find("1", 1, true), "updates when bags change")
+end)
+
 test("item search: learns item names slowly in the background and finds them as you type", function()
     local before = function(anna, bob, cara)
         withItems(anna, bob, cara)()

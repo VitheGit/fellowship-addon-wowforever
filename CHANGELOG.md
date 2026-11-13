@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.17.2
+
+- **"I have" column in Fellowship Wishes.** Next to "Wanted by", you now see how many of each wanted item you have in your bags and bank, in green when you have some. Glance down the list to spot anything you could hand over. It updates as your bags change.
+
 ## 0.17.1
 
 - If the game ever shows "Fellowship has been blocked from an action only available to the Blizzard UI", Fellowship now notes which action it was. Type `/fship blocked` to see it, along with whether you were in combat, using a controller, or running ConsolePort. Send a screenshot of it so the cause can be fixed.
