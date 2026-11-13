@@ -1917,6 +1917,18 @@ test("@mentions: tagged members hear a sound and see an alert; Tab completes nam
     assert(anna:logContains("You were mentioned 1 time"), "away summary counts mentions")
 end)
 
+test("blocked actions are recorded and shown by /fship blocked", function()
+    local w, anna = setup()
+    anna:fire("ADDON_ACTION_FORBIDDEN", "OtherAddon", "CastSpellByName()")
+    anna:fire("ADDON_ACTION_FORBIDDEN", "Fellowship", "ClearTarget()")
+    anna:fire("ADDON_ACTION_BLOCKED", "Fellowship", "FocusUnit()")
+    assert(anna:logContains("blocked Fellowship from using"), "tells the player once")
+    anna:slash("/fship blocked")
+    assert(anna:logContains("ClearTarget() (forbidden)"), "lists the forbidden call")
+    assert(anna:logContains("FocusUnit() (blocked)"), "lists the blocked call")
+    assert(not anna:logContains("CastSpellByName"), "ignores other addons")
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")

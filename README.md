@@ -69,6 +69,7 @@ Everyone in the group needs the addon installed.
 | `/fship tab` | Show/hide Fellowship messages in the chat tab you are typing in (`/fship tab 2`, `/fship tab reset`). You can also right-click a chat tab and tick **Show Fellowship** |
 | `/fship settings` | Open the settings window |
 | `/fship minimap` | Show or hide the minimap button |
+| `/fship blocked` | Show anything the game stopped Fellowship from doing (for bug reports) |
 | `/fship calendar` | Open the Calendar tab to plan events and sign up (`/fship events` lists them in chat) |
 | `/fship wish <item> [amount]` | Add an item to your wishlist (shift-click the item in); `/fship wish` alone opens the Wishlist tab |
 | `/fship unwish <item>` | Take an item off your wishlist |

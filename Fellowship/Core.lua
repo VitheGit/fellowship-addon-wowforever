@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.17.0"
+ns.VERSION = "0.17.1"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -505,6 +505,51 @@ ns.Listen("PRESENCE", function(key, isOnline)
 end)
 
 ---------------------------------------------------------------------------
+-- Blocked actions: when the game stops Fellowship from doing something only Blizzard's own UI
+-- may do, remember what it was, so /fship blocked can tell us what to fix.
+---------------------------------------------------------------------------
+local function addonLoaded(name)
+    local f = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+    return f and f(name) and true or false
+end
+
+local function onBlocked(kind, addon, func)
+    if addon ~= ADDON_NAME then return end
+    FellowshipDB = FellowshipDB or {}
+    local list = FellowshipDB.blocked or {}
+    FellowshipDB.blocked = list
+    local pad = C_GamePad and C_GamePad.IsEnabled and C_GamePad.IsEnabled()
+    local entry = {
+        kind = kind, func = tostring(func or "?"), t = time and time() or 0,
+        combat = InCombatLockdown and InCombatLockdown() and true or false,
+        gamepad = pad and true or false, consoleport = addonLoaded("ConsolePort"),
+        window = ns.UI and ns.UI.IsShown and ns.UI:IsShown() and true or false,
+        version = ns.VERSION,
+    }
+    table.insert(list, 1, entry)
+    while #list > 10 do table.remove(list) end
+    if not ns.blockedSaid then
+        ns.blockedSaid = true
+        ns.Print("The game blocked Fellowship from using |cffffd100" .. entry.func
+            .. "|r. Type |cffffd100/fship blocked|r and send a screenshot of it to the addon's author.")
+    end
+end
+
+ns.On("ADDON_ACTION_FORBIDDEN", function(addon, func) onBlocked("forbidden", addon, func) end)
+ns.On("ADDON_ACTION_BLOCKED", function(addon, func) onBlocked("blocked", addon, func) end)
+
+function ns.PrintBlocked()
+    local list = FellowshipDB and FellowshipDB.blocked or {}
+    if #list == 0 then ns.Print("Nothing has been blocked.") return end
+    ns.Print("Recently blocked (newest first):")
+    for _, e in ipairs(list) do
+        ns.Output(string.format("  %s  %s (%s)%s%s%s%s  v%s", date and date("%m/%d %H:%M", e.t) or "", e.func, e.kind,
+            e.combat and ", in combat" or "", e.gamepad and ", controller on" or "",
+            e.consoleport and ", ConsolePort" or "", e.window and ", window open" or "", e.version or "?"))
+    end
+end
+
+---------------------------------------------------------------------------
 -- Lifecycle
 ---------------------------------------------------------------------------
 ns.On("ADDON_LOADED", function(name)
@@ -565,6 +610,7 @@ local HELP = {
     "|cffffd100/fship wish <item> [amount]|r - add an item to your wishlist (shift-click it; /fship wish alone opens the list)",
     "|cffffd100/fship unwish <item>|r - take an item off your wishlist",
     "|cffffd100/fship dungeons|r - recent boss kills and why a run did or didn't count",
+    "|cffffd100/fship blocked|r - anything the game stopped Fellowship from doing (for bug reports)",
 }
 
 function ns.HandleSlash(input)
@@ -642,6 +688,8 @@ function ns.HandleSlash(input)
         ns.UI:Show("calendar")
     elseif cmd == "events" then
         ns.Calendar:PrintUpcoming()
+    elseif cmd == "blocked" then
+        ns.PrintBlocked()
     elseif cmd == "items" then
         ns.ItemSearch:PrintStatus()
     elseif cmd == "unwish" then

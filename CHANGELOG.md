@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.17.1
+
+- If the game ever shows "Fellowship has been blocked from an action only available to the Blizzard UI", Fellowship now notes which action it was. Type `/fship blocked` to see it, along with whether you were in combat, using a controller, or running ConsolePort. Send a screenshot of it so the cause can be fixed.
+
 ## 0.17.0
 
 - **@mentions in Fellowship chat.** Type `@` and a name, like `@Kara`, to tag a member. They hear a short sound, see "Kara mentioned you in Fellowship chat" in the middle of the screen, and the game's icon flashes on their taskbar if the game is in the background.
