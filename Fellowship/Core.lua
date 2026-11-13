@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.14.1"
+ns.VERSION = "0.15.0"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -520,6 +520,7 @@ ns.On("PLAYER_LOGIN", function()
     ns.Announce:Init()
     ns.ItemSearch:Init()
     ns.Wishlist:Init()
+    ns.Calendar:Init()
     ns.UI:Init()
     ns.Menu:Init()
     ns.Menu:InitChatTab()
@@ -554,6 +555,7 @@ local HELP = {
     "|cffffd100/fship settings|r - choose what gets shared and shown",
     "|cffffd100/fship minimap|r - show or hide the minimap button",
     "|cffffd100/fship channel|r - check the hidden fellowship channel",
+    "|cffffd100/fship calendar|r - plan dungeon runs, raids and other events, and sign up (/fship events lists them)",
     "|cffffd100/fship wish <item> [amount]|r - add an item to your wishlist (shift-click it; /fship wish alone opens the list)",
     "|cffffd100/fship unwish <item>|r - take an item off your wishlist",
     "|cffffd100/fship dungeons|r - recent boss kills and why a run did or didn't count",
@@ -630,6 +632,10 @@ function ns.HandleSlash(input)
         ns.Channel:PrintStatus()
     elseif cmd == "wish" or cmd == "wishlist" then
         ns.Wishlist:Slash(rest)
+    elseif cmd == "calendar" or cmd == "cal" then
+        ns.UI:Show("calendar")
+    elseif cmd == "events" then
+        ns.Calendar:PrintUpcoming()
     elseif cmd == "items" then
         ns.ItemSearch:PrintStatus()
     elseif cmd == "unwish" then

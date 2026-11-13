@@ -89,11 +89,14 @@ local function makeInput(parent, maxLetters, onEnter)
     return eb
 end
 
+UI.MakeButton, UI.MakeInput = makeButton, makeInput
+function UI.CalendarPanel() return panels.calendar end
+
 function UI:Build()
     if frame then return end
     frame = CreateFrame("Frame", "FellowshipFrame", UIParent, "BasicFrameTemplateWithInset")
     fixCloseButton(frame)
-    frame:SetSize(660, 440)
+    frame:SetSize(720, 440)
     frame:SetPoint("CENTER")
     frame:SetMovable(true)
     frame:EnableMouse(true)
@@ -115,10 +118,10 @@ function UI:Build()
 
     -- Tabs
     local tabs = { { "chat", "Chat" }, { "achievements", "Activity" }, { "feats", "Achievements" },
-        { "members", "Members" }, { "wishlist", "Wishlist" } }
+        { "calendar", "Calendar" }, { "members", "Members" }, { "wishlist", "Wishlist" } }
     for i, t in ipairs(tabs) do
-        local b = makeButton(frame, t[2], 98, function() UI:SelectTab(t[1]) end)
-        b:SetPoint("TOPLEFT", 12 + (i - 1) * 101, -28)
+        local b = makeButton(frame, t[2], 92, function() UI:SelectTab(t[1]) end)
+        b:SetPoint("TOPLEFT", 12 + (i - 1) * 95, -28)
         tabButtons[t[1]] = b
     end
 
@@ -528,6 +531,8 @@ function UI:Build()
     wl.hint:SetText("Shift-click any item while this tab is open, or drop it on the slot. Right-click a row to change it.")
     panels.wishlist = wl
 
+    panels.calendar = UI:BuildCalendar(panel(), makeButton, makeInput)
+
     -- No fellowship yet: a "Create Fellowship" screen
     local none = panel()
     none.heading = none:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
@@ -701,6 +706,7 @@ function UI:Init()
     }
     local function queue() UI:QueueRefresh() end
     ns.Listen("WISHLIST_CHANGED", queue)
+    ns.Listen("CALENDAR_CHANGED", queue)
     ns.Listen("EVENTS_ADDED", queue)
     ns.Listen("PRESENCE", queue)
     ns.Listen("FELLOWSHIP_CHANGED", queue)
@@ -1319,6 +1325,8 @@ function UI:Refresh()
         renderFeats(p, fid)
     elseif activeTab == "wishlist" then
         renderWishlist(p, fid)
+    elseif activeTab == "calendar" then
+        UI:RenderCalendar(p, fid)
     else
         renderMembers(p, fid)
     end

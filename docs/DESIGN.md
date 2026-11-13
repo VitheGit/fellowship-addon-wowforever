@@ -112,6 +112,15 @@ broadcast like events (channel, then whispers). Loot of a wished-for item is pos
 loot event with field 5 `"1"` (wish granted) and field 6 the wanters' names, so older versions
 still show "X looted [Item]".
 
+## Calendar
+
+Same replication as wishlists, with `CL` (one character's record) and `CV` (summary). A
+record holds the events that character created (`E id time type title note cancelled`) and
+its answers (`R creator id status`, status `y`/`m`/`n`). Only the creator's own record can
+change or cancel an event, so nobody else can edit it. Times are server time, shown with the
+viewer's local `date()`. Events more than two days old are dropped when their creator next
+publishes.
+
 ## Item search
 
 Addons can't search items by name, so `ItemSearch.lua` keeps an account-wide index

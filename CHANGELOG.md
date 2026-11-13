@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.15.0
+
+- New **Calendar** tab for planning dungeon runs, raids and anything else. Any member can plan an event: click **New Event** (or click a day first), choose **Dungeon**, **Raid** or **Other**, pick the dungeon or raid from the list (or type a name for Other), then set the date, time and an optional note.
+- Everyone answers **Going**, **Maybe** or **Can't**. The event shows who's going, who might come, who can't, and who hasn't answered yet. You can change your answer any time.
+- The month view shows how many events each day has. The list on the right shows upcoming events, or the events on the day you clicked, with your answer next to each one.
+- Only the person who planned an event can edit or cancel it. Everyone sees when it's cancelled.
+- Notices in Fellowship chat when someone plans an event, and (for the person who planned it) when members answer.
+- At login you see what's coming up in the next 24 hours, and how many events still need your answer. A reminder with a sound pops up 15 minutes before an event starts, unless you said you can't come.
+- Times are shown in each person's own time zone.
+- Events sync like wishlists, so members who were offline get them when they log in. Everyone needs 0.15.0 to see the calendar.
+- New commands: `/fship calendar` opens the Calendar tab, and `/fship events` lists upcoming events in chat.
+- The Fellowship window is a little wider, to fit the new tab.
+
 ## 0.14.1
 
 - Fixed item search finding nothing. WoW Forever only offers item lookups through the game's newer item functions, so the background scan couldn't read any names, and wishlist counts could read 0. The scan now starts over once, by itself, and fills in properly.

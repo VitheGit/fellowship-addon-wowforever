@@ -12,6 +12,7 @@
 --   PI  fid proto | level zone                   presence ping + where I am (a bounce means they logged off)
 --   CH  fid proto wantReply                      (channel only) "I'm listening on the fellowship channel"
 --   WL / WV                                      wishlists (see Wishlist.lua); older versions ignore them
+--   CL / CV                                      calendar events and sign-ups (see Calendar.lua)
 --
 -- Catch-up: whenever two members meet (login, periodic ping, new member) they swap HI
 -- vectors; each side REQuests only the ranges it is missing. Because every member keeps
@@ -188,7 +189,10 @@ function Sync:Hello(fid, target, wantReply)
     if not f.hwm[ns.me] then rec[#rec + 1] = { ns.me, 0, ns.Store:GetClass(ns.me) } end
     send(target, rec)
     -- a reply means they're online: compare wishlists too (they answer if theirs are newer)
-    if not wantReply then ns.Wishlist:SendSummary(fid, target, true) end
+    if not wantReply then
+        ns.Wishlist:SendSummary(fid, target, true)
+        ns.Calendar:SendSummary(fid, target, true)
+    end
 end
 
 -- Cheap check that members we think are online still are: if they logged off,
@@ -509,6 +513,10 @@ function Sync:OnMessage(sender, records, viaChannel)
         ns.Wishlist:OnSummary(sender, fid, records, h[4] == "1")
     elseif typ == "WL" then
         ns.Wishlist:OnList(sender, fid, records)
+    elseif typ == "CV" then
+        ns.Calendar:OnSummary(sender, fid, records, h[4] == "1")
+    elseif typ == "CL" then
+        ns.Calendar:OnList(sender, fid, records)
     end
 end
 
