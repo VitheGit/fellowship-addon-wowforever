@@ -5,9 +5,9 @@ local UI = ns.UI
 local C = ns.Calendar
 
 local GREY = "|cff808080"
-local CELL_W, CELL_H, CELL_GAP = 44, 38, 2
+local CELL_W, CELL_H, CELL_GAP = 40, 38, 2
 local LIST_ROWS, ROW_H = 8, 20
-local LIST_X = 336
+local LIST_X = 304
 local WEEKDAYS = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" }
 
 local function today()
@@ -178,19 +178,19 @@ function UI:BuildCalendar(p, makeButton, makeInput)
     d.buttons = {}
     local x = 8
     for _, s in ipairs({ { "y", "Going" }, { "m", "Maybe" }, { "n", "Can't" } }) do
-        local b = makeButton(d, s[2], 70, function()
+        local b = makeButton(d, s[2], 64, function()
             if p.st.eventKey then C:Respond(p.st.eventKey, s[1]) end
         end)
         b:SetPoint("BOTTOMLEFT", x, 6)
         b.status = s[1]
         d.buttons[#d.buttons + 1] = b
-        x = x + 74
+        x = x + 68
     end
-    d.edit = makeButton(d, "Edit", 56, function()
+    d.edit = makeButton(d, "Edit", 50, function()
         if p.st.eventKey then UI:OpenEventEditor(p.st.eventKey) end
     end)
-    d.edit:SetPoint("BOTTOMRIGHT", -66, 6)
-    d.cancel = makeButton(d, "Cancel", 58, function()
+    d.edit:SetPoint("BOTTOMRIGHT", -64, 6)
+    d.cancel = makeButton(d, "Cancel", 56, function()
         if p.st.eventKey then StaticPopup_Show("FELLOWSHIP_CANCEL_EVENT", nil, nil, p.st.eventKey) end
     end)
     d.cancel:SetPoint("BOTTOMRIGHT", -6, 6)

@@ -18,7 +18,8 @@ and read everything they missed.
   optional amount and your bag/bank count. Item tooltips show "Wanted by", the wanter is pinged
   when a member loots their item, and members get reminders at loot rolls and mailboxes
 - Online/offline notices, plus each member's zone and level in the Members tab
-- A settings window (`/fship settings` or the Settings button) to choose what you share and
+- A clean window with a sidebar (Chat, Calendar, Wishlist, Achievements, Members), badges for anything new, and a feed with filters; resizable
+- A settings window (`/fship settings` or the gear) to choose what you share and
   what you see, for every kind of announcement
 - Messages go out once on a hidden, password-protected fellowship channel (falling back to
   whispers), so even big fellowships get chat instantly

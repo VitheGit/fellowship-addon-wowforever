@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.16.0
+
+- **A cleaner Fellowship window.** The row of buttons along the top is gone. Pages are now in a sidebar on the left, each with an icon: Chat, Calendar, Wishlist, Achievements and Members.
+- Red badges on the sidebar show new chat and activity while you're on another page, and how many calendar events are waiting for your answer.
+- The window uses the game's portrait frame, with the Fellowship icon in the corner, your fellowship's name as the title and "4 of 5 online" under it. Settings is now a gear next to the close button.
+- **Chat and Activity are now one feed.** Filters along the top let you show All, Chat, Loot, Dungeons, Levels, Deaths or More (achievements, collections, rare mobs). Your choice is remembered. The member list on the right can be hidden with the Members switch.
+- Dungeons/Raids and My Wishlist/Fellowship Wishes are now small switches instead of big buttons.
+- Input boxes show what to type ("Message Loot Kills...", "Search items to add..."), and the wishlist instructions moved into a "?" you can hover.
+- The window can be resized from the bottom-right corner, and remembers its size and position.
+
 ## 0.15.0
 
 - New **Calendar** tab for planning dungeon runs, raids and anything else. Any member can plan an event: click **New Event** (or click a day first), choose **Dungeon**, **Raid** or **Other**, pick the dungeon or raid from the list (or type a name for Other), then set the date, time and an optional note.

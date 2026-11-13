@@ -89,55 +89,265 @@ local function makeInput(parent, maxLetters, onEnter)
     return eb
 end
 
-UI.MakeButton, UI.MakeInput = makeButton, makeInput
+-- Grey hint text inside an empty input box ("Message Loot Kills...").
+local function setPlaceholder(eb, text)
+    if not rawget(eb, "placeholder") then -- rawget: a frame's unknown fields could be methods
+        eb.placeholder = eb:CreateFontString(nil, "ARTWORK", "GameFontDisable")
+        eb.placeholder:SetPoint("LEFT", 2, 0)
+        eb.placeholder:SetPoint("RIGHT", -4, 0)
+        eb.placeholder:SetJustifyH("LEFT")
+        eb.placeholder:SetWordWrap(false)
+        local function update(self)
+            if self:GetText() == "" and not self:HasFocus() then self.placeholder:Show() else self.placeholder:Hide() end
+        end
+        eb:HookScript("OnEditFocusGained", update)
+        eb:HookScript("OnEditFocusLost", update)
+        eb:HookScript("OnTextChanged", update)
+        eb.updatePlaceholder = update
+    end
+    eb.placeholder:SetText(text)
+    eb.updatePlaceholder(eb)
+end
+
+-- A flat, quiet toggle: segmented switches ("Dungeons | Raids") and filter chips.
+local function makeToggle(parent, text, width, onClick)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(width, 20)
+    b.bg = b:CreateTexture(nil, "BACKGROUND")
+    b.bg:SetAllPoints()
+    b.label = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    b.label:SetPoint("CENTER")
+    b.label:SetText(text)
+    b:SetHighlightTexture("Interface\\Buttons\\UI-Listbox-Highlight2", "ADD")
+    b:SetScript("OnClick", onClick)
+    function b:SetSelected(on)
+        self.selected = on
+        if on then
+            self.bg:SetColorTexture(0.55, 0.42, 0.12, 0.55)
+            self.label:SetTextColor(1, 0.82, 0)
+        else
+            self.bg:SetColorTexture(1, 1, 1, 0.07)
+            self.label:SetTextColor(0.8, 0.78, 0.72)
+        end
+    end
+    b:SetSelected(false)
+    return b
+end
+
+-- Small "?" that explains a page in its tooltip, instead of hint text on the page.
+local function makeHelp(parent, title, lines)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(18, 18)
+    b.bg = b:CreateTexture(nil, "BACKGROUND")
+    b.bg:SetAllPoints()
+    b.bg:SetColorTexture(1, 1, 1, 0.08)
+    b.label = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    b.label:SetPoint("CENTER", 0, 0)
+    b.label:SetText("?")
+    b:SetScript("OnEnter", function(self)
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine(title)
+        for _, l in ipairs(lines) do GameTooltip:AddLine(l, 1, 1, 1, true) end
+        GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    return b
+end
+
+UI.MakeButton, UI.MakeInput, UI.MakeToggle, UI.MakeHelp, UI.SetPlaceholder = makeButton, makeInput, makeToggle, makeHelp, setPlaceholder
 function UI.CalendarPanel() return panels.calendar end
+
+-- Pages in the sidebar: id, name, icon
+local NAV = {
+    { "chat", "Chat", "Interface\\Icons\\INV_Letter_15" },
+    { "calendar", "Calendar", "Interface\\Icons\\INV_Misc_PocketWatch_01" },
+    { "wishlist", "Wishlist", "Interface\\Icons\\INV_Misc_Bag_10" },
+    { "feats", "Achievements", "Interface\\Icons\\INV_Misc_Head_Dragon_01" },
+    { "members", "Members", "Interface\\Icons\\INV_Misc_GroupLooking" },
+}
+local NAV_W = 140
+local MIN_W, MIN_H = 820, 480
+-- Feed filters: which events each chip shows
+local FEED_FILTERS = {
+    { "all", "All" }, { "chat", "Chat" }, { "loot", "Loot" }, { "instance", "Dungeons" },
+    { "level", "Levels" }, { "death", "Deaths" }, { "other", "More" },
+}
+local function feedFilter(e, which)
+    if which == "all" then return true end
+    local sub = e.k == "M" and e.d and e.d[1]
+    if which == "chat" then return e.k == "C" end
+    if which == "loot" then return sub == "loot" end
+    if which == "instance" then return sub == "dungeon" or sub == "raid" or sub == "feat" end
+    if which == "level" then return sub == "level" end
+    if which == "death" then return sub == "death" end
+    -- "More": achievements, collections, rares and membership news
+    return e.k ~= "C" and sub ~= "loot" and sub ~= "dungeon" and sub ~= "raid" and sub ~= "feat"
+        and sub ~= "level" and sub ~= "death"
+end
+UI.FeedFilter = feedFilter
+
+local function saveWindow()
+    if not frame or not ns.settings then return end
+    local point, _, rel, x, y = frame:GetPoint(1)
+    ns.settings.window = { point = point, rel = rel, x = x, y = y, w = frame:GetWidth(), h = frame:GetHeight() }
+end
 
 function UI:Build()
     if frame then return end
-    frame = CreateFrame("Frame", "FellowshipFrame", UIParent, "BasicFrameTemplateWithInset")
+    -- the game's portrait window (round picture top-left); older clients get the plain one
+    local ok, f = pcall(CreateFrame, "Frame", "FellowshipFrame", UIParent, "PortraitFrameTemplate")
+    if not ok or not f then f = CreateFrame("Frame", "FellowshipFrame", UIParent, "BasicFrameTemplateWithInset") end
+    frame = f
     fixCloseButton(frame)
-    frame:SetSize(720, 440)
-    frame:SetPoint("CENTER")
+    local w = ns.settings and ns.settings.window
+    frame:SetSize(math.max(MIN_W, (w and tonumber(w.w)) or MIN_W), math.max(MIN_H, (w and tonumber(w.h)) or MIN_H))
+    if w and w.point and tonumber(w.x) and tonumber(w.y) then
+        frame:SetPoint(w.point, UIParent, w.rel or w.point, w.x, w.y)
+    else
+        frame:SetPoint("CENTER")
+    end
     frame:SetMovable(true)
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
-    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+    frame:SetScript("OnDragStop", function(self) self:StopMovingOrSizing(); saveWindow() end)
     frame:SetClampedToScreen(true)
     frame:Hide()
     table.insert(UISpecialFrames, "FellowshipFrame") -- close on Escape
+    if frame.SetPortraitToAsset then
+        pcall(frame.SetPortraitToAsset, frame, "Interface\\AddOns\\Fellowship\\Media\\icon")
+    elseif frame.SetPortraitTextureRaw then
+        pcall(frame.SetPortraitTextureRaw, frame, "Interface\\AddOns\\Fellowship\\Media\\icon")
+    end
 
-    frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    frame.title:SetPoint("TOP", 0, -6)
+    -- resizable, with a grip in the bottom-right corner; size and position are remembered
+    if frame.SetResizable then
+        frame:SetResizable(true)
+        if frame.SetResizeBounds then frame:SetResizeBounds(MIN_W, MIN_H, 1400, 1000)
+        elseif frame.SetMinResize then frame:SetMinResize(MIN_W, MIN_H) end
+        local grip = CreateFrame("Button", nil, frame)
+        grip:SetSize(16, 16)
+        grip:SetPoint("BOTTOMRIGHT", -4, 4)
+        grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+        grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+        grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+        grip:SetScript("OnMouseDown", function() frame:StartSizing("BOTTOMRIGHT") end)
+        grip:SetScript("OnMouseUp", function() frame:StopMovingOrSizing(); saveWindow(); UI:Refresh() end)
+        frame.grip = grip
+    end
+
+    -- title: fellowship name, and "4 of 5 online" under it
+    frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    frame.title:SetPoint("TOP", 0, -5)
+    frame.subtitle = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    frame.subtitle:SetPoint("TOPLEFT", 66, -32)
+    frame.subtitle:SetJustifyH("LEFT")
+
+    -- Settings: a gear next to the close button
+    local gear = CreateFrame("Button", nil, frame)
+    gear:SetSize(20, 20)
+    gear:SetPoint("TOPRIGHT", -30, -1)
+    gear:SetNormalTexture("Interface\\Buttons\\UI-OptionsButton")
+    gear:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    gear:SetScript("OnClick", function() UI:ToggleSettings() end)
+    gear:SetScript("OnEnter", function(self)
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:AddLine("Settings")
+        GameTooltip:AddLine("Choose what you share and see", 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    gear:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    frame.gear = gear
 
     frame:SetScript("OnShow", function() UI:Refresh() end)
     frame:SetScript("OnHide", function()
         local fid = ns.Store:ActiveId()
         if fid then ns.Store:MarkRead(fid) end
     end)
+    frame:SetScript("OnSizeChanged", function() UI:QueueRefresh() end)
 
-    -- Tabs
-    local tabs = { { "chat", "Chat" }, { "achievements", "Activity" }, { "feats", "Achievements" },
-        { "calendar", "Calendar" }, { "members", "Members" }, { "wishlist", "Wishlist" } }
-    for i, t in ipairs(tabs) do
-        local b = makeButton(frame, t[2], 92, function() UI:SelectTab(t[1]) end)
-        b:SetPoint("TOPLEFT", 12 + (i - 1) * 95, -28)
+    -- Sidebar: one row per page, with an icon and a badge for anything new
+    local nav = CreateFrame("Frame", nil, frame)
+    nav:SetPoint("TOPLEFT", 6, -56)
+    nav:SetPoint("BOTTOMLEFT", 6, 6)
+    nav:SetWidth(NAV_W)
+    local navBg = nav:CreateTexture(nil, "BACKGROUND")
+    navBg:SetAllPoints()
+    navBg:SetColorTexture(0, 0, 0, 0.35)
+    local navLine = nav:CreateTexture(nil, "ARTWORK")
+    navLine:SetPoint("TOPRIGHT")
+    navLine:SetPoint("BOTTOMRIGHT")
+    navLine:SetWidth(1)
+    navLine:SetColorTexture(1, 0.82, 0, 0.15)
+    frame.nav = nav
+    for i, t in ipairs(NAV) do
+        local b = CreateFrame("Button", nil, nav)
+        b:SetSize(NAV_W - 8, 30)
+        b:SetPoint("TOPLEFT", 4, -6 - (i - 1) * 32)
+        b.sel = b:CreateTexture(nil, "BACKGROUND")
+        b.sel:SetAllPoints()
+        b.sel:SetColorTexture(0.55, 0.42, 0.12, 0.35)
+        b.bar = b:CreateTexture(nil, "ARTWORK")
+        b.bar:SetPoint("TOPLEFT", -4, -3)
+        b.bar:SetPoint("BOTTOMLEFT", -4, 3)
+        b.bar:SetWidth(3)
+        b.bar:SetColorTexture(1, 0.82, 0, 1)
+        b:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+        b.icon = b:CreateTexture(nil, "ARTWORK")
+        b.icon:SetSize(20, 20)
+        b.icon:SetPoint("LEFT", 6, 0)
+        b.icon:SetTexture(t[3])
+        if b.icon.SetTexCoord then b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+        b.label = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        b.label:SetPoint("LEFT", b.icon, "RIGHT", 8, 0)
+        b.label:SetText(t[2])
+        b.badge = CreateFrame("Frame", nil, b)
+        b.badge:SetSize(20, 16)
+        b.badge:SetPoint("RIGHT", -6, 0)
+        b.badge.bg = b.badge:CreateTexture(nil, "ARTWORK")
+        b.badge.bg:SetAllPoints()
+        b.badge.bg:SetColorTexture(0.72, 0.15, 0.11, 1)
+        b.badge.text = b.badge:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        b.badge.text:SetPoint("CENTER", 0, 0)
+        b.badge:Hide()
+        b:SetScript("OnClick", function() UI:SelectTab(t[1]) end)
+        b.id = t[1]
         tabButtons[t[1]] = b
     end
 
     local function panel()
         local p = CreateFrame("Frame", nil, frame)
-        p:SetPoint("TOPLEFT", 12, -56)
+        p:SetPoint("TOPLEFT", NAV_W + 16, -58)
         p:SetPoint("BOTTOMRIGHT", -12, 10)
         p:Hide()
         return p
     end
 
-    -- Chat
+    -- Chat: one feed for chat and activity, with filter chips on top
     local chat = panel()
+    chat.filters = {}
+    local fx = 4
+    for _, ft in ipairs(FEED_FILTERS) do
+        local b = makeToggle(chat, ft[2], 62, function()
+            ns.settings.feedFilter = ft[1]
+            UI:Refresh()
+        end)
+        b:SetPoint("TOPLEFT", fx, -2)
+        b.id = ft[1]
+        chat.filters[#chat.filters + 1] = b
+        fx = fx + 66
+    end
+    chat.toggleMembers = makeToggle(chat, "Members", 70, function()
+        ns.settings.feedMembers = not (ns.settings.feedMembers ~= false)
+        UI:Refresh()
+    end)
+    chat.toggleMembers:SetPoint("TOPRIGHT", -4, -2)
     chat.log = makeLog(chat)
     local SIDEBAR = 150
-    chat.log:SetPoint("TOPLEFT", 4, -4)
+    chat.sidebarWidth = SIDEBAR
+    chat.log:SetPoint("TOPLEFT", 4, -28)
     chat.log:SetPoint("BOTTOMRIGHT", -(SIDEBAR + 10), 34)
     chat.input = makeInput(chat, 255, function(text) ns.Sync:PostChat(text) end)
     chat.input:SetPoint("BOTTOMLEFT", 8, 4)
@@ -147,14 +357,14 @@ function UI:Build()
     chat.divider = chat:CreateTexture(nil, "ARTWORK")
     chat.divider:SetColorTexture(1, 1, 1, 0.12)
     chat.divider:SetWidth(1)
-    chat.divider:SetPoint("TOPRIGHT", -(SIDEBAR + 2), -2)
+    chat.divider:SetPoint("TOPRIGHT", -(SIDEBAR + 2), -26)
     chat.divider:SetPoint("BOTTOMRIGHT", -(SIDEBAR + 2), 2)
     chat.membersHeader = chat:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    chat.membersHeader:SetPoint("TOPRIGHT", -6, -6)
+    chat.membersHeader:SetPoint("TOPRIGHT", -6, -30)
     chat.membersHeader:SetWidth(SIDEBAR - 8)
     chat.membersHeader:SetJustifyH("LEFT")
     chat.members = chat:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    chat.members:SetPoint("TOPRIGHT", -6, -26)
+    chat.members:SetPoint("TOPRIGHT", -6, -50)
     chat.members:SetPoint("BOTTOMRIGHT", -6, 4)
     chat.members:SetWidth(SIDEBAR - 8)
     chat.members:SetJustifyH("LEFT")
@@ -162,27 +372,17 @@ function UI:Build()
     chat.members:SetSpacing(4)
     panels.chat = chat
 
-    local settingsButton = makeButton(frame, "Settings", 90, function() UI:ToggleSettings() end)
-    settingsButton:SetPoint("TOPRIGHT", -12, -28)
-
-    -- Activity: achievements, level-ups, collections, loot, dungeons, deaths
-    local ach = panel()
-    ach.log = makeLog(ach)
-    ach.log:SetPoint("TOPLEFT", 4, -4)
-    ach.log:SetPoint("BOTTOMRIGHT", -4, 4)
-    panels.achievements = ach
-
     -- Achievements: Fellowship Achievements, with Dungeons and Raids sub-tabs
     local feats = panel()
     feats.category = "dungeon"
     feats.subTabs = {}
     for i, t in ipairs({ { "dungeon", "Dungeons" }, { "raid", "Raids" } }) do
-        local b = makeButton(feats, t[2], 100, function()
+        local b = makeToggle(feats, t[2], 90, function()
             feats.category = t[1]
             feats.offset = 0
             UI:Refresh()
         end)
-        b:SetPoint("TOPLEFT", 4 + (i - 1) * 104, -2)
+        b:SetPoint("TOPLEFT", 4 + (i - 1) * 92, -4)
         feats.subTabs[t[1]] = b
     end
     feats.count = feats:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -332,6 +532,7 @@ function UI:Build()
     mem.showOfflineLabel:SetText("Show offline members")
 
     mem.input = makeInput(mem, 64, function(text) ns.Sync:Invite(text) end)
+    setPlaceholder(mem.input, "Invite by full name, like \"Valtri Brinkforge\"...")
     mem.input:SetPoint("BOTTOMLEFT", 10, 4)
     mem.input:SetWidth(220)
     mem.invite = makeButton(mem, "Invite", 80, function()
@@ -348,16 +549,23 @@ function UI:Build()
     wl.view = "mine"
     wl.subTabs = {}
     for i, t in ipairs({ { "mine", "My Wishlist" }, { "all", "Fellowship Wishes" } }) do
-        local b = makeButton(wl, t[2], 130, function()
+        local b = makeToggle(wl, t[2], 120, function()
             wl.view = t[1]
             wl.offset = 0
             UI:Refresh()
         end)
-        b:SetPoint("TOPLEFT", 4 + (i - 1) * 134, -2)
+        b:SetPoint("TOPLEFT", 4 + (i - 1) * 122, -4)
         wl.subTabs[t[1]] = b
     end
     wl.count = wl:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    wl.count:SetPoint("TOPRIGHT", -8, -8)
+    wl.count:SetPoint("TOPRIGHT", -30, -8)
+    wl.help = makeHelp(wl, "Wishlist", {
+        "Type part of a name in the box at the bottom, like \"ore\", and pick from the list.",
+        "Or shift-click any item while this page is open, or drop an item on the slot.",
+        "Right-click a row to make it one-time or always wanted, set an amount or a note, or remove it.",
+        "Friends see your wishes in item tooltips, and get pinged when they loot what you want.",
+    })
+    wl.help:SetPoint("TOPRIGHT", -6, -5)
     wl.cols = {}
     for i = 1, 4 do
         local fs = wl:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -524,11 +732,7 @@ function UI:Build()
     wl.add = makeButton(wl, "Add", 70, function() if not dropItem() then addFromBox() end end)
     wl.add:SetScript("OnReceiveDrag", dropItem)
     wl.add:SetPoint("LEFT", wl.input, "RIGHT", 6, 0)
-    wl.hint = wl:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    wl.hint:SetPoint("LEFT", wl.add, "RIGHT", 10, 0)
-    wl.hint:SetPoint("RIGHT", wl, "RIGHT", -6, 0)
-    wl.hint:SetJustifyH("LEFT")
-    wl.hint:SetText("Shift-click any item while this tab is open, or drop it on the slot. Right-click a row to change it.")
+    setPlaceholder(wl.input, "Search items to add, like \"ore\"...")
     panels.wishlist = wl
 
     panels.calendar = UI:BuildCalendar(panel(), makeButton, makeInput)
@@ -1056,9 +1260,7 @@ local function setArt(tex, card)
 end
 
 local function renderFeats(p, fid)
-    for cat, b in pairs(p.subTabs) do
-        if cat == p.category then b:Disable() else b:Enable() end
-    end
+    for cat, b in pairs(p.subTabs) do b:SetSelected(cat == p.category) end
     local cards, completed = ns.Feats:Cards(fid, p.category)
     p.count:SetText(string.format("%d / %d completed", completed, #cards))
     local rows = math.ceil(#cards / 2)
@@ -1179,9 +1381,7 @@ end
 
 local function renderWishlist(p, fid)
     local W = ns.Wishlist
-    for view, b in pairs(p.subTabs) do
-        if view == p.view then b:Disable() else b:Enable() end
-    end
+    for view, b in pairs(p.subTabs) do b:SetSelected(view == p.view) end
     placeColumns(p, WISH_COLS[p.view])
     local rows = {}
     if p.view == "mine" then
@@ -1296,31 +1496,79 @@ function UI:OpenMemberMenu(owner, m)
     end)
 end
 
+-- Badges on the sidebar: unread feed lines, and events waiting for your answer.
+function UI:Badges(fid)
+    local out = {}
+    if activeTab == "chat" and frame:IsShown() then
+        UI.chatSeenAt = ns.Now()
+    else
+        -- new since you last looked at the feed (this session) or last closed the window
+        local since = math.max(ns.Store:LastRead(fid), UI.chatSeenAt or 0)
+        local n = 0
+        for _, e in ipairs(ns.Store:Sorted(fid)) do
+            if e.a ~= ns.me and (e.r or e.t) > since and (e.k == "C" or ((e.k == "A" or e.k == "M") and ns.Announce.ShouldShow(e))) then
+                n = n + 1
+            end
+        end
+        if n > 0 then out.chat = n end
+    end
+    local waiting = 0
+    for _, ev in ipairs(ns.Calendar:Upcoming(fid)) do
+        if ev.time > ns.Now() and not ns.Calendar:MyStatus(ev) then waiting = waiting + 1 end
+    end
+    if waiting > 0 then out.calendar = waiting end
+    return out
+end
+
 function UI:Refresh()
     if not frame or not frame:IsShown() then return end
     for _, p in pairs(panels) do p:Hide() end
     local f, fid = ns.Store:Active()
     if not f then
         frame.title:SetText("Fellowship")
-        for _, b in pairs(tabButtons) do b:Hide() end
+        frame.subtitle:SetText("")
+        frame.nav:Hide()
         panels.none:Show()
         return
     end
+    frame.nav:Show()
+    if activeTab == "achievements" then activeTab = "chat" end -- Activity is part of the feed now
+    local badges = self:Badges(fid)
     for name, b in pairs(tabButtons) do
-        b:Show()
-        if name == activeTab then b:Disable() else b:Enable() end
+        local on = name == activeTab
+        if on then b.sel:Show(); b.bar:Show(); b.label:SetTextColor(1, 0.82, 0)
+        else b.sel:Hide(); b.bar:Hide(); b.label:SetTextColor(0.85, 0.82, 0.75) end
+        local n = badges[name]
+        if n then
+            local label = n > 99 and "99+" or tostring(n)
+            b.badge.text:SetText(label)
+            b.badge:SetWidth(10 + 7 * #label)
+            b.badge:Show()
+        else
+            b.badge:Hide()
+        end
     end
     local members, onlineCount = ns.Sync:MemberList(fid) -- same count as the Members tab (includes you)
-    frame.title:SetText(ns.Escape(f.name) .. (f.pendingFrom and "  (joining...)" or
-        string.format("  |cff808080(%d of %d online)|r", onlineCount, #members)))
+    frame.title:SetText(ns.Escape(f.name))
+    frame.subtitle:SetText(f.pendingFrom and "|cffffd100Joining...|r"
+        or string.format("|cff33ff99%d of %d online|r", onlineCount, #members))
 
     local p = panels[activeTab]
     p:Show()
     if activeTab == "chat" then
-        renderFeed(p.log, fid, function(e) return ns.Announce.ShouldShow(e) end)
-        renderSidebar(p, fid)
-    elseif activeTab == "achievements" then
-        renderFeed(p.log, fid, function(e) return (e.k == "A" or e.k == "M") and ns.Announce.ShouldShow(e) end)
+        local which = ns.settings.feedFilter or "all"
+        for _, b in ipairs(p.filters) do b:SetSelected(b.id == which) end
+        local showMembers = ns.settings.feedMembers ~= false
+        p.toggleMembers:SetSelected(showMembers)
+        local right = showMembers and (p.sidebarWidth + 10) or 4
+        p.log:SetPoint("BOTTOMRIGHT", -right, 34)
+        p.input:SetPoint("BOTTOMRIGHT", -right, 4)
+        for _, r in ipairs({ p.divider, p.membersHeader, p.members }) do
+            if showMembers then r:Show() else r:Hide() end
+        end
+        setPlaceholder(p.input, "Message " .. ns.Escape(f.name) .. "...")
+        renderFeed(p.log, fid, function(e) return ns.Announce.ShouldShow(e) and feedFilter(e, which) end)
+        if showMembers then renderSidebar(p, fid) end
     elseif activeTab == "feats" then
         renderFeats(p, fid)
     elseif activeTab == "wishlist" then

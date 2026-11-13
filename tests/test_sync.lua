@@ -400,7 +400,7 @@ test("Members tab is a guild-style roster and the title count matches", function
     eq(seen["Bob Silvermoon"].seen, "|cff33ff99Online|r")
     local title
     for _, f in ipairs(anna.frames) do
-        local t = rawget(f, "title")
+        local t = rawget(f, "subtitle")
         if type(t) == "table" and type(t._text) == "string" and t._text:find("online") then title = t._text end
     end
     assert(title and title:find("3 of 3 online", 1, true), tostring(title))
@@ -1819,13 +1819,59 @@ test("calendar: the tab and the New Event window", function()
     anna:slash("/fship calendar")
 end)
 
+test("window: sidebar badges, feed filters and the hideable member list", function()
+    local w, anna, bob = setup()
+    local UI = anna.ns.UI
+    UI:Show("calendar")
+    bob:slash("/fsay anyone around?")
+    bob:fire("PLAYER_LEVEL_UP", 30)
+    w:advance(2)
+    UI:Refresh()
+    local nav
+    for _, f in ipairs(anna.frames) do if type(rawget(f, "nav")) == "table" then nav = f end end
+    local chatBtn
+    for _, f in ipairs(anna.frames) do if rawget(f, "id") == "chat" and rawget(f, "badge") then chatBtn = f end end
+    assert(chatBtn and chatBtn.badge:IsShown(), "chat badge shown while on another page")
+    eq(chatBtn.badge.text:GetText(), "2", "two new lines")
+    -- an event waiting for an answer badges the calendar
+    bob.ns.Calendar:Create({ time = bob.ns.Now() + 86400, type = "raid", title = "Molten Core" })
+    w:advance(2)
+    UI:SelectTab("chat")
+    local calBtn
+    for _, f in ipairs(anna.frames) do if rawget(f, "id") == "calendar" and rawget(f, "badge") then calBtn = f end end
+    eq(calBtn.badge.text:GetText(), "1", "one event to answer")
+    assert(not chatBtn.badge:IsShown(), "no chat badge while reading chat")
+    UI:SelectTab("members")
+    assert(not chatBtn.badge:IsShown(), "seen lines don't come back as new")
+    -- filters
+    local F = UI.FeedFilter
+    local chat = { k = "C", d = { "hi" } }
+    local lvl = { k = "M", d = { "level", "30" } }
+    local loot = { k = "M", d = { "loot", "item:1", "X", "4" } }
+    local mount = { k = "M", d = { "mount", "Horse", "1" } }
+    assert(F(chat, "chat") and not F(lvl, "chat"), "chat filter")
+    assert(F(lvl, "level") and F(loot, "loot") and F(mount, "other") and not F(loot, "other"), "other filters")
+    assert(F(mount, "all"), "all")
+    UI:SelectTab("chat")
+    local p = UI.CalendarPanel and nil
+    for _, f in ipairs(anna.frames) do if type(rawget(f, "filters")) == "table" then p = f end end
+    p.filters[2]:Click() -- Chat only
+    eq(anna.ns.settings.feedFilter, "chat", "filter remembered")
+    local shown = table.concat(p.log._lines or {}, "\n")
+    assert(shown:find("anyone around"), "chat line shown")
+    assert(not shown:find("reached level"), "level line filtered out")
+    p.toggleMembers:Click()
+    eq(anna.ns.settings.feedMembers, false, "member list hidden")
+    assert(not p.members:IsShown(), "member list hidden on screen")
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")
     w:advance(2)
     anna:slash("/fs")
     anna.ns.Wishlist:Add("|cffa335ee|Hitem:900:4::|h[Epic Bow]|h|r")
-    for _, tab in ipairs({ "chat", "achievements", "feats", "members", "wishlist", "calendar" }) do anna.ns.UI:SelectTab(tab) end
+    for _, tab in ipairs({ "chat", "feats", "members", "wishlist", "calendar" }) do anna.ns.UI:SelectTab(tab) end
     anna.ns.UI.panelsForTest = nil
     anna:slash("/fship wish")
     w:advance(1)
