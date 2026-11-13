@@ -6,7 +6,7 @@ World.__index = World
 
 local ADDON_DIR = (arg and arg[0] and arg[0]:match("^(.*)/tests/")) or "."
 ADDON_DIR = ADDON_DIR .. "/Fellowship/"
-local FILES = { "Core.lua", "Serializer.lua", "Store.lua", "Comm.lua", "Channel.lua", "Sync.lua", "Announce.lua", "Feats.lua", "Menu.lua", "Minimap.lua", "UI.lua" }
+local FILES = { "Core.lua", "Serializer.lua", "Store.lua", "Comm.lua", "Channel.lua", "Sync.lua", "Announce.lua", "Feats.lua", "ItemSearch.lua", "Wishlist.lua", "Calendar.lua", "Mentions.lua", "Menu.lua", "Minimap.lua", "UI.lua", "CalendarUI.lua" }
 
 local function deepcopy(v)
     if type(v) ~= "table" then
@@ -47,6 +47,10 @@ local function newStub()
     local methods = {
         SetScript = function(self, name, fn) self._scripts[name] = fn end,
         GetScript = function(self, name) return self._scripts[name] end,
+        HookScript = function(self, name, fn)
+            local old = self._scripts[name]
+            self._scripts[name] = old and function(...) old(...); fn(...) end or fn
+        end,
         RegisterEvent = function(self, ev) self._events[ev] = true end,
         UnregisterEvent = function(self, ev) self._events[ev] = nil end,
         Show = function(self)

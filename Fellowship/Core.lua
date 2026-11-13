@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.12.0"
+ns.VERSION = "0.17.3"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -21,6 +21,7 @@ ns.defaults = {
     shareDeaths = true,       showDeaths = true,
     shareRares = true,        showRares = true,        -- rare mobs spotted
     showPresence = true,      -- "Bob came online / went offline"
+    mentionAlert = true,      -- sound + alert when someone @mentions you
     shareLocation = true,     -- zone and level in other members' Members tab
     -- minimap button
     minimapShow = true,
@@ -134,6 +135,24 @@ function ns.Debug(msg)
     if ns.settings and ns.settings.debug then
         DEFAULT_CHAT_FRAME:AddMessage("|cff808080[Fellowship debug]|r " .. tostring(msg))
     end
+end
+
+-- Item lookups: newer clients only have these under C_Item (the old globals are gone), so
+-- always look them up at call time, C_Item first.
+function ns.GetItemInfo(item)
+    local fn = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+    if not fn or item == nil then return nil end
+    return fn(item)
+end
+
+function ns.GetItemCount(id, includeBank)
+    local fn = (C_Item and C_Item.GetItemCount) or GetItemCount
+    if not fn or not id then return nil end
+    return fn(id, includeBank)
+end
+
+function ns.HasItemCount()
+    return ((C_Item and C_Item.GetItemCount) or GetItemCount) ~= nil
 end
 
 function ns.Now()
@@ -307,7 +326,7 @@ function ns.FormatEvent(e)
     local d = e.d or {}
     if e.k == "C" then
         local color = "|cff" .. ns.TextColor()
-        return who .. ": " .. color .. ns.SafeChat(d[1], color) .. "|r"
+        return who .. ": " .. color .. ns.Mentions.Highlight(ns.SafeChat(d[1], color), color) .. "|r"
     elseif e.k == "A" then
         local id = tonumber(d[1])
         local link = id and GetAchievementLink and GetAchievementLink(id)
@@ -329,10 +348,17 @@ function ns.FormatEvent(e)
             return who .. " added a new pet: [" .. ns.Escape(d[2]) .. "]"
         elseif sub == "toy" then
             local itemID = tonumber(d[3])
-            local link = itemID and GetItemInfo and select(2, GetItemInfo(itemID))
+            local link = itemID and select(2, ns.GetItemInfo(itemID))
             return who .. " added a new toy: " .. (link or ("[" .. ns.Escape(d[2]) .. "]"))
         elseif sub == "loot" then
-            return who .. " looted " .. ns.Announce.ItemLink(d[2], d[3], d[4])
+            local line = who .. " looted " .. ns.Announce.ItemLink(d[2], d[3], d[4])
+            if d[6] and d[6] ~= "" then
+                local mine = ns.Wishlist.IsForMe(e)
+                line = line .. " - " .. (mine and "|cffffd100" or "") .. ns.Wishlist.WantersText(d[6])
+                    .. (mine and "|r" or "") .. " wanted this!"
+            end
+            if d[5] == "1" then line = line .. " |cff33ff99Wish granted!|r" end
+            return line
         elseif sub == "dungeon" or sub == "raid" then
             local diff = (d[3] and d[3] ~= "") and (" (" .. ns.Escape(d[3]) .. ")") or ""
             local key = ""
@@ -415,8 +441,13 @@ function ns.ScheduleSummary(delay)
         if not fid then return end
         local chats, achievements = ns.Store:UnreadCounts(fid)
         if chats + achievements > 0 then
-            ns.Print(string.format("While you were away: %d message%s and %d achievement%s. Type /fs to read.",
-                chats, chats == 1 and "" or "s", achievements, achievements == 1 and "" or "s"))
+            local tagged = ns.Mentions.UnreadCount(fid)
+            ns.Print(string.format("While you were away: %d message%s and %d achievement%s.%s Type /fs to read.",
+                chats, chats == 1 and "" or "s", achievements, achievements == 1 and "" or "s",
+                tagged > 0 and string.format(" |cffff9933You were mentioned %d time%s.|r", tagged, tagged == 1 and "" or "s") or ""))
+            if tagged > 0 and ns.settings.mentionAlert ~= false and PlaySound and SOUNDKIT then
+                PlaySound(SOUNDKIT.TELL_MESSAGE or 3081)
+            end
         end
     end)
 end
@@ -474,6 +505,51 @@ ns.Listen("PRESENCE", function(key, isOnline)
 end)
 
 ---------------------------------------------------------------------------
+-- Blocked actions: when the game stops Fellowship from doing something only Blizzard's own UI
+-- may do, remember what it was, so /fship blocked can tell us what to fix.
+---------------------------------------------------------------------------
+local function addonLoaded(name)
+    local f = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+    return f and f(name) and true or false
+end
+
+local function onBlocked(kind, addon, func)
+    if addon ~= ADDON_NAME then return end
+    FellowshipDB = FellowshipDB or {}
+    local list = FellowshipDB.blocked or {}
+    FellowshipDB.blocked = list
+    local pad = C_GamePad and C_GamePad.IsEnabled and C_GamePad.IsEnabled()
+    local entry = {
+        kind = kind, func = tostring(func or "?"), t = time and time() or 0,
+        combat = InCombatLockdown and InCombatLockdown() and true or false,
+        gamepad = pad and true or false, consoleport = addonLoaded("ConsolePort"),
+        window = ns.UI and ns.UI.IsShown and ns.UI:IsShown() and true or false,
+        version = ns.VERSION,
+    }
+    table.insert(list, 1, entry)
+    while #list > 10 do table.remove(list) end
+    if not ns.blockedSaid then
+        ns.blockedSaid = true
+        ns.Print("The game blocked Fellowship from using |cffffd100" .. entry.func
+            .. "|r. Type |cffffd100/fship blocked|r and send a screenshot of it to the addon's author.")
+    end
+end
+
+ns.On("ADDON_ACTION_FORBIDDEN", function(addon, func) onBlocked("forbidden", addon, func) end)
+ns.On("ADDON_ACTION_BLOCKED", function(addon, func) onBlocked("blocked", addon, func) end)
+
+function ns.PrintBlocked()
+    local list = FellowshipDB and FellowshipDB.blocked or {}
+    if #list == 0 then ns.Print("Nothing has been blocked.") return end
+    ns.Print("Recently blocked (newest first):")
+    for _, e in ipairs(list) do
+        ns.Output(string.format("  %s  %s (%s)%s%s%s%s  v%s", date and date("%m/%d %H:%M", e.t) or "", e.func, e.kind,
+            e.combat and ", in combat" or "", e.gamepad and ", controller on" or "",
+            e.consoleport and ", ConsolePort" or "", e.window and ", window open" or "", e.version or "?"))
+    end
+end
+
+---------------------------------------------------------------------------
 -- Lifecycle
 ---------------------------------------------------------------------------
 ns.On("ADDON_LOADED", function(name)
@@ -493,6 +569,9 @@ ns.On("PLAYER_LOGIN", function()
     ns.Sync:Init()
     ns.Channel:Init()
     ns.Announce:Init()
+    ns.ItemSearch:Init()
+    ns.Wishlist:Init()
+    ns.Calendar:Init()
     ns.UI:Init()
     ns.Menu:Init()
     ns.Menu:InitChatTab()
@@ -511,7 +590,7 @@ end)
 -- Slash commands
 ---------------------------------------------------------------------------
 local HELP = {
-    "|cffffd100/fs <message>|r - talk to your fellowship",
+    "|cffffd100/fs <message>|r - talk to your fellowship (type @Name to tag someone, @all for everyone)",
     "|cffffd100/fs|r or |cffffd100/fship|r - open the Fellowship window",
     "|cffffd100/fship create <name>|r - start a new fellowship",
     "|cffffd100/fship invite <first> <last>|r - invite someone by full name (they need Fellowship installed)",
@@ -527,7 +606,11 @@ local HELP = {
     "|cffffd100/fship settings|r - choose what gets shared and shown",
     "|cffffd100/fship minimap|r - show or hide the minimap button",
     "|cffffd100/fship channel|r - check the hidden fellowship channel",
+    "|cffffd100/fship calendar|r - plan dungeon runs, raids and other events, and sign up (/fship events lists them)",
+    "|cffffd100/fship wish <item> [amount]|r - add an item to your wishlist (shift-click it; /fship wish alone opens the list)",
+    "|cffffd100/fship unwish <item>|r - take an item off your wishlist",
     "|cffffd100/fship dungeons|r - recent boss kills and why a run did or didn't count",
+    "|cffffd100/fship blocked|r - anything the game stopped Fellowship from doing (for bug reports)",
 }
 
 function ns.HandleSlash(input)
@@ -599,6 +682,18 @@ function ns.HandleSlash(input)
         ns.Print("Debug messages " .. (ns.settings.debug and "on" or "off") .. ".")
     elseif cmd == "channel" then
         ns.Channel:PrintStatus()
+    elseif cmd == "wish" or cmd == "wishlist" then
+        ns.Wishlist:Slash(rest)
+    elseif cmd == "calendar" or cmd == "cal" then
+        ns.UI:Show("calendar")
+    elseif cmd == "events" then
+        ns.Calendar:PrintUpcoming()
+    elseif cmd == "blocked" then
+        ns.PrintBlocked()
+    elseif cmd == "items" then
+        ns.ItemSearch:PrintStatus()
+    elseif cmd == "unwish" then
+        ns.Wishlist:SlashRemove(rest)
     elseif cmd == "dungeons" then
         ns.Feats:Diagnose()
     elseif cmd == "version" then

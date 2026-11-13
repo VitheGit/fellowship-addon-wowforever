@@ -5,7 +5,8 @@
 -- addon still store and relay them and show them as a generic milestone.
 --   level   level                       mount  name, spellID
 --   pet     name                        toy    name, itemID
---   loot    itemString, name, quality   dungeon/raid  instance, difficulty, keyLevel, onTime
+--   loot    itemString, name, quality, wishGranted ("1"), wanters ("A-B,C-D")
+--                                       dungeon/raid  instance, difficulty, keyLevel, onTime
 --   death   killer, zone
 --   rare    name, npcID, zone, mapID, x, y   (x/y in 1/10000 of the map, for a map pin)
 local _, ns = ...
@@ -42,9 +43,12 @@ function A.ShouldShow(e)
     local group = A.GroupOf(e)
     if not group then return true end
     if e.a == ns.me then return true end -- your own things always show in the window
+    if group == "loot" and ns.Wishlist.IsForMe(e) then return true end
     local s = ns.settings
     if not s[A.TYPES[group].show] then return false end
     if group == "loot" then
+        if ns.Wishlist.IsForMe(e) then return true end -- someone looted what you wished for
+        if e.d[5] == "1" or (e.d[6] and e.d[6] ~= "") then return true end -- wishlist loot: any quality
         local q = tonumber(e.d[4]) or 0
         return q >= (s.lootMinQuality or 4)
     end
@@ -101,7 +105,7 @@ function A:OnToy(itemID)
         local _, toyName = C_ToyBox.GetToyInfo(itemID)
         name = toyName
     end
-    if not name and GetItemInfo then name = GetItemInfo(itemID) end
+    if not name then name = ns.GetItemInfo(itemID) end
     if name then share("collection", { "toy", name, itemID }) end
 end
 
@@ -121,10 +125,8 @@ local function itemQuality(link)
         local q = C_Item.GetItemQualityByID(link)
         if q then return q end
     end
-    if GetItemInfo then
-        local _, _, q = GetItemInfo(link)
-        return q
-    end
+    local _, _, q = ns.GetItemInfo(link)
+    return q
 end
 
 function A:OnLoot(text)
@@ -145,6 +147,14 @@ function A:OnLoot(text)
     local name = link:match("|h%[(.-)%]|h")
     if not itemString or not name then return end
     local q = itemQuality(link)
+    -- wishlist: a wish of yours granted, or something another member wants (any quality)
+    local itemID = tonumber(itemString:match("^item:(%d+)"))
+    ns.ItemSearch:Learn(itemID, name, q)
+    local granted, wanters = ns.Wishlist:OnOwnLoot(itemID)
+    if granted then ns.Print("|cff33ff99Wish granted!|r " .. link .. " is off your wishlist.") end
+    if granted or #wanters > 0 then
+        return ns.Sync:Publish("M", { "loot", itemString, name, q or "", granted and "1" or "", table.concat(wanters, ",") })
+    end
     if not q or q < 3 then return end -- only Rare and better
     share("loot", { "loot", itemString, name, q })
 end

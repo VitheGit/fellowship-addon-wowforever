@@ -17,6 +17,7 @@ No guild needed. No server, no website, no Discord. Just the addon.
 ### 💬 Private fellowship chat
 - Type `/fs hello!` to talk to your fellowship from anywhere
 - Names in **class colors**, messages in their own color so they never get lost among guild and party chat
+- **@mentions**: type `@Kara` or `@all` to tag someone. They hear a sound and get an alert, even if they're tabbed out (Tab finishes the name)
 - Send Fellowship to any chat tab you like: right-click a chat tab and tick **Show Fellowship**
 
 ### 📜 Never miss a thing
@@ -26,6 +27,19 @@ No guild needed. No server, no website, no Discord. Just the addon.
 ### 🛡️ Fellowship Achievements
 - Clear a dungeon or raid where **everyone in the group is in your fellowship** and it's earned for the whole fellowship, with the date and who was there
 - See them all in the **Achievements** tab: a card for every dungeon and raid, marked **Completed** with the date or **Incomplete**
+
+### 📅 Calendar
+- Plan dungeon runs, raids or anything else: pick from the **dungeon** and **raid** lists, or choose **Other** and name it
+- Everyone answers **Going**, **Maybe** or **Can't**, and you can see who hasn't answered yet
+- A month view, a list of upcoming events, a login summary, and a reminder 15 minutes before it starts
+- Times shown in everyone's own time zone
+
+### 🎁 Wishlists
+- Add the items you're hunting for in the **Wishlist** tab: shift-click an item in, or drag it from your bags
+- **One-time wishes** (gear, mounts, recipes): when a fellowship member loots one, you get a ping and a sound. Loot it yourself and it's marked *Wish granted!*
+- **Always wanted** (ore, herbs, cloth): stays on your list, with an optional amount (*Copper Ore 14/40*) and no spam when you loot it yourself
+- Hover any item in the game to see **"Wanted by"** your friends
+- Reminders when a wanted item shows up in a loot roll, and when you open a mailbox with something a friend wants in your bags
 
 ### 🏆 A shared adventure feed
 Posted automatically when it happens:
@@ -68,6 +82,8 @@ Left-click to open Fellowship, right-click for Settings, and drag it wherever yo
 | `/fship remove <player>` | Remove a member (Admin) |
 | `/fship tab` | Show/hide Fellowship in the current chat tab |
 | `/fship minimap` | Show/hide the minimap button |
+| `/fship calendar` | Plan events and sign up |
+| `/fship wish <item>` | Add an item to your wishlist |
 | `/fship leave` | Leave the fellowship |
 | `/fship help` | All commands |
 

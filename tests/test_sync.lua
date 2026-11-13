@@ -400,7 +400,7 @@ test("Members tab is a guild-style roster and the title count matches", function
     eq(seen["Bob Silvermoon"].seen, "|cff33ff99Online|r")
     local title
     for _, f in ipairs(anna.frames) do
-        local t = rawget(f, "title")
+        local t = rawget(f, "subtitle")
         if type(t) == "table" and type(t._text) == "string" and t._text:find("online") then title = t._text end
     end
     assert(title and title:find("3 of 3 online", 1, true), tostring(title))
@@ -1360,12 +1360,621 @@ test("no channel support in the client: whispers only", function()
     assert(anna:logContains("using whispers"), "status")
 end)
 
+-- Wishlists ---------------------------------------------------------------
+local ORE = "|cffffffff|Hitem:2770:1::|h[Copper Ore]|h|r"
+local BOW = "|cffa335ee|Hitem:900:4::|h[Epic Bow]|h|r"
+local HAT = "|cff1eff00|Hitem:950:2::|h[Green Hat]|h|r"
+
+ITEM_DB = {
+    [2770] = { "Copper Ore", 1, 7 }, [2771] = { "Tin Ore", 1, 7 }, [2772] = { "Iron Ore", 1, 7 },
+    [2775] = { "Silver Ore", 2, 7 }, [3858] = { "Mithril Ore", 1, 7 }, [2840] = { "Copper Bar", 1, 7 },
+    [900] = { "Epic Bow", 4, 2 }, [950] = { "Green Hat", 2, 4 }, [7911] = { "Truesilver Ore", 2, 7 },
+    [4000] = { "Boots of the Oregon Trail", 3, 4 }, [12345] = { "Thing", 1, 15 },
+}
+
+local function withItems(...)
+    local clients = { ... }
+    return function()
+        for _, c in ipairs(clients) do
+            c.bags = c.bags or {}
+            c.globals = c.globals or {}
+            c.globals.GetItemCount = function(id) return c.bags[id] or 0 end
+            c.globals.GetItemInfoInstant = function(id)
+                if not ITEM_DB[id] then return nil end
+                return id, nil, nil, nil, nil, ITEM_DB[id][3]
+            end
+            c.globals.GetItemInfo = function(id)
+                if type(id) == "string" then
+                    for k, v in pairs(ITEM_DB) do
+                        if v[1] == id and (not c.serverSlow or c.cached[k]) then return v[1], "|cffffffff|Hitem:" .. k .. "|h[" .. v[1] .. "]|h|r", v[2] end
+                    end
+                    return nil
+                end
+                local v = ITEM_DB[id]
+                if not v then return "Item " .. tostring(id), nil, nil end
+                if c.serverSlow and not (c.cached and c.cached[id]) then return nil end
+                return v[1], "|cffffffff|Hitem:" .. id .. "|h[" .. v[1] .. "]|h|r", v[2]
+            end
+            c.globals.GetLootRollItemLink = function(rollID) return c.rolls and c.rolls[rollID] end
+            c.globals.PlaySound = function(id) c.sounds = (c.sounds or 0) + 1 end
+            c.globals.SOUNDKIT = { RAID_WARNING = 8959 }
+        end
+    end
+end
+
+local function chatMatch(c, pattern)
+    for _, l in ipairs(c.log) do if l:find(pattern) then return true end end
+    return false
+end
+
+local function tooltip(c, id)
+    return table.concat(c.ns.Wishlist:TooltipLines(id), " / ")
+end
+
+test("wishlist: items are shared live, kinds default by item type, tooltips say who wants them", function()
+    local before = function(anna, bob, cara) withItems(anna, bob, cara)() end
+    local w, anna, bob, cara = setup(before)
+    anna.bags[2770] = 14
+    anna:slash("/fship wish " .. BOW .. " for my hunter")
+    anna:slash("/fship wish " .. ORE .. " 40")
+    w:advance(2)
+    local W = anna.ns.Wishlist
+    eq(#W:Mine(), 2, "two wishes")
+    eq(W:Find(900).mode, "once", "gear is one-time")
+    eq(W:Find(900).note, "for my hunter", "note kept")
+    eq(W:Find(2770).mode, "always", "ore is always wanted")
+    eq(W:Find(2770).want, 40, "amount")
+    eq(W:Find(2770).have, 14, "bag count")
+    assert(tooltip(bob, 2770):find("wanted by .*Anna Silvermoon.*14/40"), "bob's ore tooltip: " .. tooltip(bob, 2770))
+    assert(tooltip(cara, 900):find("Anna Silvermoon"), "cara's bow tooltip")
+    assert(tooltip(anna, 900):find("on your wishlist"), "own tooltip")
+    eq(tooltip(bob, 12345), "", "unwanted item has no line")
+    -- adding the same item twice doesn't duplicate it; removing works
+    anna.ns.Wishlist:Add(BOW)
+    eq(#W:Mine(), 2, "no duplicate")
+    anna:slash("/fship wish " .. HAT)
+    w:advance(2)
+    assert(tooltip(bob, 950) ~= "", "hat shared")
+    anna:slash("/fship unwish " .. HAT)
+    w:advance(2)
+    eq(tooltip(bob, 950), "", "hat removed for bob")
+    -- typed names only work for items the game knows
+    local _, err = W:Add("Some Unknown Thing")
+    assert(err and err:find("Shift%-click"), "explains how to add")
+end)
+
+test("wishlist: offline members get lists from whoever is online, and a wiped list comes back", function()
+    local before = function(anna, bob, cara) withItems(anna, bob, cara)() end
+    local w, anna, bob, cara = setup(before)
+    cara:logout()
+    w:advance(5)
+    anna.ns.Wishlist:Add(BOW)
+    w:advance(2)
+    anna:logout()
+    w:advance(5)
+    cara:login()
+    w:advance(30)
+    assert(tooltip(cara, 900):find("Anna Silvermoon"), "cara learned anna's wish from bob")
+    -- anna's saved list is lost (reinstall); a friend restores it
+    anna.saved.fellowships[next(anna.saved.fellowships)].wishes = nil
+    anna:login()
+    w:advance(30)
+    eq(#anna.ns.Wishlist:Mine(), 1, "list restored from a friend")
+end)
+
+test("wishlist: loot pings the wanter, a one-time wish is granted, always-wanted stays quiet", function()
+    local before = function(anna, bob, cara) withItems(anna, bob, cara)() end
+    local w, anna, bob, cara = setup(before)
+    anna.ns.Wishlist:Add(BOW)
+    anna.ns.Wishlist:Add(ORE, 40)
+    anna.ns.Wishlist:Add(HAT) -- a green: normally too low to announce
+    w:advance(2)
+    -- bob loots the hat anna wants: anna is pinged, cara sees it too
+    bob:fire("CHAT_MSG_LOOT", "You receive loot: " .. HAT .. ".")
+    w:advance(2)
+    assert(chatMatch(anna, "looted .*Green Hat.* %- .*Anna Silvermoon.* wanted this!"), "anna pinged: " .. table.concat(anna.log, "\n", math.max(1, #anna.log - 4)))
+    eq(anna.sounds, 1, "anna heard a sound")
+    assert(chatMatch(cara, "Green Hat.*wanted this!"), "cara sees it")
+    assert(not cara.sounds, "no sound for cara")
+    -- bob loots ore: always-wanted without pings stays quiet
+    bob:fire("CHAT_MSG_LOOT", "You receive loot: " .. ORE .. "x5.")
+    w:advance(2)
+    assert(not chatMatch(anna, "Copper Ore.*wanted"), "no ore ping")
+    -- with pings on: one ping, then quiet for 10 minutes
+    anna.ns.Wishlist:SetNotify(2770, true)
+    w:advance(2)
+    bob:fire("CHAT_MSG_LOOT", "You receive loot: " .. ORE .. "x2.")
+    w:advance(2)
+    bob:fire("CHAT_MSG_LOOT", "You receive loot: " .. ORE .. "x2.")
+    w:advance(2)
+    local n = 0
+    for _, l in ipairs(anna.log) do if l:find("Copper Ore.*wanted this") then n = n + 1 end end
+    eq(n, 1, "one ore ping")
+    -- anna loots her own ore: no message; loots the bow: wish granted
+    anna:fire("CHAT_MSG_LOOT", "You receive loot: " .. ORE .. ".")
+    anna:fire("CHAT_MSG_LOOT", "You receive loot: " .. BOW .. ".")
+    w:advance(2)
+    assert(chatMatch(anna, "Wish granted!"), "anna told")
+    assert(chatMatch(bob, "Anna Silvermoon.*looted .*Epic Bow.*Wish granted!"), "bob sees it")
+    assert(not anna.ns.Wishlist:Find(900), "bow off the list")
+    assert(anna.ns.Wishlist:Find(2770), "ore still on the list")
+    eq(tooltip(bob, 900), "", "bob no longer sees the bow wanted")
+end)
+
+test("wishlist: counts update and show stocked; mailbox and loot roll reminders", function()
+    local before = function(anna, bob, cara) withItems(anna, bob, cara)() end
+    local w, anna, bob, cara = setup(before)
+    anna.ns.Wishlist:Add(ORE, 40)
+    anna.ns.Wishlist:Add(BOW)
+    w:advance(2)
+    -- bob at a mailbox with ore in his bags
+    bob.bags[2770] = 12
+    bob:fire("MAIL_SHOW")
+    assert(chatMatch(bob, "Anna Silvermoon.* wants .*item:2770.*0/40.* %- you have 12"), "mailbox reminder: " .. table.concat(bob.log, "\n", math.max(1, #bob.log - 3)))
+    local before2 = #bob.log
+    bob:fire("MAIL_SHOW")
+    eq(#bob.log, before2, "not repeated right away")
+    -- anna's bags fill up: friends see her stocked after a short delay
+    anna.bags[2770] = 40
+    anna:fire("BAG_UPDATE_DELAYED")
+    w:advance(35)
+    assert(tooltip(bob, 2770):find("stocked"), "stocked: " .. tooltip(bob, 2770))
+    cara.bags[2770] = 3
+    cara:fire("MAIL_SHOW")
+    assert(not chatMatch(cara, "wants .*item:2770"), "no mailbox reminder once stocked")
+    -- a loot roll for the bow in cara's group
+    cara.rolls = { [7] = BOW }
+    cara:fire("START_LOOT_ROLL", 7)
+    assert(chatMatch(cara, "Wishlist:.*Epic Bow.* is wanted by .*Anna Silvermoon"), "roll reminder")
+end)
+
+test("wishlist: older versions ignore it, removed members' lists disappear, UI menu works", function()
+    local before = function(anna, bob, cara) withItems(anna, bob, cara)() end
+    local w, anna, bob, cara = setup(before)
+    bob.ns.Wishlist:Add(BOW)
+    w:advance(2)
+    assert(tooltip(anna, 900):find("Bob Silvermoon"), "anna sees bob's wish")
+    -- garbage and lists for non-members are dropped
+    anna.ns.Wishlist:OnList("Bob-Silvermoon", anna.ns.Store:ActiveId(),
+        { { "WL" }, { "Evil-Stranger", "99999999999" }, { "900", "o", "0", "0", "", "", "", "" } })
+    eq(#anna.ns.Wishlist:Wanters(900), 1, "stranger ignored")
+    anna:slash("/fship remove bob silvermoon")
+    w:advance(2)
+    eq(tooltip(anna, 900), "", "removed member's wish gone")
+    -- right-click menu on my own row
+    anna.ns.Wishlist:Add(ORE)
+    local e = anna.ns.Wishlist:Find(2770)
+    local labels = {}
+    for _, item in ipairs(anna.ns.UI:WishMenuItems(e)) do labels[#labels + 1] = item[1] end
+    assert(table.concat(labels, "|"):find("Set amount"), "amount option")
+    anna.ns.UI:WishMenuItems(e)[1][2]() -- make it one-time
+    eq(anna.ns.Wishlist:Find(2770).mode, "once", "switched")
+end)
+
+test("wishlist: shift-clicking a stack with the Wishlist tab open adds it instead of splitting", function()
+    local before = function(anna, bob, cara)
+        withItems(anna, bob, cara)()
+        local split = { shown = false }
+        function split:IsShown() return self.shown end
+        function split:Hide() self.shown = false end
+        function split:OpenStackSplitFrame() self.shown = true end
+        anna.split = split
+        anna.globals.StackSplitFrame = split
+        anna.globals.IsModifiedClick = function() return true end
+        anna.globals.HandleModifiedItemClick = function() return false end
+        anna.globals.hooksecurefunc = function(a, b, c)
+            local env = anna.env
+            if type(a) == "table" then
+                local orig = a[b]; a[b] = function(...) local r = orig(...); c(...); return r end
+            else
+                local orig = env[a]; rawset(env, a, function(...) local r = orig(...); b(...); return r end)
+            end
+        end
+        anna.globals.GetCursorInfo = function() return anna.cursor and "item", 2770, anna.cursor end
+        anna.globals.ClearCursor = function() anna.cursor = nil end
+    end
+    local w, anna = setup(before)
+    local env = anna.env
+    -- tab closed: shift-click behaves normally (splits the stack)
+    env.HandleModifiedItemClick(ORE); anna.split:OpenStackSplitFrame()
+    eq(#anna.ns.Wishlist:Mine(), 0, "not added while the window is closed")
+    anna.split:Hide()
+    anna.ns.UI:Show("wishlist")
+    -- a bag click: HandleModifiedItemClick returns false, then the bag opens the splitter
+    env.HandleModifiedItemClick(ORE); anna.split:OpenStackSplitFrame()
+    assert(anna.ns.Wishlist:Find(2770), "ore added")
+    assert(not anna.split:IsShown(), "stack splitter closed")
+    -- dropping an item picked up from the bags onto the tab
+    anna.cursor = BOW
+    anna.ns.UI.WishlistPanelForTest().dropItem()
+    assert(anna.ns.Wishlist:Find(900), "bow added by dropping it")
+    eq(anna.cursor, nil, "cursor cleared")
+end)
+
+test("wishlist: Fellowship Wishes shows how many of each item you have", function()
+    local w, anna, bob = setup(function(a, b, c) withItems(a, b, c)() end)
+    bob.ns.Wishlist:Add(2770); bob.ns.Wishlist:Add(900)
+    w:advance(5)
+    anna.bags[2770] = 23
+    anna.ns.UI:Show("wishlist")
+    local p = anna.ns.UI.WishlistPanelForTest()
+    p.subTabs.all:Click()
+    local function cell(id, col)
+        for _, r in ipairs(p.rows) do
+            if r:IsShown() and r.wish and r.wish.id == id then return r.cells[col]:GetText() end
+        end
+    end
+    eq(p.cols[2]:GetText(), "I have", "column header")
+    assert(tostring(cell(2770, 2)):find("23", 1, true), "shows 23 ore")
+    assert(tostring(cell(900, 2)):find("0", 1, true), "shows 0 bows")
+    assert(tostring(cell(2770, 3)):find("Bob", 1, true), "wanted by Bob")
+    anna.bags[900] = 1
+    anna:fire("BAG_UPDATE_DELAYED"); w:advance(2)
+    assert(tostring(cell(900, 2)):find("1", 1, true), "updates when bags change")
+end)
+
+test("item search: learns item names slowly in the background and finds them as you type", function()
+    local before = function(anna, bob, cara)
+        withItems(anna, bob, cara)()
+        anna.serverSlow, anna.cached = true, {}
+        anna.globals.C_Item = {
+            GetItemQualityByID = function() return 1 end,
+            RequestLoadItemDataByID = function(id)
+                anna.requests = (anna.requests or 0) + 1
+                anna.world:schedule(anna.world.time + 0.5, function()
+                    anna.cached[id] = true
+                    anna:fire("GET_ITEM_INFO_RECEIVED", id, true)
+                end)
+            end,
+        }
+        anna.globals.GetBuildInfo = function() return "1.60.1", anna.build or "70399" end
+        anna.globals.InCombatLockdown = function() return anna.inCombat == true end
+    end
+    local w, anna = setup(before)
+    local S = anna.ns.ItemSearch
+    S.MAX_ID = 20000
+    eq(#S:Search("ore"), 0, "nothing known before the scan")
+    anna.inCombat = true
+    w:advance(60)
+    eq(S:Count(), 0, "paused in combat")
+    anna.inCombat = false
+    w:advance(60)
+    eq(S:Progress(), nil, "scan finished")
+    eq(S:Count(), 11, "every item learned")
+    assert(anna.requests <= 11, "each item asked about once")
+    local names = {}
+    for _, h in ipairs(S:Search("ore")) do names[#names + 1] = h.name end
+    eq(table.concat(names, ","), "Tin Ore,Iron Ore,Copper Ore,Silver Ore,Mithril Ore,Truesilver Ore,Boots of the Oregon Trail",
+        "word matches first, shortest first")
+    eq(S:Search("iron ore")[1].name, "Iron Ore", "several words")
+    eq(S:Search("cop")[1].name, "Copper Bar", "prefix")
+    eq(#S:Search("o"), 0, "needs two letters")
+    -- typing in the wishlist box shows suggestions; Enter adds the top one
+    anna.ns.UI:Show("wishlist")
+    local wl = anna.ns.UI.WishlistPanelForTest()
+    wl.input:SetText("silver o")
+    wl.input._scripts.OnTextChanged(wl.input, true)
+    assert(wl.suggest:IsShown(), "suggestions shown")
+    eq(wl.suggest.results[1].name, "Silver Ore", "top suggestion")
+    wl.input._scripts.OnEnterPressed(wl.input)
+    assert(anna.ns.Wishlist:Find(2775), "silver ore added")
+    -- clicking a suggestion
+    wl.input:SetText("mithril")
+    wl.input._scripts.OnTextChanged(wl.input, true)
+    wl.suggest.rows[1]:Click()
+    assert(anna.ns.Wishlist:Find(3858), "mithril added by clicking")
+    -- names survive a relog; a patch only looks for new items
+    anna:logout(); w:advance(5)
+    anna.build = "70500"
+    anna:login(); w:advance(2)
+    eq(anna.ns.ItemSearch:Count(), 11, "names kept")
+    eq(anna.ns.ItemSearch:Search("tin")[1].name, "Tin Ore", "search works right after login")
+end)
+
+test("item search and bag counts use C_Item when the old item globals are gone", function()
+    local before = function(anna, bob, cara)
+        withItems(anna, bob, cara)()
+        local gi, gc = anna.globals.GetItemInfo, anna.globals.GetItemCount
+        anna.globals.C_Item = { GetItemInfo = gi, GetItemCount = gc, GetItemInfoInstant = anna.globals.GetItemInfoInstant,
+            GetItemQualityByID = function() return 1 end }
+        anna.globals.GetItemInfo, anna.globals.GetItemCount, anna.globals.GetItemInfoInstant = false, false, false
+    end
+    local w, anna = setup(before)
+    for _, k in ipairs({ "GetItemInfo", "GetItemCount", "GetItemInfoInstant" }) do rawset(anna.env, k, nil) end
+    anna.ns.ItemSearch.MAX_ID = 20000
+    anna.bags[2770] = 9
+    w:advance(120)
+    eq(anna.ns.ItemSearch:Count(), 11, "items learned through C_Item")
+    eq(anna.ns.ItemSearch:Search("ore")[1].name, "Tin Ore", "search works")
+    anna.ns.Wishlist:Add(2770, 20)
+    eq(anna.ns.Wishlist:Find(2770).have, 9, "bag count through C_Item")
+    anna:slash("/fship items")
+    assert(anna:logContains("Item search knows 11 items"), "status command")
+end)
+
+-- Calendar -----------------------------------------------------------------
+local function cal(c) return c.ns.Calendar end
+local function plan(c, offset, typ, title, note)
+    return cal(c):Create({ time = c.ns.Now() + offset, type = typ or "dungeon", title = title or "Gnomeregan", note = note })
+end
+
+test("calendar: anyone plans an event, everyone sees it and signs up", function()
+    local w, anna, bob, cara = setup()
+    local key = plan(bob, 86400, "dungeon", "Gnomeregan", "Meet at the stone")
+    assert(key, "bob (a regular member) can plan")
+    w:advance(2)
+    local ev = cal(anna):Get(key)
+    assert(ev, "anna sees the event")
+    eq(ev.title, "Gnomeregan"); eq(ev.note, "Meet at the stone")
+    assert(chatMatch(anna, "Bob Silvermoon.* planned .*Gnomeregan.* for Tomorrow"), "anna told about it")
+    eq(cal(anna):MyStatus(ev), nil, "anna hasn't answered")
+    eq(cal(bob):MyStatus(cal(bob):Get(key)), "y", "creator is going")
+    cal(anna):Respond(key, "y")
+    cal(cara):Respond(key, "n")
+    w:advance(2)
+    local a = cal(bob):Answers(cal(bob):Get(key))
+    eq(#a.y, 2, "two going"); eq(#a.n, 1, "one can't")
+    assert(chatMatch(bob, "Anna Silvermoon.*is going.* to .*Gnomeregan"), "creator told who's going")
+    assert(chatMatch(bob, "Cara Area52.*can't make it"), "creator told who can't")
+    -- changing your mind
+    cal(cara):Respond(key, "m")
+    w:advance(2)
+    a = cal(anna):Answers(cal(anna):Get(key))
+    eq(#a.m, 1, "cara now maybe"); eq(#a.n, 0, "no can't")
+    -- a raid and an "other" event, sorted by time
+    plan(anna, 3 * 86400, "raid", "Molten Core")
+    plan(cara, 2 * 86400, "other", "Fishing contest")
+    w:advance(2)
+    local up = cal(bob):Upcoming()
+    eq(#up, 3, "three upcoming")
+    eq(up[2].title, "Fishing contest", "sorted by time")
+end)
+
+test("calendar: only the creator edits or cancels; bad events are refused", function()
+    local w, anna, bob = setup()
+    local key = plan(anna, 7200)
+    w:advance(2)
+    assert(not cal(bob):Edit(key, { time = bob.ns.Now() + 9000, type = "dungeon", title = "Hijacked" }), "bob can't edit")
+    assert(not cal(bob):Cancel(key), "bob can't cancel")
+    assert(not cal(bob):CanEdit(key), "no edit buttons for bob")
+    assert(cal(anna):Edit(key, { time = anna.ns.Now() + 9000, type = "dungeon", title = "Uldaman" }), "anna edits")
+    w:advance(2)
+    eq(cal(bob):Get(key).title, "Uldaman", "edit reached bob")
+    cal(bob):Respond(key, "y")
+    w:advance(2)
+    cal(anna):Cancel(key)
+    w:advance(2)
+    assert(cal(bob):Get(key).cancelled, "cancelled for bob")
+    assert(chatMatch(bob, "Anna Silvermoon.* cancelled .*Uldaman"), "bob told")
+    eq(#cal(bob):Upcoming(), 0, "cancelled events leave Upcoming")
+    local _, err = cal(anna):Create({ time = anna.ns.Now() - 3600, type = "dungeon", title = "Late" })
+    assert(err and err:find("passed"), "past time refused")
+    _, err = cal(anna):Create({ time = anna.ns.Now() + 3600, type = "dungeon", title = "" })
+    assert(err and err:find("Pick a dungeon"), "needs a dungeon")
+    _, err = cal(anna):Create({ time = anna.ns.Now() + 3600, type = "other", title = " " })
+    assert(err and err:find("name"), "needs a name")
+end)
+
+test("calendar: members who were offline get events and answers when they log in", function()
+    local w, anna, bob, cara = setup()
+    cara:logout()
+    w:advance(5)
+    local key = plan(anna, 86400)
+    w:advance(2)
+    assert(cal(bob):Respond(key, "y"), "bob answers")
+    w:advance(2)
+    anna:logout()
+    w:advance(5)
+    cara:login()
+    w:advance(40)
+    local ev = cal(cara):Get(key)
+    assert(ev, "cara got anna's event from bob")
+    eq(#cal(cara):Answers(ev).y, 2, "and the answers")
+    assert(chatMatch(cara, "waiting for your answer"), "login reminder to answer")
+    -- anna comes back and sees cara's answer
+    cal(cara):Respond(key, "m")
+    w:advance(2)
+    anna:login()
+    w:advance(40)
+    eq(#cal(anna):Answers(cal(anna):Get(key)).m, 1, "anna caught up on cara's answer")
+end)
+
+test("calendar: reminder 15 minutes before, except for people who can't come", function()
+    local w, anna, bob, cara = setup()
+    local key = plan(anna, 3600)
+    w:advance(2)
+    cal(bob):Respond(key, "y")
+    cal(cara):Respond(key, "n")
+    w:advance(60 * 30)
+    assert(not chatMatch(bob, "Reminder:"), "not yet")
+    w:advance(60 * 20)
+    assert(chatMatch(bob, "Reminder:.*Gnomeregan.* starts in 1%d minutes"), "bob reminded")
+    assert(chatMatch(anna, "Reminder:"), "creator reminded")
+    assert(not chatMatch(cara, "Reminder:"), "cara not reminded")
+    local n = 0
+    for _, l in ipairs(bob.log) do if l:find("Reminder:") then n = n + 1 end end
+    w:advance(300)
+    local n2 = 0
+    for _, l in ipairs(bob.log) do if l:find("Reminder:") then n2 = n2 + 1 end end
+    eq(n2, n, "reminded once")
+end)
+
+test("calendar: the tab and the New Event window", function()
+    local w, anna, bob = setup()
+    local UI = anna.ns.UI
+    UI:Show("calendar")
+    local p = UI.CalendarPanel()
+    local dungeons, raids = UI.CalendarInstances("dungeon"), UI.CalendarInstances("raid")
+    assert(#dungeons >= 25 and #raids >= 8, "dungeon and raid lists")
+    eq(dungeons[1].name, "Hall of Thanes", "lowest level first")
+    UI:OpenEventEditor(nil, nil)
+    local ed = UI:BuildEventEditor()
+    UI:SaveEventEditor() -- no dungeon picked yet
+    assert(ed.error:GetText():find("Pick a dungeon"), "explains what's missing")
+    eq(#anna.ns.Calendar:Upcoming(), 0, "nothing saved")
+    -- pick a raid, date tomorrow, 9:30 PM
+    ed.state.type = "raid"; ed.state.title = "Molten Core"
+    ed.state.day = ed.state.day + 1; ed.state.hour = 9; ed.state.minute = 30; ed.state.pm = true
+    UI:RefreshEventEditor()
+    UI:SaveEventEditor()
+    w:advance(2)
+    local up = anna.ns.Calendar:Upcoming()
+    eq(#up, 1, "event saved")
+    eq(up[1].title, "Molten Core")
+    eq(os.date("*t", up[1].time).hour, 21, "9 PM"); eq(os.date("*t", up[1].time).min, 30)
+    assert(#bob.ns.Calendar:Upcoming() == 1, "bob has it")
+    -- "other" with a name
+    UI:OpenEventEditor(nil, nil)
+    ed.state.type = "other"; UI:RefreshEventEditor()
+    ed.titleInput:SetText("Guild photo"); ed.state.title = "Guild photo"
+    ed.state.day = ed.state.day + 2
+    UI:SaveEventEditor()
+    w:advance(2)
+    eq(#anna.ns.Calendar:Upcoming(), 2, "two events")
+    -- render the tab: select a day, an event, sign-up buttons
+    UI:SelectTab("calendar")
+    p.details.buttons[2]:Click()
+    p.cells[15]:Click()
+    UI:Refresh()
+    anna:slash("/fship events")
+    assert(chatMatch(anna, "Upcoming events"), "/fship events")
+    anna:slash("/fship calendar")
+end)
+
+test("window: sidebar badges, feed filters and the hideable member list", function()
+    local w, anna, bob = setup()
+    local UI = anna.ns.UI
+    UI:Show("calendar")
+    bob:slash("/fsay anyone around?")
+    bob:fire("PLAYER_LEVEL_UP", 30)
+    w:advance(2)
+    UI:Refresh()
+    local nav
+    for _, f in ipairs(anna.frames) do if type(rawget(f, "nav")) == "table" then nav = f end end
+    local chatBtn
+    for _, f in ipairs(anna.frames) do if rawget(f, "id") == "chat" and rawget(f, "badge") then chatBtn = f end end
+    assert(chatBtn and chatBtn.badge:IsShown(), "chat badge shown while on another page")
+    eq(chatBtn.badge.text:GetText(), "2", "two new lines")
+    -- an event waiting for an answer badges the calendar
+    bob.ns.Calendar:Create({ time = bob.ns.Now() + 86400, type = "raid", title = "Molten Core" })
+    w:advance(2)
+    UI:SelectTab("chat")
+    local calBtn
+    for _, f in ipairs(anna.frames) do if rawget(f, "id") == "calendar" and rawget(f, "badge") then calBtn = f end end
+    eq(calBtn.badge.text:GetText(), "1", "one event to answer")
+    assert(not chatBtn.badge:IsShown(), "no chat badge while reading chat")
+    UI:SelectTab("members")
+    assert(not chatBtn.badge:IsShown(), "seen lines don't come back as new")
+    -- filters
+    local F = UI.FeedFilter
+    local chat = { k = "C", d = { "hi" } }
+    local lvl = { k = "M", d = { "level", "30" } }
+    local loot = { k = "M", d = { "loot", "item:1", "X", "4" } }
+    local mount = { k = "M", d = { "mount", "Horse", "1" } }
+    assert(F(chat, "chat") and not F(lvl, "chat"), "chat filter")
+    assert(F(lvl, "level") and F(loot, "loot") and F(mount, "other") and not F(loot, "other"), "other filters")
+    assert(F(mount, "all"), "all")
+    UI:SelectTab("chat")
+    local p = UI.CalendarPanel and nil
+    for _, f in ipairs(anna.frames) do if type(rawget(f, "filters")) == "table" then p = f end end
+    p.filters[2]:Click() -- Chat only
+    eq(anna.ns.settings.feedFilter, "chat", "filter remembered")
+    local shown = table.concat(p.log._lines or {}, "\n")
+    assert(shown:find("anyone around"), "chat line shown")
+    assert(not shown:find("reached level"), "level line filtered out")
+    p.toggleMembers:Click()
+    eq(anna.ns.settings.feedMembers, false, "member list hidden")
+    assert(not p.members:IsShown(), "member list hidden on screen")
+end)
+
+test("@mentions: tagged members hear a sound and see an alert; Tab completes names", function()
+    local before = function(anna, bob, cara)
+        for _, c in ipairs({ anna, bob, cara }) do
+            c.globals = c.globals or {}
+            c.globals.PlaySound = function() c.sounds = (c.sounds or 0) + 1 end
+            c.globals.SOUNDKIT = { TELL_MESSAGE = 3081 }
+            c.globals.FlashClientIcon = function() c.flashed = true end
+            c.globals.UIErrorsFrame = { AddMessage = function(_, m) c.alert = m end }
+        end
+    end
+    local w, anna, bob, cara = setup(before)
+    bob:slash("/fs @anna want to run Gnomeregan?")
+    w:advance(2)
+    eq(anna.sounds, 1, "anna heard it"); assert(anna.flashed, "icon flashed")
+    eq(anna.alert, "Bob Silvermoon mentioned you in Fellowship chat")
+    assert(not cara.sounds, "cara wasn't tagged")
+    assert(anna:logContains("|cffff9933@anna|r"), "tag highlighted")
+    -- full name, and @all
+    cara:slash("/fs @Bob Silvermoon thanks!")
+    w:advance(2)
+    eq(bob.sounds, 1, "bob tagged by full name")
+    assert(bob:logContains("|cffff9933@Bob Silvermoon|r"), "full name highlighted")
+    anna:slash("/fs @all dungeon in 10")
+    w:advance(2)
+    eq(bob.sounds, 2, "bob by @all"); eq(cara.sounds, 1, "cara by @all")
+    eq(anna.sounds, 1, "you don't ping yourself")
+    -- not a member: nothing happens, text stays as typed
+    bob:slash("/fs email me @ home")
+    bob:slash("/fs @Zed hi")
+    w:advance(2)
+    eq(anna.sounds, 1, "no ping for non-members")
+    -- turned off
+    anna.ns.settings.mentionAlert = false
+    bob:slash("/fs @anna again")
+    w:advance(2)
+    eq(anna.sounds, 1, "setting turns it off")
+    anna.ns.settings.mentionAlert = true
+    -- Tab completion
+    local Mn = anna.ns.Mentions
+    eq(Mn.Complete("hey @b"), "hey @Bob ", "completes a first name")
+    eq(Mn.Complete("hey @"), "hey @Bob ", "first match alphabetically, never yourself")
+    eq(Mn.Complete("hey @zz"), nil, "no match")
+    eq(Mn.Complete("hi there"), nil, "only after @")
+    -- suggestions while typing
+    local hits = Mn.Suggest("hey @b")
+    eq(#hits, 1, "one member starts with b"); eq(hits[1].text, "hey @Bob ", "picking it fills the name")
+    eq(#Mn.Suggest("hey @a"), 1, "your own characters aren't suggested, @all is")
+    eq(#Mn.Suggest("mail me@b"), 0, "not inside a word")
+    anna.ns.UI:Show("chat")
+    local chat
+    for _, f in ipairs(anna.frames) do if rawget(f, "mentionSuggest") then chat = f end end
+    assert(chat, "chat panel has a suggestion list")
+    local input = chat.input
+    input:SetText("hey @"); input._scripts.OnTextChanged(input, true)
+    assert(chat.mentionSuggest:IsShown(), "list pops up after @")
+    input._scripts.OnEnterPressed(input)
+    eq(input:GetText(), "hey @Bob ", "Enter picks the top suggestion instead of sending")
+    assert(not chat.mentionSuggest:IsShown(), "list closes after picking")
+    -- missed while offline: counted in the login summary
+    anna.ns.Store:MarkRead(anna.ns.Store:ActiveId())
+    anna:logout(); w:advance(5)
+    bob:slash("/fs @anna are you coming tonight?")
+    w:advance(2)
+    anna:login(); w:advance(30)
+    assert(anna:logContains("You were mentioned 1 time"), "away summary counts mentions")
+end)
+
+test("blocked actions are recorded and shown by /fship blocked", function()
+    local w, anna = setup()
+    anna:fire("ADDON_ACTION_FORBIDDEN", "OtherAddon", "CastSpellByName()")
+    anna:fire("ADDON_ACTION_FORBIDDEN", "Fellowship", "ClearTarget()")
+    anna:fire("ADDON_ACTION_BLOCKED", "Fellowship", "FocusUnit()")
+    assert(anna:logContains("blocked Fellowship from using"), "tells the player once")
+    anna:slash("/fship blocked")
+    assert(anna:logContains("ClearTarget() (forbidden)"), "lists the forbidden call")
+    assert(anna:logContains("FocusUnit() (blocked)"), "lists the blocked call")
+    assert(not anna:logContains("CastSpellByName"), "ignores other addons")
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")
     w:advance(2)
     anna:slash("/fs")
-    for _, tab in ipairs({ "chat", "achievements", "feats", "members" }) do anna.ns.UI:SelectTab(tab) end
+    anna.ns.Wishlist:Add("|cffa335ee|Hitem:900:4::|h[Epic Bow]|h|r")
+    for _, tab in ipairs({ "chat", "feats", "members", "wishlist", "calendar" }) do anna.ns.UI:SelectTab(tab) end
+    anna.ns.UI.panelsForTest = nil
+    anna:slash("/fship wish")
     w:advance(1)
     anna:slash("/fship who")
     anna:slash("/fship help")

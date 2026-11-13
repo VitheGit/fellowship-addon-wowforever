@@ -1,5 +1,77 @@
 # Changelog
 
+## 0.17.3
+
+- **Name suggestions for @mentions.** Type `@` in the Fellowship window's chat box and a list of members pops up above it, narrowing as you type (`@ka` shows Kara Dunmore, Kai...). Click a name, or press Tab or Enter to pick the highlighted one, and use Up/Down to move through the list. `@all` is in the list too. Escape closes it.
+- When two members share a first name, picking one fills in the full name so the right person is tagged.
+
+## 0.17.2
+
+- **"I have" column in Fellowship Wishes.** Next to "Wanted by", you now see how many of each wanted item you have in your bags and bank, in green when you have some. Glance down the list to spot anything you could hand over. It updates as your bags change.
+
+## 0.17.1
+
+- If the game ever shows "Fellowship has been blocked from an action only available to the Blizzard UI", Fellowship now notes which action it was. Type `/fship blocked` to see it, along with whether you were in combat, using a controller, or running ConsolePort. Send a screenshot of it so the cause can be fixed.
+
+## 0.17.0
+
+- **@mentions in Fellowship chat.** Type `@` and a name, like `@Kara`, to tag a member. They hear a short sound, see "Kara mentioned you in Fellowship chat" in the middle of the screen, and the game's icon flashes on their taskbar if the game is in the background.
+- Tags work on any of a member's characters. Use the first name (`@Kara`), or the full name (`@Kara Dunmore`) when two members share a first name. `@all` or `@everyone` tags the whole fellowship.
+- Tagged names are shown in orange in chat, so you can spot them.
+- Press **Tab** in the chat box after `@` and a few letters to finish the name.
+- Missed a mention while offline? The login summary now says "You were mentioned 2 times."
+- Don't want the sound? Turn off "Sound and alert when someone @mentions you" in Settings.
+- Nothing new is sent, so members on older versions still see the message, just without the sound or the orange name.
+
+## 0.16.0
+
+- **A cleaner Fellowship window.** The row of buttons along the top is gone. Pages are now in a sidebar on the left, each with an icon: Chat, Calendar, Wishlist, Achievements and Members.
+- Red badges on the sidebar show new chat and activity while you're on another page, and how many calendar events are waiting for your answer.
+- The window uses the game's portrait frame, with the Fellowship icon in the corner, your fellowship's name as the title and "4 of 5 online" under it. Settings is now a gear next to the close button.
+- **Chat and Activity are now one feed.** Filters along the top let you show All, Chat, Loot, Dungeons, Levels, Deaths or More (achievements, collections, rare mobs). Your choice is remembered. The member list on the right can be hidden with the Members switch.
+- Dungeons/Raids and My Wishlist/Fellowship Wishes are now small switches instead of big buttons.
+- Input boxes show what to type ("Message Loot Kills...", "Search items to add..."), and the wishlist instructions moved into a "?" you can hover.
+- The window can be resized from the bottom-right corner, and remembers its size and position.
+
+## 0.15.0
+
+- New **Calendar** tab for planning dungeon runs, raids and anything else. Any member can plan an event: click **New Event** (or click a day first), choose **Dungeon**, **Raid** or **Other**, pick the dungeon or raid from the list (or type a name for Other), then set the date, time and an optional note.
+- Everyone answers **Going**, **Maybe** or **Can't**. The event shows who's going, who might come, who can't, and who hasn't answered yet. You can change your answer any time.
+- The month view shows how many events each day has. The list on the right shows upcoming events, or the events on the day you clicked, with your answer next to each one.
+- Only the person who planned an event can edit or cancel it. Everyone sees when it's cancelled.
+- Notices in Fellowship chat when someone plans an event, and (for the person who planned it) when members answer.
+- At login you see what's coming up in the next 24 hours, and how many events still need your answer. A reminder with a sound pops up 15 minutes before an event starts, unless you said you can't come.
+- Times are shown in each person's own time zone.
+- Events sync like wishlists, so members who were offline get them when they log in. Everyone needs 0.15.0 to see the calendar.
+- New commands: `/fship calendar` opens the Calendar tab, and `/fship events` lists upcoming events in chat.
+- The Fellowship window is a little wider, to fit the new tab.
+
+## 0.14.1
+
+- Fixed item search finding nothing. WoW Forever only offers item lookups through the game's newer item functions, so the background scan couldn't read any names, and wishlist counts could read 0. The scan now starts over once, by itself, and fills in properly.
+- New `/fship items` command shows how many items search knows and how far the scan has got.
+
+## 0.14.0
+
+- **Item search in the Wishlist box.** Start typing a name, like "ore", and a list pops up with Copper Ore, Tin Ore, Iron Ore and so on. Click one to add it, or press Enter to add the top match. Typing several words narrows it down ("iron ore").
+- The game doesn't let addons search items by name, so Fellowship learns item names itself. It remembers every item you loot, hover or see linked, and slowly asks the game about the rest in the background. This takes about 20 to 30 minutes of play the first time, and it pauses in combat and in dungeons and raids. It's done once per account, and again only to pick up new items after a patch. Until it finishes, the list shows how far along it is.
+
+## 0.13.1
+
+- Fixed adding items to the wishlist. With the Wishlist tab open, shift-clicking an item in your bags, a loot window, a vendor or a chat link now adds it straight away, instead of opening the "split stack" box.
+- Fixed dragging an item onto the Wishlist tab. There's now an empty slot next to the box to drop items on, and dropping anywhere on the tab works too.
+
+## 0.13.0
+
+- New **Wishlist** tab. Add the items you're hunting for by shift-clicking them into the box, dragging them from your bags, right-clicking an item link in chat, or typing `/fship wish [item]`.
+- **One-time wishes** (gear, mounts, recipes): when a fellowship member loots one, you get a ping and a sound, and everyone sees "Bob looted [Item] - Brad wanted this!". When you loot it yourself it comes off your list with "Wish granted!".
+- **Always wanted** (trade goods and reagents like ore, herbs and cloth): these stay on your list and don't post anything when you loot them. You can set an amount (right-click, "Set amount wanted"), and friends see your bag and bank count, like "14/40", or "stocked" once you have enough. Pings for these are off unless you turn them on for that item.
+- New items default to "always wanted" if they're trade goods or reagents, and one-time otherwise. Right-click a row to switch, set an amount, add a note, or remove it.
+- Hovering any item shows "Fellowship: wanted by ..." with each friend's count.
+- When a wanted item comes up in a loot roll, you see who wants it. When you open a mailbox with something a friend wants in your bags, you get one quiet reminder.
+- "Fellowship Wishes" view shows everything the fellowship wants, grouped by item.
+- Wishlists sync like chat, so offline members' lists still reach you. Older versions of Fellowship ignore them, so everyone needs 0.13.0 to see each other's lists.
+
 ## 0.12.0
 
 - Fellowship chat and announcements now go through a hidden, password-protected chat channel. One message reaches everyone online at once, instead of one whisper per member, so big fellowships no longer see messages arrive late.

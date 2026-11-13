@@ -10,8 +10,18 @@ and read everything they missed.
   (including keystone level), and deaths (in red, with the zone)
 - Fellowship Achievements (Achievements tab): every dungeon and raid you complete with a group
   made up only of fellowship members is marked complete, with the date and who was there
+- Calendar (Calendar tab): anyone can plan a dungeon run, raid or other event (dungeon and raid
+  pickers, date, time, note); members answer Going / Maybe / Can't; login summary and a reminder
+  15 minutes before
+- Wishlists (Wishlist tab): type part of a name ("ore") and pick from the list, or shift-click or drag in the items you're hunting for. Gear is a
+  one-time wish (granted when you loot it); materials like ore are "always wanted", with an
+  optional amount and your bag/bank count. Item tooltips show "Wanted by", the wanter is pinged
+  when a member loots their item, and members get reminders at loot rolls and mailboxes
+- @mentions: type `@Kara` (or `@all`) in Fellowship chat to tag a member; they hear a sound,
+  see an alert and the game icon flashes. Tab finishes names, and it can be turned off in Settings
 - Online/offline notices, plus each member's zone and level in the Members tab
-- A settings window (`/fship settings` or the Settings button) to choose what you share and
+- A clean window with a sidebar (Chat, Calendar, Wishlist, Achievements, Members), badges for anything new, and a feed with filters; resizable
+- A settings window (`/fship settings` or the gear) to choose what you share and
   what you see, for every kind of announcement
 - Messages go out once on a hidden, password-protected fellowship channel (falling back to
   whispers), so even big fellowships get chat instantly
@@ -59,6 +69,10 @@ Everyone in the group needs the addon installed.
 | `/fship tab` | Show/hide Fellowship messages in the chat tab you are typing in (`/fship tab 2`, `/fship tab reset`). You can also right-click a chat tab and tick **Show Fellowship** |
 | `/fship settings` | Open the settings window |
 | `/fship minimap` | Show or hide the minimap button |
+| `/fship blocked` | Show anything the game stopped Fellowship from doing (for bug reports) |
+| `/fship calendar` | Open the Calendar tab to plan events and sign up (`/fship events` lists them in chat) |
+| `/fship wish <item> [amount]` | Add an item to your wishlist (shift-click the item in); `/fship wish` alone opens the Wishlist tab |
+| `/fship unwish <item>` | Take an item off your wishlist |
 
 ## Roles
 
