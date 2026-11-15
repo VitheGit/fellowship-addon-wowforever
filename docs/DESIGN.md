@@ -101,6 +101,35 @@ while joining). If a former member (removed or left while offline) says `HI`, me
 don't trust it, but reply once with the membership events it's missing, so its client
 sees the removal and cleans up. User text is escaped (`|` becomes `||`) before display.
 
+## Wishlists
+
+Each character's wishlist is one replicated record, newest version wins (`WL fid 1 | author
+version | item...`, items as id, mode, want, have, notify, note, name, quality). It lives in
+`f.wishes`, outside the event log, so older versions ignore it and it is never pruned. A `WV`
+summary (author, version pairs) goes with every HI reply; the other side sends back any list
+it holds a newer version of, and answers with its own summary when it is behind. Changes are
+broadcast like events (channel, then whispers). Loot of a wished-for item is posted as an `M`
+loot event with field 5 `"1"` (wish granted) and field 6 the wanters' names, so older versions
+still show "X looted [Item]".
+
+## Calendar
+
+Same replication as wishlists, with `CL` (one character's record) and `CV` (summary). A
+record holds the events that character created (`E id time type title note cancelled`) and
+its answers (`R creator id status`, status `y`/`m`/`n`). Only the creator's own record can
+change or cancel an event, so nobody else can edit it. Times are server time, shown with the
+viewer's local `date()`. Events more than two days old are dropped when their creator next
+publishes.
+
+## Item search
+
+Addons can't search items by name, so `ItemSearch.lua` keeps an account-wide index
+(`FellowshipDB.items.names`). Items seen in loot, tooltips and friends' wishlists are learned
+directly. A background scan first checks item numbers 1..300000 locally with
+`GetItemInfoInstant` (no server traffic), then asks the server for the names of the ones that
+exist, about 20 per second, pausing in combat and instances. It restarts (keeping known names)
+when `GetBuildInfo` changes.
+
 ## Persistence and pruning
 
 `FellowshipDB` (account-wide SavedVariables) holds every fellowship's log, plus per
