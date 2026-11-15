@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.18.1
+
+- **Resizable columns in the Members tab.** Drag the right edge of any column header to make it wider or narrower. Your widths are remembered. Right-click any header to put them back to normal.
+
 ## 0.18.0
 
 - **Member notes.** The Members tab has a new **Note** column. Click your own row to write a short note about yourself (up to 60 characters), like "Main is a hunter, leveling Mining" or "On weeknights after 8pm". Everyone in the fellowship sees it, but only you can change yours.

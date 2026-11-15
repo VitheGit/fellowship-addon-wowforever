@@ -19,6 +19,7 @@ local ROSTER_COLUMNS = {
     { key = "note", title = "Note", width = 150 },
 }
 local ROSTER_ROWS, ROW_HEIGHT = 15, 18
+local ROSTER_MIN_COL = 30
 
 -- Achievements tab: dungeon/raid cards, two per row like the game's dungeon picker
 local CARD_W, CARD_H, CARD_GAP, CARD_ROWS = 310, 100, 8, 3
@@ -544,32 +545,108 @@ function UI:Build()
     -- Members: a roster laid out like the guild window
     local mem = panel()
     mem.cols = {}
-    local x = 4
-    for _, c in ipairs(ROSTER_COLUMNS) do
+    -- Columns can be resized by dragging the edge of a header; right-click a header to reset.
+    -- Widths are remembered in ns.settings.rosterWidths.
+    local function colWidth(c)
+        local saved = ns.settings and ns.settings.rosterWidths
+        return math.max(ROSTER_MIN_COL, tonumber(saved and saved[c.key]) or c.width)
+    end
+    function mem.layout()
+        local x = 4
+        for i, c in ipairs(ROSTER_COLUMNS) do
+            local wdt = colWidth(c)
+            c.x, c.cur = x, wdt
+            local h = mem.cols[i]
+            h:ClearAllPoints()
+            h:SetPoint("TOPLEFT", x, -2)
+            h:SetSize(wdt, 20)
+            x = x + wdt + 2
+        end
+        for _, row in ipairs(mem.rows or {}) do
+            row:SetSize(x - 6, ROW_HEIGHT)
+            for _, c in ipairs(ROSTER_COLUMNS) do
+                local fs = row.cells[c.key]
+                fs:ClearAllPoints()
+                fs:SetPoint("LEFT", c.x - 4 + 6, 0)
+                fs:SetWidth(c.cur - 8)
+            end
+        end
+    end
+    local function resetWidths()
+        if ns.settings then ns.settings.rosterWidths = nil end
+        mem.layout()
+    end
+    mem.resetWidths = resetWidths
+    for i, c in ipairs(ROSTER_COLUMNS) do
         local h = CreateFrame("Button", nil, mem)
-        h:SetPoint("TOPLEFT", x, -2)
-        h:SetSize(c.width, 20)
         local bg = h:CreateTexture(nil, "BACKGROUND")
         bg:SetAllPoints()
         bg:SetColorTexture(1, 1, 1, 0.08)
         h.label = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         h.label:SetPoint("LEFT", 6, 0)
+        h.label:SetPoint("RIGHT", -6, 0)
+        h.label:SetJustifyH("LEFT")
+        h.label:SetWordWrap(false)
         h.label:SetText(c.title)
         h:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
-        h:SetScript("OnClick", function()
+        h:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        h:SetScript("OnClick", function(_, button)
+            if button == "RightButton" then resetWidths(); return end
             if rosterSort.key == c.key then rosterSort.reverse = not rosterSort.reverse
             else rosterSort.key, rosterSort.reverse = c.key, false end
             UI:Refresh()
         end)
-        c.x = x
-        mem.cols[#mem.cols + 1] = h
-        x = x + c.width + 2
+        h:SetScript("OnEnter", function(self)
+            if not GameTooltip then return end
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:AddLine("Click to sort by " .. c.title)
+            GameTooltip:AddLine("Drag the right edge to resize. Right-click to reset widths.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end)
+        h:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+        -- the grip on the right edge
+        local grip = CreateFrame("Button", nil, h)
+        grip:SetPoint("TOPRIGHT", 4, 0)
+        grip:SetPoint("BOTTOMRIGHT", 4, 0)
+        grip:SetWidth(8)
+        grip:SetFrameLevel((h:GetFrameLevel() or 1) + 2)
+        local line = grip:CreateTexture(nil, "OVERLAY")
+        line:SetPoint("TOP", 0, -3)
+        line:SetPoint("BOTTOM", 0, 3)
+        line:SetWidth(1)
+        line:SetColorTexture(1, 1, 1, 0.25)
+        grip:SetScript("OnEnter", function() line:SetColorTexture(1, 0.82, 0, 0.9) end)
+        grip:SetScript("OnLeave", function() if not grip.drag then line:SetColorTexture(1, 1, 1, 0.25) end end)
+        grip:SetScript("OnMouseDown", function(self)
+            local scale = (self.GetEffectiveScale and self:GetEffectiveScale()) or 1
+            self.drag = { x = (GetCursorPosition()) / scale, w = c.cur or colWidth(c), scale = scale }
+            self:SetScript("OnUpdate", function(g)
+                local d = g.drag
+                if not d then return end
+                local others = 0
+                for _, o in ipairs(ROSTER_COLUMNS) do if o ~= c then others = others + (o.cur or o.width) + 2 end end
+                local room = ((mem.GetWidth and mem:GetWidth()) or 660) - others - 10
+                local nw = math.floor(d.w + (GetCursorPosition()) / d.scale - d.x + 0.5)
+                nw = math.max(ROSTER_MIN_COL, math.min(nw, math.max(ROSTER_MIN_COL, room)))
+                if nw ~= c.cur then
+                    ns.settings.rosterWidths = ns.settings.rosterWidths or {}
+                    ns.settings.rosterWidths[c.key] = nw
+                    mem.layout()
+                end
+            end)
+        end)
+        grip:SetScript("OnMouseUp", function(self)
+            self.drag = nil
+            self:SetScript("OnUpdate", nil)
+            line:SetColorTexture(1, 1, 1, 0.25)
+        end)
+        h.grip = grip
+        mem.cols[i] = h
     end
     mem.rows = {}
     for i = 1, ROSTER_ROWS do
         local row = CreateFrame("Button", nil, mem)
         row:SetPoint("TOPLEFT", 4, -24 - (i - 1) * ROW_HEIGHT)
-        row:SetSize(x - 6, ROW_HEIGHT)
         row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         if i % 2 == 0 then
             local bg = row:CreateTexture(nil, "BACKGROUND")
@@ -580,8 +657,6 @@ function UI:Build()
         row.cells = {}
         for _, c in ipairs(ROSTER_COLUMNS) do
             local fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            fs:SetPoint("LEFT", c.x - 4 + 6, 0)
-            fs:SetWidth(c.width - 8)
             fs:SetJustifyH(c.align or "LEFT")
             fs:SetWordWrap(false)
             row.cells[c.key] = fs
@@ -600,6 +675,7 @@ function UI:Build()
         row:Hide()
         mem.rows[i] = row
     end
+    mem.layout()
     mem.offset = 0
     mem:EnableMouseWheel(true)
     mem:SetScript("OnMouseWheel", function(_, delta)

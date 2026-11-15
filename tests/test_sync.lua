@@ -2000,6 +2000,31 @@ test("member notes: you set your own, everyone sees it, offline members catch up
     eq(bob.ns.Notes:ForChars({ "Anna-Silvermoon" }), nil, "cleared")
 end)
 
+test("Members tab: columns resize by dragging a header edge, remembered, right-click resets", function()
+    local w, anna = setup()
+    anna:slash("/fs"); anna.ns.UI:SelectTab("members")
+    local p = memberPanel(anna)
+    local cursor = 100
+    rawset(anna.env, "GetCursorPosition", function() return cursor, 0 end)
+    local note = p.cols[6]
+    local grip = note.grip
+    local function width() return anna.ns.settings.rosterWidths and anna.ns.settings.rosterWidths.note end
+    grip._scripts.OnMouseDown(grip)
+    cursor = 60; grip._scripts.OnUpdate(grip)
+    eq(width(), 110, "dragging left narrows the Note column")
+    cursor = -200; grip._scripts.OnUpdate(grip)
+    eq(width(), 30, "never narrower than 30")
+    grip._scripts.OnMouseUp(grip)
+    eq(rawget(grip, "drag"), nil, "drag ends on mouse up")
+    -- remembered after a reload (settings are saved per account)
+    anna:logout(); anna:login(); w:advance(5)
+    eq(anna.ns.settings.rosterWidths.note, 30, "width saved")
+    anna:slash("/fs"); anna.ns.UI:SelectTab("members")
+    p = memberPanel(anna)
+    p.cols[1]._scripts.OnClick(p.cols[1], "RightButton")
+    eq(anna.ns.settings.rosterWidths, nil, "right-click resets widths")
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")
