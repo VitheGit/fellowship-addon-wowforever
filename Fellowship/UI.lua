@@ -11,12 +11,13 @@ local MAX_LINES = 600
 
 -- Members roster columns (widths add up to the panel width)
 local ROSTER_COLUMNS = {
-    { key = "name", title = "Name", width = 160 },
-    { key = "level", title = "Level", width = 40, align = "CENTER" },
-    { key = "zone", title = "Zone", width = 125 },
-    { key = "rank", title = "Rank", width = 75 },
-    { key = "seen", title = "Last Online", width = 85 },
-    { key = "note", title = "Note", width = 150 },
+    { key = "name", title = "Name", width = 140 },
+    { key = "level", title = "Level", width = 34, align = "CENTER" },
+    { key = "zone", title = "Zone", width = 100 },
+    { key = "rank", title = "Rank", width = 64 },
+    { key = "seen", title = "Last Online", width = 76 },
+    { key = "profs", title = "Professions", width = 130 },
+    { key = "note", title = "Note", width = 110 },
 }
 local ROSTER_ROWS, ROW_HEIGHT = 15, 18
 local ROSTER_MIN_COL = 30
@@ -1105,6 +1106,7 @@ function UI:Init()
     end)
     ns.Listen("CALENDAR_CHANGED", queue)
     ns.Listen("NOTES_CHANGED", queue)
+    ns.Listen("PROFESSIONS_CHANGED", queue)
     ns.Listen("EVENTS_ADDED", queue)
     ns.Listen("PRESENCE", queue)
     ns.Listen("FELLOWSHIP_CHANGED", queue)
@@ -1380,7 +1382,10 @@ local function sortRoster(list)
         elseif key == "zone" then return (m.online and m.zone or "~"):lower()
         elseif key == "rank" then return RANK_ORDER[m.role] or 9
         elseif key == "seen" then return m.online and math.huge or (m.seen or 0)
-        elseif key == "note" then return (ns.Notes:ForChars(m.chars) or "~"):lower() end
+        elseif key == "note" then return (ns.Notes:ForChars(m.chars) or "~"):lower()
+        elseif key == "profs" then
+            local p = ns.Professions:For(m.name)[1]
+            return p and -p.level or 1 end
         return ""
     end
     if key == "default" then return list end -- MemberList order: online first, then by name
@@ -1428,6 +1433,10 @@ local function renderMembers(p, fid)
             if m.role == "admin" then rank = "|cffffd100" .. rank .. "|r"
             elseif not m.online then rank = GREY .. rank .. "|r" end
             c.rank:SetText(rank)
+            local profs = ns.Professions:For(m.name, fid)
+            local primary = {}
+            for _, pr in ipairs(profs) do if #primary < 2 then primary[#primary + 1] = pr end end
+            c.profs:SetText((m.online and "" or GREY) .. ns.Escape(ns.Professions.Short(primary)) .. (m.online and "" or "|r"))
             local note = ns.Notes:ForChars(m.chars, fid)
             if note then c.note:SetText(GREY .. ns.Escape(note) .. "|r")
             elseif m.isMe then c.note:SetText("|cff5a5a5aClick to add a note|r")
@@ -1539,6 +1548,16 @@ function UI:ShowMemberTooltip(owner, m)
     end
     local note = ns.Notes:ForChars(m.chars)
     if note then GameTooltip:AddLine("Note: " .. note, 1, 1, 1, true) end
+    -- professions of every character on the account
+    for _, n in ipairs(m.chars) do
+        local profs = ns.Professions:For(n)
+        if #profs > 0 then
+            if #m.chars > 1 then GameTooltip:AddLine(ns.Short(n) .. ":", 1, 0.82, 0) end
+            for _, pr in ipairs(profs) do
+                GameTooltip:AddDoubleLine("  " .. pr.name, pr.level .. " / " .. pr.max, 0.9, 0.9, 0.9, 1, 1, 1)
+            end
+        end
+    end
     GameTooltip:AddLine("Member since " .. date("%b %d, %Y", m.since), 0.8, 0.8, 0.8)
     GameTooltip:AddLine(m.achievements .. " achievement" .. (m.achievements == 1 and "" or "s") .. " shared", 0.8, 0.8, 0.8)
     if m.isMe then GameTooltip:AddLine("Click to " .. (note and "change" or "add") .. " your note", 0.5, 0.5, 0.5)

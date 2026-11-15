@@ -14,6 +14,7 @@
 --   WL / WV                                      wishlists (see Wishlist.lua); older versions ignore them
 --   CL / CV                                      calendar events and sign-ups (see Calendar.lua)
 --   NL / NV                                      member notes (see Notes.lua)
+--   PL / PV                                      professions (see Professions.lua)
 --
 -- Catch-up: whenever two members meet (login, periodic ping, new member) they swap HI
 -- vectors; each side REQuests only the ranges it is missing. Because every member keeps
@@ -194,6 +195,7 @@ function Sync:Hello(fid, target, wantReply)
         ns.Wishlist:SendSummary(fid, target, true)
         ns.Calendar:SendSummary(fid, target, true)
         ns.Notes:SendSummary(fid, target, true)
+        ns.Professions:SendSummary(fid, target, true)
     end
 end
 
@@ -523,6 +525,10 @@ function Sync:OnMessage(sender, records, viaChannel)
         ns.Notes:OnSummary(sender, fid, records, h[4] == "1")
     elseif typ == "NL" then
         ns.Notes:OnNote(sender, fid, records)
+    elseif typ == "PV" then
+        ns.Professions:OnSummary(sender, fid, records, h[4] == "1")
+    elseif typ == "PL" then
+        ns.Professions:OnList(sender, fid, records)
     end
 end
 

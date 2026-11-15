@@ -19,6 +19,7 @@ and read everything they missed.
   when a member loots their item, and members get reminders at loot rolls and mailboxes
 - @mentions: type `@Kara` (or `@all`) in Fellowship chat to tag a member; they hear a sound,
   see an alert and the game icon flashes. Tab finishes names, and it can be turned off in Settings
+- Professions: every member's professions and skill levels in the Members tab, shared automatically
 - Member notes: write a short note about yourself in the Members tab; everyone sees it, only you can change it
 - Online/offline notices, plus each member's zone and level in the Members tab
 - A clean window with a sidebar (Chat, Calendar, Wishlist, Achievements, Members), badges for anything new, and a feed with filters; resizable

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.19.0
+
+- **Professions in the Members tab.** A new Professions column shows each member's professions and skill levels, like "Mining 150, Blacksmithing 120". Hover over a member to see all of them, including Cooking and Fishing, for every character on their account.
+- It's automatic. Fellowship reads your professions from the game and shares them when you log in, learn a profession or gain a skill point. Members who were offline get the latest when they log in.
+- Sort the roster by Professions to find who has the highest skill.
+- Columns in the Members tab start a little narrower to make room. Drag a header's edge to resize, or right-click a header to reset.
+- Members need 0.19.0 for their professions to show. **Exit and restart the game after updating** (a new file was added, so /reload isn't enough).
+
 ## 0.18.1
 
 - **Resizable columns in the Members tab.** Drag the right edge of any column header to make it wider or narrower. Your widths are remembered. Right-click any header to put them back to normal.

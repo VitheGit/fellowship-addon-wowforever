@@ -2006,12 +2006,12 @@ test("Members tab: columns resize by dragging a header edge, remembered, right-c
     local p = memberPanel(anna)
     local cursor = 100
     rawset(anna.env, "GetCursorPosition", function() return cursor, 0 end)
-    local note = p.cols[6]
+    local note = p.cols[7]
     local grip = note.grip
     local function width() return anna.ns.settings.rosterWidths and anna.ns.settings.rosterWidths.note end
     grip._scripts.OnMouseDown(grip)
     cursor = 60; grip._scripts.OnUpdate(grip)
-    eq(width(), 110, "dragging left narrows the Note column")
+    eq(width(), 70, "dragging left narrows the Note column")
     cursor = -200; grip._scripts.OnUpdate(grip)
     eq(width(), 30, "never narrower than 30")
     grip._scripts.OnMouseUp(grip)
@@ -2023,6 +2023,50 @@ test("Members tab: columns resize by dragging a header edge, remembered, right-c
     p = memberPanel(anna)
     p.cols[1]._scripts.OnClick(p.cols[1], "RightButton")
     eq(anna.ns.settings.rosterWidths, nil, "right-click resets widths")
+end)
+
+test("professions: read automatically, shared, and listed in the Members tab", function()
+    local function profs(c, list)
+        c.profList = list
+        c.globals = c.globals or {}
+        c.globals.GetProfessions = function()
+            local p = c.profList
+            return p[1] and 1 or nil, p[2] and 2 or nil, nil, p[3] and 3 or nil, p[4] and 4 or nil
+        end
+        c.globals.GetProfessionInfo = function(i)
+            local e = c.profList[i]
+            return e[1], 136241, e[2], e[3]
+        end
+    end
+    local w, anna, bob, cara = setup(function(a, b, c)
+        profs(a, { { "Mining", 150, 225 }, { "Blacksmithing", 120, 150 }, nil, { "Cooking", 75, 150 } })
+        profs(b, {})
+        profs(c, { { "Herbalism", 60, 75 } })
+    end)
+    w:advance(15)
+    local P = bob.ns.Professions
+    local list = P:For("Anna-Silvermoon")
+    eq(#list, 3, "anna's three professions reached bob")
+    eq(P.Short(list, 2), "Mining 150, Blacksmithing 120", "primary first")
+    eq(P:For("Cara-Area52")[1].name, "Herbalism")
+    -- a skill-up updates by itself
+    anna.profList[1] = { "Mining", 151, 225 }
+    anna:fire("SKILL_LINES_CHANGED"); w:advance(5)
+    eq(P:For("Anna-Silvermoon")[1].level, 151, "skill-up shared")
+    -- offline members catch up when they log in
+    cara:logout(); w:advance(70)
+    anna.profList[2] = { "Blacksmithing", 125, 150 }
+    anna:fire("CHAT_MSG_SKILL"); w:advance(5)
+    cara:login(); w:advance(30)
+    eq(cara.ns.Professions:For("Anna-Silvermoon")[2].level, 125, "cara catches up")
+    -- shown in the Members tab
+    bob:slash("/fs"); bob.ns.UI:SelectTab("members")
+    local p = memberPanel(bob)
+    local found
+    for _, r in ipairs(p.rows) do
+        if r:IsShown() and r.member and r.member.main:find("Anna") then found = r.cells.profs:GetText() end
+    end
+    assert(found and found:find("Mining 151, Blacksmithing 125", 1, true), tostring(found))
 end)
 
 test("UI builds and renders without errors", function()
