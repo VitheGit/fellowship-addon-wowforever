@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.1
+
+- **View a member's recipes.** Right-click a member in the Members tab and choose "View Blacksmithing recipes" (or any of their professions) to open their recipe list, just like clicking a profession link in chat.
+- The game only gives out a profession's link while its window is open, so each member needs to open each of their professions once after updating. After that it's shared automatically, and refreshed whenever they open it again.
+- Right-clicking your own row now shows your recipes too, plus "Set note...".
+
 ## 0.19.0
 
 - **Professions in the Members tab.** A new Professions column shows each member's professions and skill levels, like "Mining 150, Blacksmithing 120". Hover over a member to see all of them, including Cooking and Fishing, for every character on their account.

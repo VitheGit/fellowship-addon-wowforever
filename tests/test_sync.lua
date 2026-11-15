@@ -2067,6 +2067,26 @@ test("professions: read automatically, shared, and listed in the Members tab", f
         if r:IsShown() and r.member and r.member.main:find("Anna") then found = r.cells.profs:GetText() end
     end
     assert(found and found:find("Mining 151, Blacksmithing 125", 1, true), tostring(found))
+    -- recipe links: picked up when anna opens her profession window, shared, opened from the menu
+    local BS = "|cffffd000|Htrade:Player-1-0001:2018:164|h[Blacksmithing]|h|r"
+    anna.env.C_TradeSkillUI = { GetTradeSkillListLink = function() return anna.tsLink end,
+        IsTradeSkillLinked = function() return anna.tsLinked end }
+    anna.tsLink = BS
+    anna:fire("TRADE_SKILL_SHOW"); w:advance(3)
+    eq(bob.ns.Professions:Links("Anna-Silvermoon").Blacksmithing, BS, "bob has anna's Blacksmithing link")
+    eq(cara.ns.Professions:Links("Anna-Silvermoon").Blacksmithing, BS, "so does cara")
+    -- viewing someone else's linked profession never replaces yours
+    anna.tsLinked, anna.tsLink = true, "|cffffd000|Htrade:Player-1-0002:2018:164|h[Blacksmithing]|h|r"
+    anna:fire("TRADE_SKILL_LIST_UPDATE"); w:advance(3)
+    eq(bob.ns.Professions:Links("Anna-Silvermoon").Blacksmithing, BS, "unchanged")
+    -- junk links are refused
+    eq(bob.ns.Professions.CleanLink("|cffff0000|Hitem:123|h[Sword]|h|r"), nil, "only profession links")
+    local items, opened = bob.ns.UI:MemberMenuItems({ chars = { "Anna-Silvermoon" }, main = "Anna-Silvermoon",
+        name = "Anna-Silvermoon", online = true, role = "admin" })
+    eq(items[1][1], "View Blacksmithing recipes", "menu offers the recipes")
+    rawset(bob.env, "SetItemRef", function(data) opened = data end)
+    items[1][2]()
+    eq(opened, "trade:Player-1-0001:2018:164", "opens the link like a chat click")
 end)
 
 test("UI builds and renders without errors", function()

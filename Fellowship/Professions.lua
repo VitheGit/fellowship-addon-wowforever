@@ -4,7 +4,10 @@
 -- Synced like notes, outside the event log, so older versions just ignore it:
 --   PL  fid proto "" ver | name v profs        one character's professions (newest v wins)
 --   PV  fid proto reply ver | name v | ...     "these are the ones I have" (with a HI reply)
--- profs is "Mining:150:300;Cooking:75:150" (name:level:max).
+-- profs is "Mining:150:300;Cooking:75:150" (name:level:max). After it come the profession links
+-- ("|Htrade:...|h[Blacksmithing]|h"), one field each: the game only hands those out while the
+-- profession window is open, so each one is picked up the first time you open that profession.
+-- Clicking one opens that member's recipe list, like a link in chat.
 local _, ns = ...
 local P = {}
 ns.Professions = P
@@ -79,10 +82,71 @@ function P.Short(list, limit)
     return table.concat(parts, ", ")
 end
 
+-- Keep only a well-formed profession link: "|cff...|Htrade:...|h[Name]|h|r"
+function P.CleanLink(link)
+    if type(link) ~= "string" then return nil end
+    local data, name = link:match("|H(trade:[^|]+)|h%[([^%]|]+)%]|h")
+    if not data or #data > 200 then return nil end
+    return "|cffffd000|H" .. data .. "|h[" .. name .. "]|h|r", name
+end
+
+-- { ["Blacksmithing"] = link, ... } for one character
+function P:Links(name, fid)
+    fid = fid or ns.Store:ActiveId()
+    local all = fid and store(fid) or {}
+    local r = all[ns.Key(name)]
+    return (r and r.links) or {}
+end
+
+-- Open a member's recipe list, the same as clicking the link in chat.
+function P.Open(link)
+    local data = type(link) == "string" and link:match("|H(trade:[^|]+)|h")
+    if not data or not SetItemRef then return false end
+    local ok = pcall(SetItemRef, data, link, "LeftButton")
+    return ok
+end
+
 function P:Records(fid, key)
     local r = (store(fid) or {})[key]
     if not r then return nil end
-    return { header("PL", fid), { r.name, r.v, r.text } }
+    local rec = { r.name, r.v, r.text }
+    local names = {}
+    for n in pairs(r.links or {}) do names[#names + 1] = n end
+    table.sort(names)
+    for _, n in ipairs(names) do rec[#rec + 1] = r.links[n] end
+    return { header("PL", fid), rec }
+end
+
+local function publish(fid, all, text, links)
+    local cur = all[ns.meKey]
+    all[ns.meKey] = { name = ns.me, v = math.max(((cur and cur.v) or 0) + 1, ns.Now()), text = text, links = links }
+    local f = ns.Store:Get(fid)
+    if not f.pendingFrom then ns.Sync:Broadcast(fid, P:Records(fid, ns.meKey)) end
+    ns.Fire("PROFESSIONS_CHANGED", fid, ns.meKey)
+end
+
+-- Your profession window is open: remember its link (never someone else's linked window).
+function P:CaptureLink()
+    local T = C_TradeSkillUI
+    if not (T and T.GetTradeSkillListLink) then return end
+    for _, f in ipairs({ "IsTradeSkillLinked", "IsTradeSkillGuild", "IsNPCCrafting" }) do
+        if T[f] then
+            local ok, yes = pcall(T[f])
+            if ok and yes then return end
+        end
+    end
+    local ok, raw = pcall(T.GetTradeSkillListLink)
+    local link, name = P.CleanLink(ok and raw)
+    if not link then return end
+    local fid = ns.Store:ActiveId()
+    local all = fid and store(fid)
+    if not all or not ns.me then return end
+    local cur = all[ns.meKey]
+    local links = {}
+    for k, v in pairs((cur and cur.links) or {}) do links[k] = v end
+    if links[name] == link then return end
+    links[name] = link
+    publish(fid, all, (cur and cur.text) or P.Encode(P.Read() or {}), links)
 end
 
 -- Read ours and share it if anything changed.
@@ -95,10 +159,11 @@ function P:Scan()
     local text = P.Encode(list)
     local cur = all[ns.meKey]
     if cur and cur.text == text then return end
-    all[ns.meKey] = { name = ns.me, v = math.max(((cur and cur.v) or 0) + 1, ns.Now()), text = text }
-    local f = ns.Store:Get(fid)
-    if not f.pendingFrom then ns.Sync:Broadcast(fid, self:Records(fid, ns.meKey)) end
-    ns.Fire("PROFESSIONS_CHANGED", fid, ns.meKey)
+    -- drop links for professions you no longer have
+    local have, links = {}, {}
+    for _, p in ipairs(list) do have[p.name] = true end
+    for k, v in pairs((cur and cur.links) or {}) do if have[k] then links[k] = v end end
+    publish(fid, all, text, links)
 end
 
 local queued = false
@@ -120,7 +185,12 @@ function P:OnList(sender, fid, records)
     local all = store(fid)
     local cur = all[key]
     if cur and (cur.v or 0) >= v then return end
-    all[key] = { name = name, v = v, text = P.Encode(P.Decode(r[3])) }
+    local links = {}
+    for i = 4, math.min(#r, 11) do
+        local link, pname = P.CleanLink(r[i])
+        if link then links[pname] = link end
+    end
+    all[key] = { name = name, v = v, text = P.Encode(P.Decode(r[3])), links = links }
     ns.Fire("PROFESSIONS_CHANGED", fid, key)
 end
 
@@ -160,4 +230,12 @@ end
 ns.On("PLAYER_LOGIN", function() P:QueueScan(10) end)
 ns.On("SKILL_LINES_CHANGED", function() P:QueueScan() end)
 ns.On("CHAT_MSG_SKILL", function() P:QueueScan() end)
+local linkQueued = false
+local function queueLink()
+    if linkQueued then return end
+    linkQueued = true
+    C_Timer.After(1, function() linkQueued = false; P:CaptureLink() end)
+end
+ns.On("TRADE_SKILL_SHOW", queueLink)
+ns.On("TRADE_SKILL_LIST_UPDATE", queueLink)
 ns.Listen("FELLOWSHIP_CHANGED", function() P:QueueScan() end)

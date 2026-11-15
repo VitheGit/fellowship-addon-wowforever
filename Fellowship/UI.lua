@@ -666,11 +666,11 @@ function UI:Build()
         row:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
         row:SetScript("OnClick", function(self, button)
             if not self.member then return end
-            if self.member.isMe then
+            if button == "RightButton" then
+                UI:OpenMemberMenu(self, self.member)
+            elseif self.member.isMe then
                 -- your own row: edit your note (only you can set yours)
                 StaticPopup_Show("FELLOWSHIP_MEMBER_NOTE")
-            elseif button == "RightButton" then
-                UI:OpenMemberMenu(self, self.member)
             end
         end)
         row:Hide()
@@ -1560,8 +1560,11 @@ function UI:ShowMemberTooltip(owner, m)
     end
     GameTooltip:AddLine("Member since " .. date("%b %d, %Y", m.since), 0.8, 0.8, 0.8)
     GameTooltip:AddLine(m.achievements .. " achievement" .. (m.achievements == 1 and "" or "s") .. " shared", 0.8, 0.8, 0.8)
-    if m.isMe then GameTooltip:AddLine("Click to " .. (note and "change" or "add") .. " your note", 0.5, 0.5, 0.5)
-    else GameTooltip:AddLine("Right-click for options", 0.5, 0.5, 0.5) end
+    local hasRecipes = false
+    for _, n in ipairs(m.chars) do if next(ns.Professions:Links(n)) then hasRecipes = true end end
+    if m.isMe then GameTooltip:AddLine("Click to " .. (note and "change" or "add") .. " your note", 0.5, 0.5, 0.5) end
+    if hasRecipes then GameTooltip:AddLine("Right-click to view recipes", 0.5, 0.5, 0.5)
+    elseif not m.isMe then GameTooltip:AddLine("Right-click for options", 0.5, 0.5, 0.5) end
     GameTooltip:Show()
 end
 
@@ -1686,7 +1689,22 @@ end
 -- Right-click a member: whisper/invite to group, plus role and removal options for the Admin.
 function UI:MemberMenuItems(m)
     local items = {}
-    if m.isMe then return items end
+    -- "View Blacksmithing recipes": opens their recipe list, like a profession link in chat
+    for _, n in ipairs(m.chars or {}) do
+        local links = ns.Professions:Links(n)
+        local names = {}
+        for pname in pairs(links) do names[#names + 1] = pname end
+        table.sort(names)
+        for _, pname in ipairs(names) do
+            local label = "View " .. pname .. " recipes"
+            if #m.chars > 1 then label = label .. " (" .. ns.Short(n) .. ")" end
+            items[#items + 1] = { label, function() ns.Professions.Open(links[pname]) end }
+        end
+    end
+    if m.isMe then
+        items[#items + 1] = { "Set note...", function() StaticPopup_Show("FELLOWSHIP_MEMBER_NOTE") end }
+        return items
+    end
     local target = ns.Short(m.online and m.name or m.main)
     if m.online then
         items[#items + 1] = { "Whisper", function()
