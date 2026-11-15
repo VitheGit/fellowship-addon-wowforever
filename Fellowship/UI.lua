@@ -11,11 +11,12 @@ local MAX_LINES = 600
 
 -- Members roster columns (widths add up to the panel width)
 local ROSTER_COLUMNS = {
-    { key = "name", title = "Name", width = 200 },
-    { key = "level", title = "Level", width = 50, align = "CENTER" },
-    { key = "zone", title = "Zone", width = 170 },
-    { key = "rank", title = "Rank", width = 90 },
-    { key = "seen", title = "Last Online", width = 110 },
+    { key = "name", title = "Name", width = 160 },
+    { key = "level", title = "Level", width = 40, align = "CENTER" },
+    { key = "zone", title = "Zone", width = 125 },
+    { key = "rank", title = "Rank", width = 75 },
+    { key = "seen", title = "Last Online", width = 85 },
+    { key = "note", title = "Note", width = 150 },
 }
 local ROSTER_ROWS, ROW_HEIGHT = 15, 18
 
@@ -588,7 +589,13 @@ function UI:Build()
         row:SetScript("OnEnter", function(self) if self.member then UI:ShowMemberTooltip(self, self.member) end end)
         row:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
         row:SetScript("OnClick", function(self, button)
-            if self.member and button == "RightButton" then UI:OpenMemberMenu(self, self.member) end
+            if not self.member then return end
+            if self.member.isMe then
+                -- your own row: edit your note (only you can set yours)
+                StaticPopup_Show("FELLOWSHIP_MEMBER_NOTE")
+            elseif button == "RightButton" then
+                UI:OpenMemberMenu(self, self.member)
+            end
         end)
         row:Hide()
         mem.rows[i] = row
@@ -967,6 +974,29 @@ function UI:Init()
         whileDead = true,
         hideOnEscape = true,
     }
+    StaticPopupDialogs["FELLOWSHIP_MEMBER_NOTE"] = {
+        text = "Your note, shown to your fellowship in the Members tab (leave empty to clear):",
+        button1 = ACCEPT or "Accept",
+        button2 = CANCEL or "Cancel",
+        hasEditBox = true,
+        maxLetters = ns.Notes.MAX_LEN,
+        OnShow = function(self)
+            local eb = self.editBox or self.EditBox
+            if eb then eb:SetText(ns.Notes:Mine()); eb:HighlightText() end
+        end,
+        OnAccept = function(self)
+            local eb = self.editBox or self.EditBox
+            if eb then ns.Notes:Set(eb:GetText()) end
+        end,
+        EditBoxOnEnterPressed = function(self)
+            ns.Notes:Set(self:GetText())
+            self:GetParent():Hide()
+        end,
+        EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
+    }
     StaticPopupDialogs["FELLOWSHIP_WISH_NOTE"] = {
         text = "Note for %s (friends see it on your wishlist):",
         button1 = ACCEPT or "Accept",
@@ -998,6 +1028,7 @@ function UI:Init()
         if activeTab == "wishlist" and panels.wishlist and panels.wishlist.view == "all" and UI:IsShown() then queue() end
     end)
     ns.Listen("CALENDAR_CHANGED", queue)
+    ns.Listen("NOTES_CHANGED", queue)
     ns.Listen("EVENTS_ADDED", queue)
     ns.Listen("PRESENCE", queue)
     ns.Listen("FELLOWSHIP_CHANGED", queue)
@@ -1272,7 +1303,9 @@ local function sortRoster(list)
         elseif key == "level" then return m.level or -1
         elseif key == "zone" then return (m.online and m.zone or "~"):lower()
         elseif key == "rank" then return RANK_ORDER[m.role] or 9
-        elseif key == "seen" then return m.online and math.huge or (m.seen or 0) end
+        elseif key == "seen" then return m.online and math.huge or (m.seen or 0)
+        elseif key == "note" then return (ns.Notes:ForChars(m.chars) or "~"):lower() end
+        return ""
     end
     if key == "default" then return list end -- MemberList order: online first, then by name
     table.sort(list, function(a, b)
@@ -1319,6 +1352,10 @@ local function renderMembers(p, fid)
             if m.role == "admin" then rank = "|cffffd100" .. rank .. "|r"
             elseif not m.online then rank = GREY .. rank .. "|r" end
             c.rank:SetText(rank)
+            local note = ns.Notes:ForChars(m.chars, fid)
+            if note then c.note:SetText(GREY .. ns.Escape(note) .. "|r")
+            elseif m.isMe then c.note:SetText("|cff5a5a5aClick to add a note|r")
+            else c.note:SetText("") end
             row:Show()
         else
             row:Hide()
@@ -1424,9 +1461,12 @@ function UI:ShowMemberTooltip(owner, m)
         table.sort(names)
         GameTooltip:AddLine("Characters: " .. table.concat(names, ", "), 0.8, 0.8, 0.8, true)
     end
+    local note = ns.Notes:ForChars(m.chars)
+    if note then GameTooltip:AddLine("Note: " .. note, 1, 1, 1, true) end
     GameTooltip:AddLine("Member since " .. date("%b %d, %Y", m.since), 0.8, 0.8, 0.8)
     GameTooltip:AddLine(m.achievements .. " achievement" .. (m.achievements == 1 and "" or "s") .. " shared", 0.8, 0.8, 0.8)
-    if not m.isMe then GameTooltip:AddLine("Right-click for options", 0.5, 0.5, 0.5) end
+    if m.isMe then GameTooltip:AddLine("Click to " .. (note and "change" or "add") .. " your note", 0.5, 0.5, 0.5)
+    else GameTooltip:AddLine("Right-click for options", 0.5, 0.5, 0.5) end
     GameTooltip:Show()
 end
 

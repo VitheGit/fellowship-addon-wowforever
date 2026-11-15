@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.18.0
+
+- **Member notes.** The Members tab has a new **Note** column. Click your own row to write a short note about yourself (up to 60 characters), like "Main is a hunter, leveling Mining" or "On weeknights after 8pm". Everyone in the fellowship sees it, but only you can change yours.
+- Notes also show when you hover over a member, and you can sort the roster by them.
+- `/fship note <text>` sets your note from chat, `/fship note` shows it, and `/fship note clear` removes it.
+- Notes sync like wishlists, so members who were offline get them when they log in. Members on older versions won't see notes until they update.
+
 ## 0.17.3
 
 - **Name suggestions for @mentions.** Type `@` in the Fellowship window's chat box and a list of members pops up above it, narrowing as you type (`@ka` shows Kara Dunmore, Kai...). Click a name, or press Tab or Enter to pick the highlighted one, and use Up/Down to move through the list. `@all` is in the list too. Escape closes it.

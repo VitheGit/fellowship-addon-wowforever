@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.17.3"
+ns.VERSION = "0.18.0"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -609,6 +609,7 @@ local HELP = {
     "|cffffd100/fship calendar|r - plan dungeon runs, raids and other events, and sign up (/fship events lists them)",
     "|cffffd100/fship wish <item> [amount]|r - add an item to your wishlist (shift-click it; /fship wish alone opens the list)",
     "|cffffd100/fship unwish <item>|r - take an item off your wishlist",
+    "|cffffd100/fship note <text>|r - set the note everyone sees next to your name in Members (/fship note clear)",
     "|cffffd100/fship dungeons|r - recent boss kills and why a run did or didn't count",
     "|cffffd100/fship blocked|r - anything the game stopped Fellowship from doing (for bug reports)",
 }
@@ -688,6 +689,8 @@ function ns.HandleSlash(input)
         ns.UI:Show("calendar")
     elseif cmd == "events" then
         ns.Calendar:PrintUpcoming()
+    elseif cmd == "note" then
+        ns.Notes:Slash(rest)
     elseif cmd == "blocked" then
         ns.PrintBlocked()
     elseif cmd == "items" then

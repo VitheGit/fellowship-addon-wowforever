@@ -1966,6 +1966,40 @@ test("blocked actions are recorded and shown by /fship blocked", function()
     assert(not anna:logContains("CastSpellByName"), "ignores other addons")
 end)
 
+test("member notes: you set your own, everyone sees it, offline members catch up", function()
+    local w, anna, bob, cara = setup()
+    cara:logout(); w:advance(70)
+    anna:slash("/fship note Main is a hunter, also leveling Mining")
+    w:advance(5)
+    eq(bob.ns.Notes:ForChars({ "Anna-Silvermoon" }), "Main is a hunter, also leveling Mining", "bob sees anna's note")
+    cara:login(); w:advance(30)
+    eq(cara.ns.Notes:ForChars({ "Anna-Silvermoon" }), "Main is a hunter, also leveling Mining", "cara catches up at login")
+    -- shown in bob's Members tab
+    bob:slash("/fs"); bob.ns.UI:SelectTab("members")
+    local p = memberPanel(bob)
+    local annaRow, bobRow
+    for _, r in ipairs(p.rows) do
+        if r:IsShown() and r.member then
+            if r.member.main:find("Anna") then annaRow = r end
+            if r.member.isMe then bobRow = r end
+        end
+    end
+    assert(annaRow.cells.note:GetText():find("Main is a hunter", 1, true), "note column shows it")
+    -- only your own row opens the note editor
+    local before = #bob.popups
+    annaRow._scripts.OnClick(annaRow, "LeftButton")
+    eq(#bob.popups, before, "can't edit someone else's note")
+    bobRow._scripts.OnClick(bobRow, "LeftButton")
+    eq(bob.popups[#bob.popups].which, "FELLOWSHIP_MEMBER_NOTE", "your row opens your note")
+    -- notes are cleaned and capped; clearing works
+    anna.ns.Notes:Set("a|cffff0000b" .. string.rep("x", 100))
+    w:advance(5)
+    local n = bob.ns.Notes:ForChars({ "Anna-Silvermoon" })
+    assert(not n:find("|", 1, true) and #n == anna.ns.Notes.MAX_LEN, "cleaned and capped")
+    anna:slash("/fship note clear"); w:advance(5)
+    eq(bob.ns.Notes:ForChars({ "Anna-Silvermoon" }), nil, "cleared")
+end)
+
 test("UI builds and renders without errors", function()
     local w, anna, bob, cara = setup()
     bob:slash("/fsay hi")

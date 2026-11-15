@@ -19,6 +19,7 @@ and read everything they missed.
   when a member loots their item, and members get reminders at loot rolls and mailboxes
 - @mentions: type `@Kara` (or `@all`) in Fellowship chat to tag a member; they hear a sound,
   see an alert and the game icon flashes. Tab finishes names, and it can be turned off in Settings
+- Member notes: write a short note about yourself in the Members tab; everyone sees it, only you can change it
 - Online/offline notices, plus each member's zone and level in the Members tab
 - A clean window with a sidebar (Chat, Calendar, Wishlist, Achievements, Members), badges for anything new, and a feed with filters; resizable
 - A settings window (`/fship settings` or the gear) to choose what you share and
@@ -69,6 +70,7 @@ Everyone in the group needs the addon installed.
 | `/fship tab` | Show/hide Fellowship messages in the chat tab you are typing in (`/fship tab 2`, `/fship tab reset`). You can also right-click a chat tab and tick **Show Fellowship** |
 | `/fship settings` | Open the settings window |
 | `/fship minimap` | Show or hide the minimap button |
+| `/fship note <text>` | Set the note everyone sees next to your name in the Members tab (`/fship note clear` removes it) |
 | `/fship blocked` | Show anything the game stopped Fellowship from doing (for bug reports) |
 | `/fship calendar` | Open the Calendar tab to plan events and sign up (`/fship events` lists them in chat) |
 | `/fship wish <item> [amount]` | Add an item to your wishlist (shift-click the item in); `/fship wish` alone opens the Wishlist tab |

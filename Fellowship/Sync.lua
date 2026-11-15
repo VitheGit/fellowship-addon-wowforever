@@ -13,6 +13,7 @@
 --   CH  fid proto wantReply                      (channel only) "I'm listening on the fellowship channel"
 --   WL / WV                                      wishlists (see Wishlist.lua); older versions ignore them
 --   CL / CV                                      calendar events and sign-ups (see Calendar.lua)
+--   NL / NV                                      member notes (see Notes.lua)
 --
 -- Catch-up: whenever two members meet (login, periodic ping, new member) they swap HI
 -- vectors; each side REQuests only the ranges it is missing. Because every member keeps
@@ -192,6 +193,7 @@ function Sync:Hello(fid, target, wantReply)
     if not wantReply then
         ns.Wishlist:SendSummary(fid, target, true)
         ns.Calendar:SendSummary(fid, target, true)
+        ns.Notes:SendSummary(fid, target, true)
     end
 end
 
@@ -517,6 +519,10 @@ function Sync:OnMessage(sender, records, viaChannel)
         ns.Calendar:OnSummary(sender, fid, records, h[4] == "1")
     elseif typ == "CL" then
         ns.Calendar:OnList(sender, fid, records)
+    elseif typ == "NV" then
+        ns.Notes:OnSummary(sender, fid, records, h[4] == "1")
+    elseif typ == "NL" then
+        ns.Notes:OnNote(sender, fid, records)
     end
 end
 
