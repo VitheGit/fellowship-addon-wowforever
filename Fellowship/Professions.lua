@@ -83,10 +83,10 @@ function P.Short(list, limit)
 end
 
 -- Keep only a well-formed profession link: "|cff...|Htrade:...|h[Name]|h|r"
-function P.CleanLink(link)
+function P.CleanLink(link, maxLen)
     if type(link) ~= "string" then return nil end
     local data, name = link:match("|H(trade:[^|]+)|h%[([^%]|]+)%]|h")
-    if not data or #data > 200 then return nil end
+    if not data or #data > (maxLen or 200) then return nil end
     return "|cffffd000|H" .. data .. "|h[" .. name .. "]|h|r", name
 end
 
@@ -203,7 +203,28 @@ end
 -- A profession link someone posted in chat. The game's own chat links always open, so they
 -- beat the one we read from the profession window: yours is shared with the fellowship, a
 -- member's replaces what we had for them (on this computer only).
-local function guidOf(link) return link:match("|Htrade:(Player%-[%w%-]+)") end
+local function guidOf(link) return link:match("|Htrade:[^|]-(Player%-[%w%-]+)") end
+local CHAT_MAX = 4000 -- links received through game chat can carry more data
+
+-- A profession link in a Fellowship chat message is the sender's own copy, which only opens
+-- for them. If we've received that profession's link through game chat, show that one instead.
+function P.Upgrade(text)
+    if type(text) ~= "string" or not text:find("|Htrade:", 1, true) then return text end
+    local fid = ns.Store:ActiveId()
+    local f = fid and ns.Store:Get(fid)
+    local seen = f and f.chatLinks
+    if not seen then return text end
+    return (text:gsub("|c%x%x%x%x%x%x%x%x|Htrade:.-|h|r", function(raw)
+        local link, pname = P.CleanLink(raw, CHAT_MAX)
+        local g = link and guidOf(link)
+        if not g then return raw end
+        for _, links in pairs(seen) do
+            local better = links[pname]
+            if better and better ~= link and guidOf(better) == g then return better end
+        end
+        return raw
+    end))
+end
 function P:OnChatLink(text, sender)
     if type(text) ~= "string" or not text:find("|Htrade:", 1, true) or not sender then return end
     local fid = ns.Store:ActiveId()
@@ -213,7 +234,7 @@ function P:OnChatLink(text, sender)
     local key = name and ns.Key(name)
     if not key then return end
     for raw in text:gmatch("|c%x%x%x%x%x%x%x%x|Htrade:.-|h|r") do
-        local link, pname = P.CleanLink(raw)
+        local link, pname = P.CleanLink(raw, key == ns.meKey and 200 or CHAT_MAX)
         if link then
             P.chatRaw = P.chatRaw or {}
             P.chatRaw[key .. ":" .. pname] = raw

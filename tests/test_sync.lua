@@ -1303,12 +1303,17 @@ test("hidden channel: one message reaches everyone; unique name and password per
     for _, c in ipairs({ anna, bob, cara }) do assert(not c:logContains(name), "channel name shown in chat") end
     -- a profession link "Post in chat"-ed to the hidden channel becomes a fellowship message
     local TL = "|cffffd000|Htrade:Player-Anna:2018:164|h[Blacksmithing]|h|r"
-    for _, c in ipairs({ anna, bob, cara }) do c:fire("CHAT_MSG_CHANNEL", TL, "Anna-Silvermoon", "", "6. " .. name, "", "", 0, 6, name) end
+    -- (others receive the game's copy of the link, which carries more data than the sender's)
+    local TLR = "|cffffd000|Htrade:Player-Anna:2018:164:" .. string.rep("Ab", 150) .. "|h[Blacksmithing]|h|r"
+    anna:fire("CHAT_MSG_CHANNEL", TL, "Anna-Silvermoon", "", "6. " .. name, "", "", 0, 6, name)
+    for _, c in ipairs({ bob, cara }) do c:fire("CHAT_MSG_CHANNEL", TLR, "Anna-Silvermoon", "", "6. " .. name, "", "", 0, 6, name) end
     w:advance(2)
-    assert(bob:logContains(TL) and cara:logContains(TL), "link not posted to the fellowship")
+    assert(anna:logContains(TL), "link not posted to the fellowship")
     local n = 0
-    for _, l in ipairs(bob.log) do if l:find(TL, 1, true) then n = n + 1 end end
-    eq(n, 1, "posted once")
+    for _, l in ipairs(bob.log) do if l:find(TLR, 1, true) then n = n + 1 end end
+    eq(n, 1, "bob's fellowship chat shows the game's copy")
+    assert(not bob:logContains(TL), "bob sees anna's own copy")
+    eq(bob.ns.Professions:Links("Anna-Silvermoon").Blacksmithing, TLR, "and the menu uses it")
     -- someone else's line in the channel isn't reposted by you
     bob:fire("CHAT_MSG_CHANNEL", "hello", "Cara-Area52", "", "6. " .. name, "", "", 0, 6, name); w:advance(2)
     assert(not anna:logContains("hello"), "bob reposted cara's line")

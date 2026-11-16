@@ -218,7 +218,9 @@ end
 local function ours(channelName, localID, baseName)
     return Ch:IsOurs(baseName, localID) or Ch:IsOurs(channelName, localID)
 end
-local function channelFilter(_, _, _, _, _, channelName, _, _, _, localID, baseName)
+local function channelFilter(_, _, text, _, _, channelName, _, _, _, localID, baseName)
+    -- profession links stay: the game's own copy of the line is the one others can open
+    if type(text) == "string" and text:find("|Htrade:", 1, true) then return false end
     return state.name ~= nil and ours(channelName, localID, baseName)
 end
 function Ch:OnChannelChat(text, sender, channelName, localID, baseName)

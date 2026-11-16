@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.19.4"
+ns.VERSION = "0.19.5"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -326,7 +326,7 @@ function ns.FormatEvent(e)
     local d = e.d or {}
     if e.k == "C" then
         local color = "|cff" .. ns.TextColor()
-        return who .. ": " .. color .. ns.Mentions.Highlight(ns.SafeChat(d[1], color), color) .. "|r"
+        return who .. ": " .. color .. ns.Mentions.Highlight(ns.SafeChat(ns.Professions.Upgrade(d[1]), color), color) .. "|r"
     elseif e.k == "A" then
         local id = tonumber(d[1])
         local link = id and GetAchievementLink and GetAchievementLink(id)
