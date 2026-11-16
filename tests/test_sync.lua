@@ -1301,22 +1301,6 @@ test("hidden channel: one message reaches everyone; unique name and password per
     assert(bob:logContains("one message for all") and cara:logContains("one message for all"), "not delivered")
     -- the join notices stay out of chat
     for _, c in ipairs({ anna, bob, cara }) do assert(not c:logContains(name), "channel name shown in chat") end
-    -- a profession link "Post in chat"-ed to the hidden channel becomes a fellowship message
-    local TL = "|cffffd000|Htrade:Player-Anna:2018:164|h[Blacksmithing]|h|r"
-    -- (others receive the game's copy of the link, which carries more data than the sender's)
-    local TLR = "|cffffd000|Htrade:Player-Anna:2018:164:" .. string.rep("Ab", 150) .. "|h[Blacksmithing]|h|r"
-    anna:fire("CHAT_MSG_CHANNEL", TL, "Anna-Silvermoon", "", "6. " .. name, "", "", 0, 6, name)
-    for _, c in ipairs({ bob, cara }) do c:fire("CHAT_MSG_CHANNEL", TLR, "Anna-Silvermoon", "", "6. " .. name, "", "", 0, 6, name) end
-    w:advance(2)
-    assert(anna:logContains(TL), "link not posted to the fellowship")
-    local n = 0
-    for _, l in ipairs(bob.log) do if l:find(TLR, 1, true) then n = n + 1 end end
-    eq(n, 1, "bob's fellowship chat shows the game's copy")
-    assert(not bob:logContains(TL), "bob sees anna's own copy")
-    eq(bob.ns.Professions:Links("Anna-Silvermoon").Blacksmithing, TLR, "and the menu uses it")
-    -- someone else's line in the channel isn't reposted by you
-    bob:fire("CHAT_MSG_CHANNEL", "hello", "Cara-Area52", "", "6. " .. name, "", "", 0, 6, name); w:advance(2)
-    assert(not anna:logContains("hello"), "bob reposted cara's line")
     -- another fellowship with the same name gets a different channel
     local w2 = World.new()
     local x = w2:client("Xan"); x:login(); w2:advance(1)
@@ -2083,50 +2067,6 @@ test("professions: read automatically, shared, and listed in the Members tab", f
         if r:IsShown() and r.member and r.member.main:find("Anna") then found = r.cells.profs:GetText() end
     end
     assert(found and found:find("Mining 151, Blacksmithing 125", 1, true), tostring(found))
-    -- recipe links: picked up when anna opens her profession window, shared, opened from the menu
-    local BS = "|cffffd000|Htrade:Player-1-0001:2018:164|h[Blacksmithing]|h|r"
-    anna.env.C_TradeSkillUI = { GetTradeSkillListLink = function() return anna.tsLink end,
-        IsTradeSkillLinked = function() return anna.tsLinked end }
-    anna.tsLink = BS
-    anna:fire("TRADE_SKILL_SHOW"); w:advance(3)
-    eq(bob.ns.Professions:Links("Anna-Silvermoon").Blacksmithing, BS, "bob has anna's Blacksmithing link")
-    eq(cara.ns.Professions:Links("Anna-Silvermoon").Blacksmithing, BS, "so does cara")
-    -- viewing someone else's linked profession never replaces yours
-    anna.tsLinked, anna.tsLink = true, "|cffffd000|Htrade:Player-1-0002:2018:164|h[Blacksmithing]|h|r"
-    anna:fire("TRADE_SKILL_LIST_UPDATE"); w:advance(3)
-    eq(bob.ns.Professions:Links("Anna-Silvermoon").Blacksmithing, BS, "unchanged")
-    -- junk links are refused
-    eq(bob.ns.Professions.CleanLink("|cffff0000|Hitem:123|h[Sword]|h|r"), nil, "only profession links")
-    local items, opened = bob.ns.UI:MemberMenuItems({ chars = { "Anna-Silvermoon" }, main = "Anna-Silvermoon",
-        name = "Anna-Silvermoon", online = true, role = "admin" })
-    eq(items[1][1], "View Blacksmithing recipes", "menu offers the recipes")
-    rawset(bob.env, "SetItemRef", function(data) opened = data end)
-    items[1][2]()
-    eq(opened, "trade:Player-1-0001:2018:164", "opens the link like a chat click")
-    -- and prints it in chat as a clickable fallback; /fship recipes lists them all
-    local function said(text)
-        for _, l in ipairs(bob.log) do if l:find(text, 1, true) then return true end end
-    end
-    assert(said("Anna Silvermoon's recipes: " .. BS), "link printed in chat")
-    bob.log = {}
-    bob:slash("/fship recipes")
-    assert(said("Anna Silvermoon: " .. BS), "/fship recipes lists anna's link")
-    -- a link anna posts in chat herself is the one that works: she shares it, and opening
-    -- her window again doesn't put the old one back
-    local CHAT = "|cffffd000|Htrade:Player-Anna:2018:2437|h[Blacksmithing]|h|r"
-    anna.tsLinked, anna.tsLink = false, BS
-    anna:fire("CHAT_MSG_SAY", "my recipes " .. CHAT, "Anna-Silvermoon")
-    w:advance(3)
-    eq(bob.ns.Professions:Links("Anna-Silvermoon").Blacksmithing, CHAT, "bob gets anna's chat link")
-    anna:fire("TRADE_SKILL_SHOW"); w:advance(3)
-    eq(cara.ns.Professions:Links("Anna-Silvermoon").Blacksmithing, CHAT, "window doesn't undo it")
-    -- someone else's link that a member posts in chat is used for them on this computer
-    local CL = "|cffffd000|Htrade:Player-Cara-Area52:185:185|h[Cooking]|h|r"
-    bob:fire("CHAT_MSG_PARTY", CL, "Cara-Area52")
-    eq(bob.ns.Professions:Links("Cara-Area52").Cooking, CL, "cara's posted link")
-    bob.log = {}
-    bob:slash("/fship recipes raw")
-    assert(said("chat: ||cffffd000||Htrade:Player-Cara"), "raw shows the chat link")
 end)
 
 test("UI builds and renders without errors", function()

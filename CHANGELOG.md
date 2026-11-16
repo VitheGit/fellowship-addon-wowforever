@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.6
+
+- **Recipe links removed.** WoW Forever only lets a profession link open for other players when it's clicked straight from the game's own chat, so sharing links through Fellowship couldn't work. Right-click "View X recipes", /fship recipes, and the hidden-channel link posting from 0.19.1 to 0.19.5 are gone.
+- The Professions column with everyone's skill levels stays as it was.
+- To show someone your recipes, link your profession in party, guild or whisper as usual.
+
 ## 0.19.5
 
 - **Fix: profession links in Fellowship chat only opened for the person who posted them.** The game gives everyone else a fuller copy of a profession link when it's posted in real chat. Fellowship now remembers the copy you received and uses it in Fellowship chat and for right-click > "View X recipes".
