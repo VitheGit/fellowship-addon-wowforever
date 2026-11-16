@@ -2087,6 +2087,14 @@ test("professions: read automatically, shared, and listed in the Members tab", f
     rawset(bob.env, "SetItemRef", function(data) opened = data end)
     items[1][2]()
     eq(opened, "trade:Player-1-0001:2018:164", "opens the link like a chat click")
+    -- and prints it in chat as a clickable fallback; /fship recipes lists them all
+    local function said(text)
+        for _, l in ipairs(bob.log) do if l:find(text, 1, true) then return true end end
+    end
+    assert(said("Anna Silvermoon's recipes: " .. BS), "link printed in chat")
+    bob.log = {}
+    bob:slash("/fship recipes")
+    assert(said("Anna Silvermoon: " .. BS), "/fship recipes lists anna's link")
 end)
 
 test("UI builds and renders without errors", function()

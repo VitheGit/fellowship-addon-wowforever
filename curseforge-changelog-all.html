@@ -1,0 +1,212 @@
+<h2>0.16.0</h2>
+<ul>
+<li><strong>A cleaner Fellowship window.</strong> The row of buttons along the top is gone. Pages are now in a sidebar on the left, each with an icon: Chat, Calendar, Wishlist, Achievements and Members.</li>
+<li>Red badges on the sidebar show new chat and activity while you're on another page, and how many calendar events are waiting for your answer.</li>
+<li>The window uses the game's portrait frame, with the Fellowship icon in the corner, your fellowship's name as the title and "4 of 5 online" under it. Settings is now a gear next to the close button.</li>
+<li><strong>Chat and Activity are now one feed.</strong> Filters along the top let you show All, Chat, Loot, Dungeons, Levels, Deaths or More (achievements, collections, rare mobs). Your choice is remembered. The member list on the right can be hidden with the Members switch.</li>
+<li>Dungeons/Raids and My Wishlist/Fellowship Wishes are now small switches instead of big buttons.</li>
+<li>Input boxes show what to type ("Message Loot Kills...", "Search items to add..."), and the wishlist instructions moved into a "?" you can hover.</li>
+<li>The window can be resized from the bottom-right corner, and remembers its size and position.</li>
+</ul>
+<h2>0.15.0</h2>
+<ul>
+<li>New <strong>Calendar</strong> tab for planning dungeon runs, raids and anything else. Any member can plan an event: click <strong>New Event</strong> (or click a day first), choose <strong>Dungeon</strong>, <strong>Raid</strong> or <strong>Other</strong>, pick the dungeon or raid from the list (or type a name for Other), then set the date, time and an optional note.</li>
+<li>Everyone answers <strong>Going</strong>, <strong>Maybe</strong> or <strong>Can't</strong>. The event shows who's going, who might come, who can't, and who hasn't answered yet. You can change your answer any time.</li>
+<li>The month view shows how many events each day has. The list on the right shows upcoming events, or the events on the day you clicked, with your answer next to each one.</li>
+<li>Only the person who planned an event can edit or cancel it. Everyone sees when it's cancelled.</li>
+<li>Notices in Fellowship chat when someone plans an event, and (for the person who planned it) when members answer.</li>
+<li>At login you see what's coming up in the next 24 hours, and how many events still need your answer. A reminder with a sound pops up 15 minutes before an event starts, unless you said you can't come.</li>
+<li>Times are shown in each person's own time zone.</li>
+<li>Events sync like wishlists, so members who were offline get them when they log in. Everyone needs 0.15.0 to see the calendar.</li>
+<li>New commands: <code>/fship calendar</code> opens the Calendar tab, and <code>/fship events</code> lists upcoming events in chat.</li>
+<li>The Fellowship window is a little wider, to fit the new tab.</li>
+</ul>
+<h2>0.14.1</h2>
+<ul>
+<li>Fixed item search finding nothing. WoW Forever only offers item lookups through the game's newer item functions, so the background scan couldn't read any names, and wishlist counts could read 0. The scan now starts over once, by itself, and fills in properly.</li>
+<li>New <code>/fship items</code> command shows how many items search knows and how far the scan has got.</li>
+</ul>
+<h2>0.14.0</h2>
+<ul>
+<li><strong>Item search in the Wishlist box.</strong> Start typing a name, like "ore", and a list pops up with Copper Ore, Tin Ore, Iron Ore and so on. Click one to add it, or press Enter to add the top match. Typing several words narrows it down ("iron ore").</li>
+<li>The game doesn't let addons search items by name, so Fellowship learns item names itself. It remembers every item you loot, hover or see linked, and slowly asks the game about the rest in the background. This takes about 20 to 30 minutes of play the first time, and it pauses in combat and in dungeons and raids. It's done once per account, and again only to pick up new items after a patch. Until it finishes, the list shows how far along it is.</li>
+</ul>
+<h2>0.13.1</h2>
+<ul>
+<li>Fixed adding items to the wishlist. With the Wishlist tab open, shift-clicking an item in your bags, a loot window, a vendor or a chat link now adds it straight away, instead of opening the "split stack" box.</li>
+<li>Fixed dragging an item onto the Wishlist tab. There's now an empty slot next to the box to drop items on, and dropping anywhere on the tab works too.</li>
+</ul>
+<h2>0.13.0</h2>
+<ul>
+<li>New <strong>Wishlist</strong> tab. Add the items you're hunting for by shift-clicking them into the box, dragging them from your bags, right-clicking an item link in chat, or typing <code>/fship wish [item]</code>.</li>
+<li><strong>One-time wishes</strong> (gear, mounts, recipes): when a fellowship member loots one, you get a ping and a sound, and everyone sees "Bob looted [Item] - Brad wanted this!". When you loot it yourself it comes off your list with "Wish granted!".</li>
+<li><strong>Always wanted</strong> (trade goods and reagents like ore, herbs and cloth): these stay on your list and don't post anything when you loot them. You can set an amount (right-click, "Set amount wanted"), and friends see your bag and bank count, like "14/40", or "stocked" once you have enough. Pings for these are off unless you turn them on for that item.</li>
+<li>New items default to "always wanted" if they're trade goods or reagents, and one-time otherwise. Right-click a row to switch, set an amount, add a note, or remove it.</li>
+<li>Hovering any item shows "Fellowship: wanted by ..." with each friend's count.</li>
+<li>When a wanted item comes up in a loot roll, you see who wants it. When you open a mailbox with something a friend wants in your bags, you get one quiet reminder.</li>
+<li>"Fellowship Wishes" view shows everything the fellowship wants, grouped by item.</li>
+<li>Wishlists sync like chat, so offline members' lists still reach you. Older versions of Fellowship ignore them, so everyone needs 0.13.0 to see each other's lists.</li>
+</ul>
+<h2>0.12.0</h2>
+<ul>
+<li>Fellowship chat and announcements now go through a hidden, password-protected chat channel. One message reaches everyone online at once, instead of one whisper per member, so big fellowships no longer see messages arrive late.</li>
+<li>Each fellowship gets its own channel. The name and password are codes only members' addons know, not your fellowship's name. If the name is ever taken, everyone moves to the same backup name automatically. Removing a member moves the fellowship to a new channel and password.</li>
+<li>The channel is hidden from your chat windows, and its join notices are hidden too.</li>
+<li>Members without the channel still get every message by whisper. That covers anyone on an older version, or with all 10 channel slots in use.</li>
+<li>New <code>/fship channel</code> command shows whether you're on the channel and how many members are heard on it.</li>
+</ul>
+<h2>0.11.10</h2>
+<ul>
+<li>Fixed the X button not closing the Fellowship window (and the Settings window) while you're in combat.</li>
+</ul>
+<h2>0.11.9</h2>
+<ul>
+<li>Fellowship Achievements now read "Loot Kills has completed Gnomeregan!" (your fellowship's name), instead of naming one member. The difficulty is added when it isn't Normal.</li>
+<li>When everyone in the group is in the fellowship, the separate "&lt;name&gt; completed Gnomeregan" lines from each member are no longer posted.</li>
+</ul>
+<h2>0.11.8</h2>
+<ul>
+<li>City of Dalaran now completes when Shade of the Archmage dies.</li>
+<li>The Barrow Deeps raid (coming December 9) is ready: it completes when Sonya Darkhallow dies.</li>
+</ul>
+<h2>0.11.7</h2>
+<ul>
+<li>Added WoW Forever's new dungeons to the Dungeons tab and to the final-boss list: Hall of Thanes (Durgen Dirgehammer), Ruins of Lordaeron (Rath'mael), Excavation Site (Relic Guardian), The Drowned City (Min'loth the Serpent), Krol'dok Stronghold (Overseer Mugg), Alcaz Prison (Blazeroar), Blackmaw Hold (the Unbound Spirit) and Shaper's Terrace (Nanaya). City of Dalaran and the Barrow Deeps raid get cards too, but their last bosses aren't known yet.</li>
+<li>Level ranges now match WoW Forever's dungeon list.</li>
+</ul>
+<h2>0.11.6</h2>
+<ul>
+<li>Excavation Site counts now: killing the Relic Guardian finishes it, in any zone's Excavation Site. Its card shows up in the Dungeons tab once your fellowship has completed it.</li>
+<li>A dungeon also counts as finished when the game's own lockout shows every boss is dead, or when a scenario is completed.</li>
+</ul>
+<h2>0.11.5</h2>
+<ul>
+<li>Fixed the Stockade not counting. WoW Forever calls it "Stormwind Stockade", which Fellowship didn't recognise, so killing Bazil Thredd or Dextren Ward didn't finish the run. If a dungeon's name isn't recognised, a known final boss now counts on its own.</li>
+<li>Another way to notice a finished dungeon: if the game doesn't report the boss fight, seeing the final boss dead (targeted, on its nameplate or boss frame) now counts too. Clicking the boss's corpse to loot it is enough.</li>
+<li>Added the newer final bosses in case WoW Forever uses them: Randolph Moloch (Stockade), Captain Cookie and Vanessa VanCleef (Deadmines), Lord Godfrey (Shadowfang Keep), Lava Guard Gordoth (Ragefire Chasm).</li>
+<li>The <code>/fship dungeons</code> boss log is now saved, so you can check it after a reload or on your next login.</li>
+</ul>
+<h2>0.11.4</h2>
+<ul>
+<li>Fixed dungeon and raid completions not being noticed in WoW Forever, which meant no Fellowship Achievement (for example, The Stockade). The game doesn't say which boss is the last one, so Fellowship now has its own list of final bosses for every classic dungeon and raid. Any wing's last boss counts for Scarlet Monastery and Dire Maul.</li>
+<li>Finishing a dungeon you queued for through the group finder also counts.</li>
+<li><code>/fship dungeons</code> now lists the boss kills it has seen since you logged in. With <code>/fship debug</code> on, it also says why a run didn't earn an achievement (for example, someone in the group isn't in the fellowship).</li>
+</ul>
+<h2>0.11.3</h2>
+<ul>
+<li>The Dungeons tab no longer lists every zone and battleground. WoW Forever's group finder list includes those, so it's now used only to add level ranges and pictures to real dungeons and raids.</li>
+<li>Level ranges of "LV 1" from that list are ignored, so each dungeon keeps its real range.</li>
+</ul>
+<h2>0.11.2</h2>
+<ul>
+<li>Fixed the Achievements tab showing "No dungeons to show yet". Fellowship now has its own list of every dungeon and raid, with level ranges, so the cards always show. If the game also provides its dungeon list, its level ranges and pictures are used.</li>
+<li>New <code>/fship dungeons</code> command, which shows what the game's dungeon lists give the addon. It helps with fixing missing pictures.</li>
+</ul>
+<h2>0.11.1</h2>
+<ul>
+<li>The Achievements tab now has <strong>Dungeons</strong> and <strong>Raids</strong> sub-tabs, with a card for each one showing its picture and level range, like the game's dungeon picker.</li>
+<li>Each card says <strong>Completed: date</strong> in green, or <strong>Incomplete</strong> in red. Hover a card to see who was there and on which difficulty.</li>
+<li>Cards are sorted by level. Any difficulty completes a card.</li>
+</ul>
+<h2>0.11.0</h2>
+<ul>
+<li>New Achievements tab with Fellowship Achievements, earned together. Complete a dungeon or clear a raid (final boss down) where everyone in your group is in the fellowship, and it's marked complete with the date and who was there.</li>
+<li>Each dungeon and raid is its own achievement per difficulty, so Deadmines (Normal) and Deadmines (Heroic) count separately. Groups need at least two players; NPC followers don't count against you.</li>
+<li>The fellowship sees "Fellowship Achievement: completed [Deadmines (Normal)] with ..." once, even though everyone in the group's addon notices it.</li>
+<li>Dungeons and raids you haven't done together yet are listed in grey underneath, so you can see what's left.</li>
+<li>Fellowship Achievements are kept forever (never trimmed with old history), and new members get them when they join.</li>
+<li>Everyone needs 0.11.0 to earn them; older versions still store them and show them as a milestone.</li>
+</ul>
+<h2>0.10.2</h2>
+<ul>
+<li>Fixed chat lines that some members never saw. A message that got lost on the way is now noticed and fetched as soon as the next message arrives, or within two minutes at most, and it shows up in chat (marked with how long ago it was sent) instead of only in the window.</li>
+<li>Messages the game refuses to send for a moment (for example while addon messages are locked down in combat) are kept and sent shortly after, instead of being dropped.</li>
+</ul>
+<h2>0.10.1</h2>
+<ul>
+<li>Death messages now say what killed you, using the game's Death Recap: "was killed by Hogger (Vicious Slice)", "fell to their death", "drowned", "burned to death in lava", and so on.</li>
+<li>If there's no recap, Fellowship notices falling and drowning itself, or names the enemy you were fighting ("died fighting Defias Bandit").</li>
+<li>Still no combat log reading, so no "blocked action" popups.</li>
+</ul>
+<h2>0.10.0</h2>
+<ul>
+<li>Rare mob announcements: when you come across a rare, the fellowship sees "Vithe Valestrider has encountered RareMob01! in Elwynn Forest [Map Pin]". Click the map pin to set a waypoint to it.</li>
+<li>Rares are found the same way RareScanner finds them (the rare markers on the minimap), plus rare nameplates, targets and mouseovers. You don't need RareScanner installed.</li>
+<li>Each rare is announced once: not again by you for 10 minutes, and not at all if someone in the fellowship called it out in the last 5 minutes. Open-world rares only.</li>
+<li>New "Rare mobs spotted" row in Settings to switch sharing and showing on or off.</li>
+</ul>
+<h2>0.9.9</h2>
+<ul>
+<li>Update notices: when someone in your fellowship has a newer version of Fellowship, you get a message in Fellowship chat telling you to update, repeated at most once an hour until you do. (Addons can't check the internet, so this works by comparing versions with other members.)</li>
+</ul>
+<h2>0.9.8</h2>
+<ul>
+<li>The Members tab is now a roster like the guild window: Name, Level, Zone, Rank and Last Online columns. Online members are in their class color, offline members are greyed out.</li>
+<li>Click a column header to sort by it (click again to reverse). Scroll with the mouse wheel.</li>
+<li><strong>Show offline members</strong> checkbox to hide or show offline members.</li>
+<li>Hover a member for details (characters, member since, achievements shared). Right-click for Whisper and Invite to Group, and for the Admin: Make Inviter/Member, Pass Admin and Remove from Fellowship.</li>
+</ul>
+<h2>0.9.7</h2>
+<ul>
+<li>Item links work in Fellowship chat. Shift-click an item, spell or achievement while typing <code>/fs</code> (or in the Fellowship window's chat box) and everyone sees a clickable link. Other formatting codes are still blocked for safety.</li>
+</ul>
+<h2>0.9.6</h2>
+<ul>
+<li>When you're not in a fellowship, the Fellowship window (and the minimap button) now opens a "Create Fellowship" screen: type a name and click Create.</li>
+<li>Inviters now get a message when someone accepts ("... accepted your invitation and joined ..."), declines, or lets the invitation time out.</li>
+</ul>
+<h2>0.9.5</h2>
+<ul>
+<li>The minimap button now uses the standard LibDBIcon library when it's available, so minimap-button collectors and minimap addons treat it like any other button (no more "custom button" warning, and it's listed as "Fellowship"). Your button position carries over.</li>
+</ul>
+<h2>0.9.4</h2>
+<ul>
+<li>Fixed invites never finishing on WoW Forever. Character names have a first and last name ("Vithe Valestrider"), and Fellowship was mistaking the last name for a realm and dropping the space, so replies went to a player that doesn't exist. Names are now handled the WoW Forever way everywhere.</li>
+<li>Names show in full ("Vithe Valestrider") in chat, the member list and the sidebar.</li>
+<li><code>/fship invite</code> takes a full name: <code>/fship invite Valtri Brinkforge</code>. Right-click &gt; Invite to Fellowship works as before.</li>
+</ul>
+<h2>0.9.3</h2>
+<ul>
+<li>Fixed invites that could get stuck at "(Joining...)". Invitations now survive a /reload by the inviter, a lost accept is retried automatically, and the join finishes as soon as the fellowship history arrives.</li>
+<li>You now get a notice when you and the inviter are on different Fellowship versions.</li>
+<li>New <code>/fship version</code> and <code>/fship debug</code> commands to help track down sync problems.</li>
+</ul>
+<h2>0.9.2</h2>
+<ul>
+<li>The chat window now has a member list on the right, like the guild window: online members in their class color (listed first), offline members greyed out, and the Admin marked with a gold *.</li>
+</ul>
+<h2>0.9.1 (first public release)</h2>
+<p>Fellowship gives a small group of friends a private chat and a shared adventure feed, with history that catches you up on whatever you missed while offline.</p>
+<h3>Chat</h3>
+<ul>
+<li>Private fellowship chat: <code>/fs &lt;message&gt;</code>; <code>/fs</code> on its own opens the window</li>
+<li>Names in class colors; chat text in its own color (change it in Settings)</li>
+<li>Choose which chat tabs show Fellowship: right-click a chat tab and tick <strong>Show Fellowship</strong>, or <code>/fship tab</code></li>
+</ul>
+<h3>Offline catch-up</h3>
+<ul>
+<li>Every member keeps the full history; when you log in, any online member fills in what you missed</li>
+<li>"New since you were last here" divider and a "While you were away…" login summary</li>
+</ul>
+<h3>Shared announcements</h3>
+<ul>
+<li>Achievements, level-ups, new mounts/pets/toys</li>
+<li>Loot: Rare, Epic or Legendary and up (each person picks their minimum)</li>
+<li>Dungeon and raid completions, including keystone level and timing</li>
+<li>Deaths (in red) and online/offline notices</li>
+<li>Every announcement can be switched off for sharing and for showing in the Settings window</li>
+</ul>
+<h3>Members</h3>
+<ul>
+<li>Membership is per account: alts and new characters join automatically with the same role</li>
+<li>Roles: Admin, Inviter, Member. Admin can be passed on (the new Admin must accept)</li>
+<li>Members tab: who's online, which character they're on, zone and level, last seen</li>
+<li>Invite from the right-click menu on players, or <code>/fship invite &lt;player&gt;</code>; guild-style invite popup</li>
+<li>Members removed while offline are told when they next log in</li>
+</ul>
+<h3>Interface</h3>
+<ul>
+<li>Fellowship window with Chat, Activity and Members tabs</li>
+<li>Settings window (<code>/fship settings</code>)</li>
+<li>Minimap button: left-click opens Fellowship, right-click for the menu, drag to move</li>
+</ul>

@@ -99,11 +99,44 @@ function P:Links(name, fid)
 end
 
 -- Open a member's recipe list, the same as clicking the link in chat.
-function P.Open(link)
+-- For someone else's link it is also printed in chat, so it can be clicked there
+-- (or shared) if the window doesn't open from the menu.
+function P.Open(link, who)
     local data = type(link) == "string" and link:match("|H(trade:[^|]+)|h")
     if not data or not SetItemRef then return false end
-    local ok = pcall(SetItemRef, data, link, "LeftButton")
+    if who and ns.Key(who) ~= ns.meKey then
+        ns.Print(ns.Short(who) .. "'s recipes: " .. link .. " (click it here if no window opened)")
+    end
+    local ok, err = pcall(SetItemRef, data, link, "LeftButton")
+    if not ok then ns.Print("Opening recipes failed: " .. tostring(err)) end
     return ok
+end
+
+-- /fship recipes: every profession link you have from your fellowship, as clickable chat links.
+function P:PrintAll(fid)
+    fid = fid or ns.Store:ActiveId()
+    local all = fid and store(fid)
+    if not all then ns.Print("You're not in a fellowship.") return end
+    local keys = {}
+    for key in pairs(all) do keys[#keys + 1] = key end
+    table.sort(keys)
+    local any = false
+    for _, key in ipairs(keys) do
+        local r = all[key]
+        local names = {}
+        for n in pairs(r.links or {}) do names[#names + 1] = n end
+        table.sort(names)
+        if #names > 0 then
+            local parts = {}
+            for _, n in ipairs(names) do parts[#parts + 1] = r.links[n] end
+            if not any then ns.Print("Profession links you have (click one to open it):") end
+            any = true
+            ns.Output("  " .. ns.Short(r.name or key) .. ": " .. table.concat(parts, " "))
+        end
+    end
+    if not any then
+        ns.Print("No profession links yet. Members need 0.19.1 or newer and to open each profession window once.")
+    end
 end
 
 function P:Records(fid, key)

@@ -1698,7 +1698,7 @@ function UI:MemberMenuItems(m)
         for _, pname in ipairs(names) do
             local label = "View " .. pname .. " recipes"
             if #m.chars > 1 then label = label .. " (" .. ns.Short(n) .. ")" end
-            items[#items + 1] = { label, function() ns.Professions.Open(links[pname]) end }
+            items[#items + 1] = { label, function() ns.Professions.Open(links[pname], n) end }
         end
     end
     if m.isMe then

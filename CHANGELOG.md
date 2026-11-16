@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.2
+
+- **Recipes not opening for other members.** When you choose "View X recipes" for someone else, their profession link is now also printed in your chat window. If no recipe window opens, click the link there instead, the same as a link someone posted in chat.
+- New **/fship recipes** command lists the profession links you have from everyone in your fellowship as clickable links.
+- If the game refuses to open a recipe list, Fellowship now says why in chat.
+
 ## 0.19.1
 
 - **View a member's recipes.** Right-click a member in the Members tab and choose "View Blacksmithing recipes" (or any of their professions) to open their recipe list, just like clicking a profession link in chat.
