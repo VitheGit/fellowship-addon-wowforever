@@ -1024,7 +1024,7 @@ test("deaths say what killed you: Death Recap, falling, drowning, or who you wer
     anna:slash("/fship create Loot Kills"); anna:slash("/fship invite bob silvermoon"); w:advance(1)
     bob:acceptPopup("FELLOWSHIP_INVITE"); w:advance(20)
     local RED = "|cffff4040"
-    local function died() anna:fire("PLAYER_DEAD"); w:advance(5) end
+    local function died() anna:fire("PLAYER_DEAD"); w:advance(25) end
 
     recap = {
         { timestamp = 10, event = "SWING_DAMAGE", sourceName = "Kobold Miner", amount = 5 },
@@ -2094,11 +2094,16 @@ test("death counter: game statistic, in the death message, shared to the Members
     anna:fire("PLAYER_DEAD"); w:advance(5)
     assert(bob:logContains("This is their 13th death!|r"), "13th death")
     eq(cara.ns.Professions:Deaths("Anna-Silvermoon"), 13, "cara updated")
+    -- the game firing PLAYER_DEAD twice for one death counts once
+    anna:fire("PLAYER_DEAD"); w:advance(5)
+    assert(not bob:logContains("14th death"), "one death posted twice")
+    w:advance(30)
     -- the statistic lags behind: never repeats a number
     anna:fire("PLAYER_DEAD"); w:advance(5)
     assert(bob:logContains("This is their 14th death!|r"), "14th even though the stat still says 13")
+    stat = "14"
     anna:fire("PLAYER_ALIVE"); w:advance(10)
-    eq(bob.ns.Professions:Deaths("Anna-Silvermoon"), 14, "a lagging stat doesn't lower it")
+    eq(bob.ns.Professions:Deaths("Anna-Silvermoon"), 14, "stat caught up")
     eq(anna.ns.Ordinal(21), "21st"); eq(anna.ns.Ordinal(12), "12th"); eq(anna.ns.Ordinal(103), "103rd")
     -- Members tab column
     bob:slash("/fs"); bob.ns.UI:SelectTab("members")

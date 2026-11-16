@@ -137,8 +137,7 @@ function P:Scan()
     local list = P.Read()
     local text = list and P.Encode(list) or (cur and cur.text) or ""
     local deaths = P.ReadDeaths()
-    if deaths and cur and cur.deaths and deaths < cur.deaths then deaths = cur.deaths end
-    deaths = deaths or (cur and cur.deaths)
+    deaths = deaths or (cur and cur.deaths) -- the game's statistic is the truth when it has one
     if cur and cur.text == text and cur.deaths == deaths then return end
     if not cur and not list and not deaths then return end
     publish(fid, all, text, deaths)

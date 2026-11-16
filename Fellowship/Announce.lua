@@ -333,7 +333,13 @@ end
 
 local KILLER_TEXT = { falling = "falling", drowning = "drowning", fatigue = "fatigue", lava = "lava", fire = "fire", slime = "slime" }
 
+-- The game can fire PLAYER_DEAD more than once for one death, so a second one within
+-- DEATH_GAP seconds is ignored (nobody gets resurrected and killed again that fast).
+A.DEATH_GAP = 20
 function A:OnDeath()
+    local now = GetTime()
+    if A.lastDeath and now - A.lastDeath < A.DEATH_GAP then return end
+    A.lastDeath = now
     local zone = (GetZoneText and GetZoneText()) or ""
     -- the recap fills in just after death; read it a moment later (and once more if needed)
     local tries = 0

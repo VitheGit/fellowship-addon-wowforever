@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.20.1
+
+- **Fix: one death was posted twice** (and counted twice). The game sometimes reports a death more than once, so Fellowship now ignores a repeat within 20 seconds.
+- Death counts now always follow the game's own statistic, so a count that went one too high fixes itself the next time you log in.
+
 ## 0.20.0
 
 - **Death counter.** Death messages now end with the running total: "Vithe Valestrider was killed by Hogger in Elwynn Forest. This is their 13th death!"
