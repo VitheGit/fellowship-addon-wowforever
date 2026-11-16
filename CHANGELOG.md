@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.20.0
+
+- **Death counter.** Death messages now end with the running total: "Vithe Valestrider was killed by Hogger in Elwynn Forest. This is their 13th death!"
+- It uses the game's own lifetime death statistic, so deaths from before you installed Fellowship count too.
+- **Deaths column in the Members tab.** Shows each member's total deaths across all their characters (hover for each character's count). Sort by it to see who dies the most.
+- Members need 0.20.0 for their count to show. Counts update when you log in and every time you die.
+- If you resized the Members columns before, right-click a column header to reset them so the new column fits.
+
 ## 0.19.6
 
 - **Recipe links removed.** WoW Forever only lets a profession link open for other players when it's clicked straight from the game's own chat, so sharing links through Fellowship couldn't work. Right-click "View X recipes", /fship recipes, and the hidden-channel link posting from 0.19.1 to 0.19.5 are gone.

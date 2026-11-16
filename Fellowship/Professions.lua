@@ -2,9 +2,10 @@
 -- (GetProfessions / GetProfessionInfo) and shares them, so the Members tab can list them.
 -- Nobody types anything: it updates by itself when a skill goes up or a profession is learned.
 -- Synced like notes, outside the event log, so older versions just ignore it:
---   PL  fid proto "" ver | name v profs        one character's professions (newest v wins)
+--   PL  fid proto "" ver | name v profs deaths one character's professions and death count (newest v wins)
 --   PV  fid proto reply ver | name v | ...     "these are the ones I have" (with a HI reply)
--- profs is "Mining:150:300;Cooking:75:150" (name:level:max).
+-- profs is "Mining:150:300;Cooking:75:150" (name:level:max). deaths is the game's lifetime
+-- "Total deaths" statistic (GetStatistic(60)), so it counts deaths from before Fellowship too.
 local _, ns = ...
 local P = {}
 ns.Professions = P
@@ -82,7 +83,49 @@ end
 function P:Records(fid, key)
     local r = (store(fid) or {})[key]
     if not r then return nil end
-    return { header("PL", fid), { r.name, r.v, r.text } }
+    return { header("PL", fid), { r.name, r.v, r.text, r.deaths and tostring(r.deaths) or "" } }
+end
+
+-- Lifetime deaths of this character from the game's statistics, or nil if unavailable.
+P.DEATH_STAT = 60
+function P.ReadDeaths()
+    if not GetStatistic then return nil end
+    local ok, v = pcall(GetStatistic, P.DEATH_STAT)
+    if not ok then return nil end
+    if v == "--" or v == "" then return 0 end
+    return tonumber(v)
+end
+
+-- How many times one character has died (nil if unknown)
+function P:Deaths(name, fid)
+    fid = fid or ns.Store:ActiveId()
+    local all = fid and store(fid) or {}
+    local r = all[ns.Key(name)]
+    return r and r.deaths
+end
+
+local function publish(fid, all, text, deaths)
+    local cur = all[ns.meKey]
+    all[ns.meKey] = { name = ns.me, v = math.max(((cur and cur.v) or 0) + 1, ns.Now()), text = text, deaths = deaths }
+    local f = ns.Store:Get(fid)
+    if not f.pendingFrom then ns.Sync:Broadcast(fid, P:Records(fid, ns.meKey)) end
+    ns.Fire("PROFESSIONS_CHANGED", fid, ns.meKey)
+end
+
+-- You just died: returns your new death count and shares it. The statistic can lag a moment
+-- behind the death, so it never goes backwards or repeats the last number.
+function P:NoteDeath()
+    local stat = P.ReadDeaths()
+    local fid = ns.Store:ActiveId()
+    local all = fid and store(fid)
+    local cur = all and ns.me and all[ns.meKey]
+    local last = (cur and cur.deaths) or ns.charDeaths
+    local n = stat
+    if not n then n = (last or 0) + 1
+    elseif last and n <= last then n = last + 1 end
+    ns.charDeaths = n
+    if all and ns.me then publish(fid, all, (cur and cur.text) or P.Encode(P.Read() or {}), n) end
+    return n
 end
 
 -- Read ours and share it if anything changed.
@@ -90,15 +133,15 @@ function P:Scan()
     local fid = ns.Store:ActiveId()
     local all = fid and store(fid)
     if not all or not ns.me then return end
-    local list = P.Read()
-    if not list then return end
-    local text = P.Encode(list)
     local cur = all[ns.meKey]
-    if cur and cur.text == text then return end
-    all[ns.meKey] = { name = ns.me, v = math.max(((cur and cur.v) or 0) + 1, ns.Now()), text = text }
-    local f = ns.Store:Get(fid)
-    if not f.pendingFrom then ns.Sync:Broadcast(fid, self:Records(fid, ns.meKey)) end
-    ns.Fire("PROFESSIONS_CHANGED", fid, ns.meKey)
+    local list = P.Read()
+    local text = list and P.Encode(list) or (cur and cur.text) or ""
+    local deaths = P.ReadDeaths()
+    if deaths and cur and cur.deaths and deaths < cur.deaths then deaths = cur.deaths end
+    deaths = deaths or (cur and cur.deaths)
+    if cur and cur.text == text and cur.deaths == deaths then return end
+    if not cur and not list and not deaths then return end
+    publish(fid, all, text, deaths)
 end
 
 local queued = false
@@ -120,7 +163,7 @@ function P:OnList(sender, fid, records)
     local all = store(fid)
     local cur = all[key]
     if cur and (cur.v or 0) >= v then return end
-    all[key] = { name = name, v = v, text = P.Encode(P.Decode(r[3])) }
+    all[key] = { name = name, v = v, text = P.Encode(P.Decode(r[3])), deaths = tonumber(r[4]) }
     ns.Fire("PROFESSIONS_CHANGED", fid, key)
 end
 
@@ -160,4 +203,5 @@ end
 ns.On("PLAYER_LOGIN", function() P:QueueScan(10) end)
 ns.On("SKILL_LINES_CHANGED", function() P:QueueScan() end)
 ns.On("CHAT_MSG_SKILL", function() P:QueueScan() end)
+ns.On("PLAYER_ALIVE", function() P:QueueScan(5) end)
 ns.Listen("FELLOWSHIP_CHANGED", function() P:QueueScan() end)

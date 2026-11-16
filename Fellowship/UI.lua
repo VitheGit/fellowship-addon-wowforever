@@ -13,11 +13,12 @@ local MAX_LINES = 600
 local ROSTER_COLUMNS = {
     { key = "name", title = "Name", width = 140 },
     { key = "level", title = "Level", width = 34, align = "CENTER" },
-    { key = "zone", title = "Zone", width = 100 },
+    { key = "zone", title = "Zone", width = 88 },
     { key = "rank", title = "Rank", width = 64 },
     { key = "seen", title = "Last Online", width = 76 },
     { key = "profs", title = "Professions", width = 130 },
-    { key = "note", title = "Note", width = 110 },
+    { key = "deaths", title = "Deaths", width = 44, align = "CENTER" },
+    { key = "note", title = "Note", width = 78 },
 }
 local ROSTER_ROWS, ROW_HEIGHT = 15, 18
 local ROSTER_MIN_COL = 30
@@ -1374,6 +1375,16 @@ local function renderSidebar(p, fid)
     p.members:SetText(table.concat(lines, "\n"))
 end
 
+-- Deaths of every character on a member's account added up (nil if none are known)
+function UI.MemberDeaths(m, fid)
+    local total
+    for _, n in ipairs(m.chars or { m.name }) do
+        local d = ns.Professions:Deaths(n, fid)
+        if d then total = (total or 0) + d end
+    end
+    return total
+end
+
 local function sortRoster(list)
     local key, rev = rosterSort.key, rosterSort.reverse
     local function value(m)
@@ -1383,6 +1394,7 @@ local function sortRoster(list)
         elseif key == "rank" then return RANK_ORDER[m.role] or 9
         elseif key == "seen" then return m.online and math.huge or (m.seen or 0)
         elseif key == "note" then return (ns.Notes:ForChars(m.chars) or "~"):lower()
+        elseif key == "deaths" then return -(UI.MemberDeaths(m) or -1)
         elseif key == "profs" then
             local p = ns.Professions:For(m.name)[1]
             return p and -p.level or 1 end
@@ -1437,6 +1449,8 @@ local function renderMembers(p, fid)
             local primary = {}
             for _, pr in ipairs(profs) do if #primary < 2 then primary[#primary + 1] = pr end end
             c.profs:SetText((m.online and "" or GREY) .. ns.Escape(ns.Professions.Short(primary)) .. (m.online and "" or "|r"))
+            local deaths = UI.MemberDeaths(m, fid)
+            c.deaths:SetText(deaths and ((m.online and "" or GREY) .. deaths .. (m.online and "" or "|r")) or "")
             local note = ns.Notes:ForChars(m.chars, fid)
             if note then c.note:SetText(GREY .. ns.Escape(note) .. "|r")
             elseif m.isMe then c.note:SetText("|cff5a5a5aClick to add a note|r")
@@ -1557,6 +1571,17 @@ function UI:ShowMemberTooltip(owner, m)
                 GameTooltip:AddDoubleLine("  " .. pr.name, pr.level .. " / " .. pr.max, 0.9, 0.9, 0.9, 1, 1, 1)
             end
         end
+    end
+    local deaths = UI.MemberDeaths(m)
+    if deaths then
+        local parts = {}
+        if #m.chars > 1 then
+            for _, n in ipairs(m.chars) do
+                local d = ns.Professions:Deaths(n)
+                if d then parts[#parts + 1] = ns.Short(n) .. " " .. d end
+            end
+        end
+        GameTooltip:AddLine("Deaths: " .. deaths .. (#parts > 1 and (" (" .. table.concat(parts, ", ") .. ")") or ""), 0.8, 0.8, 0.8, true)
     end
     GameTooltip:AddLine("Member since " .. date("%b %d, %Y", m.since), 0.8, 0.8, 0.8)
     GameTooltip:AddLine(m.achievements .. " achievement" .. (m.achievements == 1 and "" or "s") .. " shared", 0.8, 0.8, 0.8)

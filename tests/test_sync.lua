@@ -309,7 +309,7 @@ test("announcements: mounts, pets, toys, loot, dungeons, raids and deaths", func
     -- death in red, with killer
     anna.instance = nil
     anna:fire("PLAYER_DEAD"); w:advance(4)
-    assert(showsInChat(bob, "|cffff4040 was killed in Elwynn Forest|r"), "death")
+    assert(showsInChat(bob, "|cffff4040 was killed in Elwynn Forest. This is their 1st death!|r"), "death")
 end)
 
 test("announcements: share and show settings", function()
@@ -1031,13 +1031,13 @@ test("deaths say what killed you: Death Recap, falling, drowning, or who you wer
         { timestamp = 12, event = "SPELL_DAMAGE", sourceName = "Hogger", spellName = "Vicious Slice", amount = 40 },
     }
     died()
-    assert(bob:logContains(RED .. " was killed by Hogger (Vicious Slice) in Elwynn Forest|r"), "recap mob + spell")
+    assert(bob:logContains(RED .. " was killed by Hogger (Vicious Slice) in Elwynn Forest. This is their"), "recap mob + spell")
     recap = { { timestamp = 3, event = "SWING_DAMAGE", sourceName = "Hogger", spellName = "Melee" } }
     died()
-    assert(bob:logContains(RED .. " was killed by Hogger in Elwynn Forest|r"), "melee")
+    assert(bob:logContains(RED .. " was killed by Hogger in Elwynn Forest. This is their"), "melee")
     recap = { { timestamp = 3, event = "ENVIRONMENTAL_DAMAGE", environmentalType = "Falling", amount = 900 } }
     died()
-    assert(bob:logContains(RED .. " fell to their death in Elwynn Forest|r"), "recap falling")
+    assert(bob:logContains(RED .. " fell to their death in Elwynn Forest. This is their"), "recap falling")
     recap = { { timestamp = 3, event = "ENVIRONMENTAL_DAMAGE", environmentalType = "Lava" } }
     died()
     assert(bob:logContains(RED .. " burned to death in lava"), "lava")
@@ -1051,16 +1051,16 @@ test("deaths say what killed you: Death Recap, falling, drowning, or who you wer
     w:advance(5)
     anna:fire("MIRROR_TIMER_START", "BREATH", 0, 180000, -1, false, "Breath"); breath = 0
     died()
-    assert(bob:logContains(RED .. " drowned in Elwynn Forest|r"), "drowning")
+    assert(bob:logContains(RED .. " drowned in Elwynn Forest. This is their"), "drowning")
     anna:fire("MIRROR_TIMER_STOP", "BREATH"); breath = nil
     -- the enemy you had targeted
     anna.units.target = { name = "Defias Bandit", player = false }
     died()
-    assert(bob:logContains(RED .. " died fighting Defias Bandit in Elwynn Forest|r"), "fight")
+    assert(bob:logContains(RED .. " died fighting Defias Bandit in Elwynn Forest. This is their"), "fight")
     -- nothing known: plain message, as before
     anna.units.target = nil
     died()
-    assert(bob:logContains(RED .. " was killed in Elwynn Forest|r"), "plain")
+    assert(bob:logContains(RED .. " was killed in Elwynn Forest. This is their"), "plain")
 end)
 
 test("a chat line that gets lost on the way is filled in and still shown in chat", function()
@@ -2006,12 +2006,12 @@ test("Members tab: columns resize by dragging a header edge, remembered, right-c
     local p = memberPanel(anna)
     local cursor = 100
     rawset(anna.env, "GetCursorPosition", function() return cursor, 0 end)
-    local note = p.cols[7]
+    local note = p.cols[8]
     local grip = note.grip
     local function width() return anna.ns.settings.rosterWidths and anna.ns.settings.rosterWidths.note end
     grip._scripts.OnMouseDown(grip)
     cursor = 60; grip._scripts.OnUpdate(grip)
-    eq(width(), 70, "dragging left narrows the Note column")
+    eq(width(), 38, "dragging left narrows the Note column")
     cursor = -200; grip._scripts.OnUpdate(grip)
     eq(width(), 30, "never narrower than 30")
     grip._scripts.OnMouseUp(grip)
@@ -2081,6 +2081,33 @@ test("UI builds and renders without errors", function()
     w:advance(1)
     anna:slash("/fship who")
     anna:slash("/fship help")
+end)
+
+test("death counter: game statistic, in the death message, shared to the Members tab", function()
+    local w, anna, bob, cara = setup()
+    local stat = "12"
+    rawset(anna.env, "GetStatistic", function(id) if id == 60 then return stat end end)
+    anna:fire("PLAYER_ALIVE"); w:advance(10)
+    eq(bob.ns.Professions:Deaths("Anna-Silvermoon"), 12, "bob knows anna's lifetime deaths")
+    -- the statistic already counts the new death
+    stat = "13"
+    anna:fire("PLAYER_DEAD"); w:advance(5)
+    assert(bob:logContains("This is their 13th death!|r"), "13th death")
+    eq(cara.ns.Professions:Deaths("Anna-Silvermoon"), 13, "cara updated")
+    -- the statistic lags behind: never repeats a number
+    anna:fire("PLAYER_DEAD"); w:advance(5)
+    assert(bob:logContains("This is their 14th death!|r"), "14th even though the stat still says 13")
+    anna:fire("PLAYER_ALIVE"); w:advance(10)
+    eq(bob.ns.Professions:Deaths("Anna-Silvermoon"), 14, "a lagging stat doesn't lower it")
+    eq(anna.ns.Ordinal(21), "21st"); eq(anna.ns.Ordinal(12), "12th"); eq(anna.ns.Ordinal(103), "103rd")
+    -- Members tab column
+    bob:slash("/fs"); bob.ns.UI:SelectTab("members")
+    local p = memberPanel(bob)
+    local found
+    for _, r in ipairs(p.rows) do
+        if r:IsShown() and r.member and r.member.main:find("Anna") then found = r.cells.deaths:GetText() end
+    end
+    eq(found, "14", "Deaths column")
 end)
 
 print(string.format("\n%d passed, %d failed", passed, failed))

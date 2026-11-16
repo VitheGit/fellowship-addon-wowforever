@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.19.6"
+ns.VERSION = "0.20.0"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -212,6 +212,16 @@ function ns.Short(full)
     return (tostring(full):gsub("%-", " "))
 end
 
+-- 1st, 2nd, 3rd, 4th ... 11th, 12th, 13th ... 21st
+function ns.Ordinal(n)
+    n = math.floor(tonumber(n) or 0)
+    local suffix = "th"
+    if n % 100 < 11 or n % 100 > 13 then
+        suffix = ({ "st", "nd", "rd" })[n % 10] or "th"
+    end
+    return n .. suffix
+end
+
 -- Neutralise WoW escape sequences in user-supplied text.
 function ns.Escape(text)
     return (tostring(text or ""):gsub("|", "||"))
@@ -384,7 +394,9 @@ function ns.FormatEvent(e)
             else
                 how = " was killed" .. ((d[2] and d[2] ~= "") and (" by " .. ns.Escape(d[2])) or "")
             end
-            return who .. RED .. how .. zone .. "|r"
+            local n = tonumber(d[7])
+            local count = n and (". This is their " .. ns.Ordinal(n) .. " death!") or ""
+            return who .. RED .. how .. zone .. count .. "|r"
         elseif sub == "rare" then
             local where = ""
             if d[4] and d[4] ~= "" then where = " in " .. ns.Escape(d[4]) end

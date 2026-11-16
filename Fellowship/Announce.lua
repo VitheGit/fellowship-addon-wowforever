@@ -271,7 +271,7 @@ end
 -- registering COMBAT_LOG_EVENT_UNFILTERED triggers the "blocked from an action" popup.
 -- Without a recap we fall back to: falling, drowning/fatigue (breath bars), or the enemy
 -- you had targeted.
---   death data: { "death", killer (text older versions show), zone, cause, source, spell }
+--   death data: { "death", killer (text older versions show), zone, cause, source, spell, count }
 --   cause: mob, falling, drowning, fatigue, lava, fire, slime, fight, or ""
 local ENVIRONMENT = {
     falling = "falling", drowning = "drowning", fatigue = "fatigue",
@@ -346,7 +346,9 @@ function A:OnDeath()
         ns.Debug("death cause: " .. tostring(cause) .. " / " .. tostring(source) .. " / " .. tostring(spell)
             .. " (recap events: " .. tostring(recapEvents() and #recapEvents() or 0) .. ")")
         local killer = KILLER_TEXT[cause] or source or ""
-        share("death", { "death", killer, zone, cause, source or "", spell or "" })
+        local okN, count = pcall(ns.Professions.NoteDeath, ns.Professions)
+        count = okN and tonumber(count) or nil
+        share("death", { "death", killer, zone, cause, source or "", spell or "", count and tostring(count) or "" })
     end
     C_Timer.After(0.5, post)
 end
