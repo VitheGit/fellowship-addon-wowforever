@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.19.4
+
+- **Post profession links to your fellowship.** In a profession window, click the chat bubble and choose your fellowship's hidden channel (the one with the random name, like "Fsrn09f6jtb5"). The link now shows up in Fellowship chat for everyone, including members who are offline, and it's shared so right-click > "View X recipes" works too.
+- Anything else you type into that hidden channel also goes to Fellowship chat, and the raw channel line is kept out of your chat window.
+
 ## 0.19.3
 
 - **Fix: other members' recipes wouldn't open.** The link Fellowship read from the profession window works for its owner but not for anyone else, while a link posted in chat works for everyone. Fellowship now uses chat links instead.

@@ -213,14 +213,33 @@ local function noticeFilter(_, _, text, _, _, channelName, _, _, _, _, baseName)
     return false
 end
 
+-- Something you say in the hidden channel (for example a profession window's "Post in chat"
+-- link sent to it) becomes a Fellowship chat message. The raw channel line is hidden.
+local function ours(channelName, localID, baseName)
+    return Ch:IsOurs(baseName, localID) or Ch:IsOurs(channelName, localID)
+end
+local function channelFilter(_, _, _, _, _, channelName, _, _, _, localID, baseName)
+    return state.name ~= nil and ours(channelName, localID, baseName)
+end
+function Ch:OnChannelChat(text, sender, channelName, localID, baseName)
+    if not state.name or not ours(channelName, localID, baseName) then return end
+    local name = sender and ns.NormalizeName(sender)
+    if not name or ns.Key(name) ~= ns.meKey then return end
+    ns.Sync:PostChat(text)
+end
+
 function Ch:Init()
     local addFilter = ChatFrame_AddMessageEventFilter or (ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter)
     if addFilter then
+        addFilter("CHAT_MSG_CHANNEL", channelFilter)
         addFilter("CHAT_MSG_CHANNEL_NOTICE", noticeFilter)
         addFilter("CHAT_MSG_CHANNEL_NOTICE_USER", noticeFilter)
         addFilter("CHAT_MSG_CHANNEL_JOIN", noticeFilter)
         addFilter("CHAT_MSG_CHANNEL_LEAVE", noticeFilter)
     end
+    ns.On("CHAT_MSG_CHANNEL", function(text, sender, _, channelName, _, _, _, localID, baseName)
+        Ch:OnChannelChat(text, sender, channelName, localID, baseName)
+    end)
     -- the game joins its own channels first at login; ours after that
     C_Timer.After(6, function() Ch:Refresh() end)
     ns.Listen("FELLOWSHIP_CHANGED", function() Ch:Refresh() end)
