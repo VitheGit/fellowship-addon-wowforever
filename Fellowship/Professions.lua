@@ -94,8 +94,15 @@ end
 function P:Links(name, fid)
     fid = fid or ns.Store:ActiveId()
     local all = fid and store(fid) or {}
-    local r = all[ns.Key(name)]
-    return (r and r.links) or {}
+    local key = ns.Key(name)
+    local r = all[key]
+    local f = fid and ns.Store:Get(fid)
+    local seen = f and f.chatLinks and f.chatLinks[key]
+    if not seen then return (r and r.links) or {} end
+    local out = {}
+    for k, v in pairs((r and r.links) or {}) do out[k] = v end
+    for k, v in pairs(seen) do out[k] = v end -- links they posted in chat win
+    return out
 end
 
 -- Open a member's recipe list, the same as clicking the link in chat.
@@ -113,7 +120,8 @@ function P.Open(link, who)
 end
 
 -- /fship recipes: every profession link you have from your fellowship, as clickable chat links.
-function P:PrintAll(fid)
+local function esc(l) return (l:gsub("|", "||")) end
+function P:PrintAll(fid, raw)
     fid = fid or ns.Store:ActiveId()
     local all = fid and store(fid)
     if not all then ns.Print("You're not in a fellowship.") return end
@@ -123,15 +131,23 @@ function P:PrintAll(fid)
     local any = false
     for _, key in ipairs(keys) do
         local r = all[key]
+        local links = P:Links(r.name or key, fid)
         local names = {}
-        for n in pairs(r.links or {}) do names[#names + 1] = n end
+        for n in pairs(links) do names[#names + 1] = n end
         table.sort(names)
         if #names > 0 then
             local parts = {}
-            for _, n in ipairs(names) do parts[#parts + 1] = r.links[n] end
+            for _, n in ipairs(names) do parts[#parts + 1] = links[n] end
             if not any then ns.Print("Profession links you have (click one to open it):") end
             any = true
             ns.Output("  " .. ns.Short(r.name or key) .. ": " .. table.concat(parts, " "))
+            if raw then
+                for _, n in ipairs(names) do
+                    ns.Output("    shared: " .. esc((r.links or {})[n] or "none"))
+                    local c = P.chatRaw and P.chatRaw[key .. ":" .. n]
+                    if c then ns.Output("    chat: " .. esc(c)) end
+                end
+            end
         end
     end
     if not any then
@@ -174,12 +190,56 @@ function P:CaptureLink()
     local fid = ns.Store:ActiveId()
     local all = fid and store(fid)
     if not all or not ns.me then return end
+    local f = ns.Store:Get(fid)
+    if f.myChatLinks and f.myChatLinks[name] then return end -- the one you posted in chat works better
     local cur = all[ns.meKey]
     local links = {}
     for k, v in pairs((cur and cur.links) or {}) do links[k] = v end
     if links[name] == link then return end
     links[name] = link
     publish(fid, all, (cur and cur.text) or P.Encode(P.Read() or {}), links)
+end
+
+-- A profession link someone posted in chat. The game's own chat links always open, so they
+-- beat the one we read from the profession window: yours is shared with the fellowship, a
+-- member's replaces what we had for them (on this computer only).
+local function guidOf(link) return link:match("|Htrade:(Player%-[%w%-]+)") end
+function P:OnChatLink(text, sender)
+    if type(text) ~= "string" or not text:find("|Htrade:", 1, true) or not sender then return end
+    local fid = ns.Store:ActiveId()
+    local all = fid and store(fid)
+    if not all or not ns.me then return end
+    local name = ns.NormalizeName(sender)
+    local key = name and ns.Key(name)
+    if not key then return end
+    for raw in text:gmatch("|c%x%x%x%x%x%x%x%x|Htrade:.-|h|r") do
+        local link, pname = P.CleanLink(raw)
+        if link then
+            P.chatRaw = P.chatRaw or {}
+            P.chatRaw[key .. ":" .. pname] = raw
+            if key == ns.meKey then
+                local mine = UnitGUID and UnitGUID("player")
+                local cur = all[key]
+                if (not mine or guidOf(link) == mine) and not (cur and cur.links and cur.links[pname] == link) then
+                    local f = ns.Store:Get(fid)
+                    f.myChatLinks = f.myChatLinks or {}
+                    f.myChatLinks[pname] = link
+                    local links = {}
+                    for k, v in pairs((cur and cur.links) or {}) do links[k] = v end
+                    links[pname] = link
+                    publish(fid, all, (cur and cur.text) or P.Encode(P.Read() or {}), links)
+                end
+            elseif ns.Store:Roster(fid)[key] then
+                local f = ns.Store:Get(fid)
+                f.chatLinks = f.chatLinks or {}
+                f.chatLinks[key] = f.chatLinks[key] or {}
+                if f.chatLinks[key][pname] ~= link then
+                    f.chatLinks[key][pname] = link
+                    ns.Fire("PROFESSIONS_CHANGED", fid, key)
+                end
+            end
+        end
+    end
 end
 
 -- Read ours and share it if anything changed.
@@ -270,5 +330,14 @@ local function queueLink()
     C_Timer.After(1, function() linkQueued = false; P:CaptureLink() end)
 end
 ns.On("TRADE_SKILL_SHOW", queueLink)
+for _, ev in ipairs({ "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT_MSG_WHISPER", "CHAT_MSG_WHISPER_INFORM",
+    "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER", "CHAT_MSG_GUILD",
+    "CHAT_MSG_OFFICER", "CHAT_MSG_CHANNEL", "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER" }) do
+    ns.On(ev, function(text, sender)
+        if ev == "CHAT_MSG_WHISPER_INFORM" then sender = ns.me end
+        local ok, err = pcall(P.OnChatLink, P, text, sender)
+        if not ok and ns.debugMode then ns.Print(tostring(err)) end
+    end)
+end
 ns.On("TRADE_SKILL_LIST_UPDATE", queueLink)
 ns.Listen("FELLOWSHIP_CHANGED", function() P:QueueScan() end)

@@ -2095,6 +2095,22 @@ test("professions: read automatically, shared, and listed in the Members tab", f
     bob.log = {}
     bob:slash("/fship recipes")
     assert(said("Anna Silvermoon: " .. BS), "/fship recipes lists anna's link")
+    -- a link anna posts in chat herself is the one that works: she shares it, and opening
+    -- her window again doesn't put the old one back
+    local CHAT = "|cffffd000|Htrade:Player-Anna:2018:2437|h[Blacksmithing]|h|r"
+    anna.tsLinked, anna.tsLink = false, BS
+    anna:fire("CHAT_MSG_SAY", "my recipes " .. CHAT, "Anna-Silvermoon")
+    w:advance(3)
+    eq(bob.ns.Professions:Links("Anna-Silvermoon").Blacksmithing, CHAT, "bob gets anna's chat link")
+    anna:fire("TRADE_SKILL_SHOW"); w:advance(3)
+    eq(cara.ns.Professions:Links("Anna-Silvermoon").Blacksmithing, CHAT, "window doesn't undo it")
+    -- someone else's link that a member posts in chat is used for them on this computer
+    local CL = "|cffffd000|Htrade:Player-Cara-Area52:185:185|h[Cooking]|h|r"
+    bob:fire("CHAT_MSG_PARTY", CL, "Cara-Area52")
+    eq(bob.ns.Professions:Links("Cara-Area52").Cooking, CL, "cara's posted link")
+    bob.log = {}
+    bob:slash("/fship recipes raw")
+    assert(said("chat: ||cffffd000||Htrade:Player-Cara"), "raw shows the chat link")
 end)
 
 test("UI builds and renders without errors", function()

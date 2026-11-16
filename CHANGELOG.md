@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.19.3
+
+- **Fix: other members' recipes wouldn't open.** The link Fellowship read from the profession window works for its owner but not for anyone else, while a link posted in chat works for everyone. Fellowship now uses chat links instead.
+- **To share your recipes, post each profession link in chat once** (open the profession window and shift-click its link into any chat, even /say). Fellowship shares that link with your fellowship, and right-click > "View X recipes" opens it for everyone from then on.
+- If a fellowship member posts a profession link in any chat you can see, Fellowship also remembers it for them.
+- **/fship recipes raw** shows the exact links for bug reports.
+
 ## 0.19.2
 
 - **Recipes not opening for other members.** When you choose "View X recipes" for someone else, their profession link is now also printed in your chat window. If no recipe window opens, click the link there instead, the same as a link someone posted in chat.
