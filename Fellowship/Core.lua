@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.20.1"
+ns.VERSION = "0.20.2"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -506,10 +506,15 @@ ns.Listen("EVENTS_ADDED", function(fid, added, live)
     end
 end)
 
--- "Bob came online" / "Bob went offline" (skipped for a moment after login, when everyone shows up at once)
+-- "Bob came online" / "Bob went offline" (skipped for a moment after login, when everyone shows up at once).
+-- Only real changes are announced: "went offline" for someone we knew was online, and "came online"
+-- for someone we knew was offline. While you catch up after logging in, Fellowship finds out who is
+-- already offline (and who was online all along); that isn't news, so it stays quiet.
 local loginTime
-ns.Listen("PRESENCE", function(key, isOnline)
+ns.Listen("PRESENCE", function(key, isOnline, was)
     if not key or not ns.settings.showPresence or not loginTime or GetTime() - loginTime < 20 then return end
+    if isOnline and was == nil and GetTime() - loginTime < 120 then return end
+    if not isOnline and was ~= true then return end
     local f, fid = ns.Store:Active()
     local m = f and ns.Store:Roster(fid)[key]
     if not m or key == ns.meKey then return end

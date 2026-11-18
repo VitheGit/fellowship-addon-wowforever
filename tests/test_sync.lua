@@ -347,6 +347,12 @@ test("online/offline notices and zone/level in the member list", function()
     cara:login(); w:advance(10)
     assert(anna:logContains("Cara Area52|r |cff33ff99came online."), "no online notice")
     assert(not cara:logContains("came online"), "login spam for the person logging in")
+    -- logging in while others are offline: finding that out later isn't a "went offline"
+    bob:logout(); w:advance(70)
+    cara:logout(); w:advance(5)
+    cara.log = {}
+    cara:login(); w:advance(200)
+    assert(not cara:logContains("went offline"), "offline spam after logging in")
     bob.ns.settings.shareLocation = false
     bob.ns.Sync:PingOnline(); w:advance(2)
     for _, m in ipairs(anna.ns.Sync:MemberList(anna.ns.Store:ActiveId())) do

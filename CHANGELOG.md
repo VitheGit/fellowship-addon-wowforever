@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.20.2
+
+- **Fewer online/offline notices after logging in.** While Fellowship catches up after you've been away, it works out who is already offline or was online all along. It no longer announces that as "went offline" or "came online". You'll only see a notice when someone you knew was online logs off, or someone you knew was offline logs in.
+- You can still turn these notices off completely in settings (gear icon > "Online / offline notices").
+
 ## 0.20.1
 
 - **Fix: one death was posted twice** (and counted twice). The game sometimes reports a death more than once, so Fellowship now ignores a repeat within 20 seconds.

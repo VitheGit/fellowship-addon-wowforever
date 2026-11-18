@@ -164,15 +164,17 @@ end
 
 function Sync:MarkOnline(key)
     if online[key] ~= true then
+        local was = online[key]
         online[key] = true
-        ns.Fire("PRESENCE", key, true)
+        ns.Fire("PRESENCE", key, true, was)
     end
 end
 
 function Sync:MarkOffline(key)
     if online[key] ~= false then
+        local was = online[key]
         online[key] = false
-        ns.Fire("PRESENCE", key, false)
+        ns.Fire("PRESENCE", key, false, was)
     end
 end
 
