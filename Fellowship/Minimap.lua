@@ -49,8 +49,8 @@ end
 
 function MB:OpenMenu(owner)
     local items = self:MenuItems()
-    if MenuUtil and MenuUtil.CreateContextMenu then
-        MenuUtil.CreateContextMenu(owner, function(_, root)
+    if ns.ContextMenu then
+        ns.ContextMenu(owner, function(_, root)
             root:CreateTitle("Fellowship")
             for _, item in ipairs(items) do root:CreateButton(item[1], item[2]) end
         end)

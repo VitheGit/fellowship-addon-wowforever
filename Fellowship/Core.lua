@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.20.2"
+ns.VERSION = "0.20.3"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -528,6 +528,110 @@ end)
 local function addonLoaded(name)
     local f = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
     return f and f(name) and true or false
+end
+
+---------------------------------------------------------------------------
+-- Context menus. With a controller, the game's menu system hands any menu an addon opens to
+-- its gamepad code, which then runs controller-only actions from the addon's (insecure)
+-- side and gets blocked ("Fellowship has been blocked from an action only available to the
+-- Blizzard UI", SetPreferredGamepadInteractTarget). So with a controller Fellowship shows
+-- its own small menu instead; with mouse and keyboard it uses the game's.
+-- ns.ContextMenu(owner, function(_, root) root:CreateTitle(...) root:CreateButton(text, fn) end)
+---------------------------------------------------------------------------
+function ns.UsingController()
+    if addonLoaded("ConsolePort") then return true end
+    if InputUtil and InputUtil.IsGamepadUIEnabled then
+        local ok, yes = pcall(InputUtil.IsGamepadUIEnabled)
+        if ok and yes then return true end
+    end
+    if C_GamePad and C_GamePad.IsEnabled then
+        local ok, yes = pcall(C_GamePad.IsEnabled)
+        if ok and yes then return true end
+    end
+    return false
+end
+
+local MENU_ROW, MENU_MAX = 20, 20
+local ownMenu
+local function buildMenu()
+    local m = CreateFrame("Frame", "FellowshipContextMenu", UIParent)
+    m:SetFrameStrata("FULLSCREEN_DIALOG")
+    m:SetClampedToScreen(true)
+    m:EnableMouse(true)
+    local bg = m:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.06, 0.06, 0.06, 0.96)
+    local edge = m:CreateTexture(nil, "BORDER")
+    edge:SetPoint("TOPLEFT", -1, 1); edge:SetPoint("BOTTOMRIGHT", 1, -1)
+    edge:SetColorTexture(0.5, 0.45, 0.3, 0.9)
+    m.rows = {}
+    for i = 1, MENU_MAX do
+        local b = CreateFrame("Button", nil, m)
+        b:SetHeight(MENU_ROW)
+        b:SetPoint("TOPLEFT", 6, -6 - (i - 1) * MENU_ROW)
+        b:SetPoint("RIGHT", -6, 0)
+        b:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+        b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        b.text:SetPoint("LEFT", 4, 0)
+        b.text:SetJustifyH("LEFT")
+        b:SetScript("OnClick", function(self)
+            m:Hide()
+            if self.fn then
+                local ok, err = pcall(self.fn)
+                if not ok then ns.Print(tostring(err)) end
+            end
+        end)
+        m.rows[i] = b
+    end
+    m:SetScript("OnEvent", function(self)
+        if self:IsShown() and not self:IsMouseOver() then self:Hide() end
+    end)
+    m:SetScript("OnShow", function(self) self:RegisterEvent("GLOBAL_MOUSE_DOWN") end)
+    m:SetScript("OnHide", function(self) self:UnregisterEvent("GLOBAL_MOUSE_DOWN") end)
+    m:Hide()
+    if UISpecialFrames then table.insert(UISpecialFrames, "FellowshipContextMenu") end
+    return m
+end
+
+function ns.ContextMenu(owner, generator)
+    if not ns.UsingController() and MenuUtil and MenuUtil.CreateContextMenu then
+        return MenuUtil.CreateContextMenu(owner, generator)
+    end
+    local entries = {}
+    local root = {}
+    function root:CreateTitle(text) entries[#entries + 1] = { text = text, title = true } end
+    function root:CreateButton(text, fn) entries[#entries + 1] = { text = text, fn = fn } end
+    function root:CreateDivider() end
+    function root:SetScrollMode() end
+    local ok, err = pcall(generator, owner, root)
+    if not ok then ns.Print(tostring(err)) return end
+    if #entries == 0 then return end
+    ownMenu = ownMenu or buildMenu()
+    ns.ownMenu = ownMenu
+    local m = ownMenu
+    local width = 120
+    for i, b in ipairs(m.rows) do
+        local e = entries[i]
+        if e then
+            b.fn = (not e.title) and e.fn or nil
+            b:SetEnabled(not e.title)
+            b.text:SetText(e.title and ("|cffffd100" .. e.text .. "|r") or e.text)
+            width = math.max(width, (b.text:GetStringWidth() or 0) + 24)
+            b:Show()
+        else
+            b:Hide()
+        end
+    end
+    local n = math.min(#entries, MENU_MAX)
+    m:SetSize(width, n * MENU_ROW + 12)
+    m:ClearAllPoints()
+    local x, y = GetCursorPosition()
+    x, y = x or 0, y or 0
+    local scale = (UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
+    if not scale or scale == 0 then scale = 1 end
+    m:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x / scale, y / scale)
+    m:Show()
+    return m
 end
 
 local function onBlocked(kind, addon, func)

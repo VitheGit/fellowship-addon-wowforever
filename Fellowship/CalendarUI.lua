@@ -31,8 +31,8 @@ local function text(parent, font, justify)
 end
 
 local function menu(owner, title, items)
-    if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
-    MenuUtil.CreateContextMenu(owner, function(_, root)
+    if not ns.ContextMenu then return end
+    ns.ContextMenu(owner, function(_, root)
         if root.SetScrollMode then root:SetScrollMode(360) end
         if title then root:CreateTitle(title) end
         for _, item in ipairs(items) do root:CreateButton(item[1], item[2]) end

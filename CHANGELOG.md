@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.20.3
+
+- **Fix for controller players: "Fellowship has been blocked from an action only available to the Blizzard UI."** When an addon opens one of the game's right-click menus, the game's controller code takes it over, then gets blocked because an addon opened it. With a controller turned on, Fellowship now uses its own simple right-click menus (members, wishlist, calendar, minimap button, and item links in chat). Mouse and keyboard players still get the game's menus.
+
 ## 0.20.2
 
 - **Fewer online/offline notices after logging in.** While Fellowship catches up after you've been away, it works out who is already offline or was online all along. It no longer announces that as "went offline" or "came online". You'll only see a notice when someone you knew was online logs off, or someone you knew was offline logs in.

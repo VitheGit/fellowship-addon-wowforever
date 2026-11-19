@@ -2121,5 +2121,29 @@ test("death counter: game statistic, in the death message, shared to the Members
     eq(found, "14", "Deaths column")
 end)
 
+test("controller: Fellowship's own menus instead of the game's (no blocked actions)", function()
+    local w = World.new()
+    local c = w:client("Solo"); c:login(); w:advance(1)
+    rawset(c.env, "C_GamePad", { IsEnabled = function() return true end })
+    c.contextMenu = nil
+    local b = c.ns.MinimapButton.button
+    b._scripts.OnClick(b, "RightButton")
+    eq(c.contextMenu, nil, "the game's menu was used with a controller")
+    local m = c.ns.ownMenu
+    assert(m and m:IsShown(), "own menu not shown")
+    local first
+    for _, r in ipairs(m.rows) do if r:IsShown() and rawget(r, "fn") then first = r break end end
+    eq(first.text:GetText(), "Settings")
+    first._scripts.OnClick(first)
+    assert(not m:IsShown(), "menu stays open after a click")
+    local settingsShown = false
+    for _, f in ipairs(c.frames) do if rawget(f, "minimap") and f:IsShown() then settingsShown = true end end
+    assert(settingsShown, "settings window not opened")
+    -- keyboard and mouse again: the game's menu
+    rawset(c.env, "C_GamePad", { IsEnabled = function() return false end })
+    b._scripts.OnClick(b, "RightButton")
+    eq(c.contextMenu[1].text, "Settings")
+end)
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

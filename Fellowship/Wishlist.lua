@@ -514,8 +514,8 @@ end
 ---------------------------------------------------------------------------
 function W:OfferMenu(link)
     local id = W.ParseItem(link)
-    if not id or not ns.Store:Active() or not (MenuUtil and MenuUtil.CreateContextMenu) then return end
-    MenuUtil.CreateContextMenu(UIParent, function(_, root)
+    if not id or not ns.Store:Active() or not ns.ContextMenu then return end
+    ns.ContextMenu(UIParent, function(_, root)
         root:CreateTitle("Fellowship Wishlist")
         if W:Find(id) then
             root:CreateButton("Remove from Wishlist", function() W:Remove(id); ns.Print("Removed from your wishlist.") end)

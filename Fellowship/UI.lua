@@ -1700,9 +1700,9 @@ function UI:WishMenuItems(e)
 end
 
 function UI:OpenWishMenu(owner, e)
-    if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
+    if not ns.ContextMenu then return end
     local items = self:WishMenuItems(e)
-    MenuUtil.CreateContextMenu(owner, function(_, root)
+    ns.ContextMenu(owner, function(_, root)
         root:CreateTitle(e.name or ("Item " .. e.id))
         for _, item in ipairs(items) do root:CreateButton(item[1], item[2]) end
     end)
@@ -1740,8 +1740,8 @@ end
 
 function UI:OpenMemberMenu(owner, m)
     local items = self:MemberMenuItems(m)
-    if #items == 0 or not (MenuUtil and MenuUtil.CreateContextMenu) then return end
-    MenuUtil.CreateContextMenu(owner, function(_, root)
+    if #items == 0 or not ns.ContextMenu then return end
+    ns.ContextMenu(owner, function(_, root)
         root:CreateTitle(ns.Short(m.online and m.name or m.main))
         for _, item in ipairs(items) do root:CreateButton(item[1], item[2]) end
     end)
