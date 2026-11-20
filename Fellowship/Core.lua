@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.20.3"
+ns.VERSION = "0.20.4"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -441,18 +441,22 @@ end
 ---------------------------------------------------------------------------
 -- Live echo + "while you were away" summary
 ---------------------------------------------------------------------------
-local summaryToken = 0
+-- Shown once per session, after the catch-up has gone quiet: a big catch-up arrives in many
+-- batches, and each one used to print its own (growing) summary.
+local summaryToken, summaryShown = 0, false
 
 function ns.ScheduleSummary(delay)
+    if summaryShown then return end
     summaryToken = summaryToken + 1
     local token = summaryToken
-    C_Timer.After(delay or 6, function()
-        if token ~= summaryToken then return end
+    C_Timer.After(delay or 10, function()
+        if token ~= summaryToken or summaryShown then return end
         if ns.UI and ns.UI:IsShown() then return end
         local fid = ns.Store:ActiveId()
         if not fid then return end
         local chats, achievements = ns.Store:UnreadCounts(fid)
         if chats + achievements > 0 then
+            summaryShown = true
             local tagged = ns.Mentions.UnreadCount(fid)
             ns.Print(string.format("While you were away: %d message%s and %d achievement%s.%s Type /fs to read.",
                 chats, chats == 1 and "" or "s", achievements, achievements == 1 and "" or "s",

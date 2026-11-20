@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.20.4
+
+- **Fix: messages from someone who lost their Fellowship data never reached anyone.** Each person's messages are numbered. After losing their saved data (for example by disabling the addon and being removed and re-added), Fellowship started counting again from 1, and everyone else thought they already had those messages. Now it continues from the highest number the fellowship has seen. Any message that went missing this way is sent again automatically once they catch up.
+- **"While you were away" shows once per login**, not once for every batch of a big catch-up.
+
 ## 0.20.3
 
 - **Fix for controller players: "Fellowship has been blocked from an action only available to the Blizzard UI."** When an addon opens one of the game's right-click menus, the game's controller code takes it over, then gets blocked because an addon opened it. With a controller turned on, Fellowship now uses its own simple right-click menus (members, wishlist, calendar, minimap button, and item links in chat). Mouse and keyboard players still get the game's menus.

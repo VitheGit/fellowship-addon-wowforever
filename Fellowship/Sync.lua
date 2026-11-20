@@ -357,6 +357,7 @@ function Sync:OnHello(sender, fid, f, wantReply, records)
             if ns.Store:SetClass(author, class) then classesChanged = true end
         end
         if author and author ~= "" and theirs then
+            if author == ns.me then ns.Store:NoteMySeq(fid, theirs) end
             local mine = f.hwm[author] or 0
             if theirs > mine and not (pend[author] and pend[author] > now) then
                 wants[#wants + 1] = { author, mine }
@@ -396,17 +397,31 @@ end
 function Sync:OnEvents(fid, live, records, sender)
     local added, gaps = {}, {}
     local f = ns.Store:Get(fid)
+    local resend = {}
     for i = 2, #records do
         local e = decodeEvent(records[i])
         if ns.Store:AddEvent(fid, e) then
             e.d = f.events[e.a][e.s].d
             added[#added + 1] = e
+        elseif e and e.a == ns.me then
+            -- one of ours with a number we reused: keep theirs, send ours again under a new one
+            local mine = ns.Store:ResolveCollision(fid, e)
+            if mine then
+                e.d = f.events[e.a][e.s].d
+                added[#added + 1] = e
+                if mine.k == "C" or mine.k == "A" or mine.k == "M" then resend[#resend + 1] = mine end
+            end
         end
+        if e and e.a == ns.me and type(e.s) == "number" then ns.Store:NoteMySeq(fid, e.s) end
         -- a live message that skips ahead means we missed something: ask for it now
         if live and e and type(e.s) == "number" and e.a and (f.hwm[e.a] or 0) < e.s then gaps[e.a] = true end
     end
     if #added > 0 then self:AfterAdded(fid, added, live) end
     if sender and next(gaps) then self:RequestMissing(sender, fid, gaps) end
+    for _, mine in ipairs(resend) do
+        ns.Debug("re-sending an event whose number was reused")
+        self:Publish(mine.k, mine.d, mine.t, mine.t)
+    end
 end
 
 function Sync:RequestMissing(sender, fid, authors)
@@ -537,11 +552,12 @@ end
 ---------------------------------------------------------------------------
 -- Publishing
 ---------------------------------------------------------------------------
-function Sync:Publish(kind, data, minTime)
+function Sync:Publish(kind, data, minTime, exactTime)
     local f, fid = ns.Store:Active()
     if not f or f.pendingFrom then return nil end
     local e = ns.Store:NewLocalEvent(fid, kind, data, minTime)
     if not e then return nil end
+    if exactTime then e.t = exactTime; f.events[e.a][e.s].t = exactTime end
     -- once on the channel for everyone listening there; a whisper for anyone else online
     local viaChannel = ns.Channel:Ready()
     if viaChannel then sendEvents(ns.Channel.TARGET, fid, { e }, true, false) end

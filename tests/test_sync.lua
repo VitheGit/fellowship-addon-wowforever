@@ -2145,5 +2145,45 @@ test("controller: Fellowship's own menus instead of the game's (no blocked actio
     eq(c.contextMenu[1].text, "Settings")
 end)
 
+test("lost saved data: new lines aren't hidden behind old numbers, and lost ones are re-sent", function()
+    local w, anna, bob = setup()
+    w:advance(30)
+    for i = 1, 3 do bob:slash("/fs old line " .. i); w:advance(1) end
+    assert(anna:logContains("old line 3"), "setup")
+    local fid = bob.ns.Store:ActiveId()
+    -- bob's own history is gone (as after disabling, being removed and re-added)
+    local f = bob.ns.Store:Get(fid)
+    f.events[bob.ns.me] = {}; f.hwm[bob.ns.me] = 0; f.floor[bob.ns.me] = 0
+    -- he says something before catching up: it reuses number 1
+    bob:slash("/fs thats not until tuesday"); w:advance(2)
+    assert(not anna:logContains("tuesday"), "(collision expected in this setup)")
+    -- the catch-up brings his old line 1 back: his client notices and re-sends the new one
+    bob.ns.Sync:Hello(fid, "Anna-Silvermoon", true); w:advance(10)
+    assert(anna:logContains("thats not until tuesday"), "lost line not re-sent")
+    -- and from now on his numbers carry on after the old ones
+    bob:slash("/fs after catch-up"); w:advance(2)
+    assert(anna:logContains("after catch-up"), "new line after catch-up")
+    -- a member's HI telling him how far his numbers went is enough on its own
+    f.events[bob.ns.me] = {}; f.hwm[bob.ns.me] = 0; f.floor[bob.ns.me] = 0
+    anna.ns.Sync:Hello(fid, "Bob-Silvermoon", false); w:advance(1)
+    f.events[bob.ns.me] = {}; f.hwm[bob.ns.me] = 0; f.floor[bob.ns.me] = 0
+    bob:slash("/fs straight away"); w:advance(2)
+    assert(anna:logContains("straight away"), "HI didn't move his numbering on")
+end)
+
+test("'While you were away' is shown once, not once per catch-up batch", function()
+    local w, anna, bob = setup()
+    w:advance(30)
+    bob:logout(); w:advance(70)
+    for i = 1, 5 do anna:slash("/fs batch " .. i); w:advance(1) end
+    bob.log = {}
+    bob:login(); w:advance(40)
+    for i = 6, 8 do anna:slash("/fs batch " .. i); w:advance(1) end
+    w:advance(60)
+    local n = 0
+    for _, l in ipairs(bob.log) do if l:find("While you were away", 1, true) then n = n + 1 end end
+    assert(n <= 1, "summary shown " .. n .. " times")
+end)
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

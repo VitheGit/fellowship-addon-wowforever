@@ -176,7 +176,9 @@ function Store:NewLocalEvent(fid, kind, data, minTime)
     local f = self:Get(fid)
     if not f then return nil end
     local me = ns.me
-    local max = math.max(f.hwm[me] or 0, f.floor[me] or 0)
+    -- mySeen: the highest number of ours any member says they have. If our saved data was lost,
+    -- numbering must carry on from there, or members would think they already have our new lines.
+    local max = math.max(f.hwm[me] or 0, f.floor[me] or 0, f.mySeen or 0)
     for s in pairs(f.events[me] or {}) do
         if s > max then max = s end
     end
@@ -184,6 +186,33 @@ function Store:NewLocalEvent(fid, kind, data, minTime)
     if not self:AddEvent(fid, e) then return nil end
     e.d = f.events[me][e.s].d
     return e
+end
+
+-- A member told us how many of our own events they have.
+function Store:NoteMySeq(fid, n)
+    local f = self:Get(fid)
+    if f and type(n) == "number" and n > (f.mySeen or 0) then f.mySeen = n end
+end
+
+-- Our own event number `e.s` came back from a member with different contents: after our saved
+-- data was lost we reused the number. Take theirs (everyone else has it) and return ours, so it
+-- can be sent again under a new number.
+function Store:ResolveCollision(fid, e)
+    local f = self:Get(fid)
+    if not f or not validEvent(e) or e.a ~= ns.me then return nil end
+    local evs = f.events[e.a]
+    local mine = evs and evs[e.s]
+    if not mine then return nil end
+    local same = mine.t == e.t and mine.k == e.k and #(mine.d or {}) == #(e.d or {})
+    if same then
+        for i, v in ipairs(e.d or {}) do if mine.d[i] ~= tostring(v) then same = false break end end
+    end
+    if same then return nil end
+    local d = {}
+    for i, v in ipairs(e.d or {}) do d[i] = tostring(v) end
+    evs[e.s] = { t = e.t, r = ns.Now(), k = e.k, d = d }
+    invalidate(fid, MEMBERSHIP[e.k] or MEMBERSHIP[mine.k])
+    return mine
 end
 
 function Store:SetFloor(fid, author, n)
