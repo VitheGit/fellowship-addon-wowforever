@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.21.1
+
+- **Fix: new characters on a restored PC didn't join the fellowship.** Alts join automatically using a code saved on your computer. A new PC made a new code, which the fellowship didn't recognize, so new characters there weren't let in. A restored PC now takes over your original code, and characters made there join with the rest of your account as usual.
+- Already restored on 0.21.0? Update and /reload on the new character. It finds your account and joins by itself.
+
 ## 0.21.0
 
 - **Restore your fellowship on a new PC.** If you install Fellowship on another computer, or your saved data is lost, you no longer need to be removed and invited again. Within a couple of minutes of logging in, an online member's Fellowship notices, and you get a "Restore" popup. Click it and you're back in with the full history. Nobody gets a "joined" message, and your roles and notes stay as they were.

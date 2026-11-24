@@ -274,12 +274,33 @@ function Sync:MyLinkEvent(fid)
     end
 end
 
+-- This install's account code differs from the one the fellowship knows us by (a new PC, or
+-- saved data that was lost): take over the known one, so our alts can join with it. Only if
+-- the code isn't already tied to a different account in another fellowship we have.
+local function adoptAccount(fid, key)
+    local _, _, state = ns.Store:Roster(fid)
+    local acct = key and state.accounts[key]
+    if not acct or not acct.secret or key:sub(1, 5) == "char:" or key == ns.account.id then return false end
+    for ofid in pairs(ns.Store.db.fellowships) do
+        if ofid ~= fid then
+            local _, _, ostate = ns.Store:Roster(ofid)
+            if ostate.accounts[ns.account.id] then return false end
+        end
+    end
+    ns.Debug("using this account's code from " .. tostring(fid))
+    ns.Store.db.account = { id = key, secret = acct.secret }
+    ns.account = ns.Store.db.account
+    return true
+end
+Sync.AdoptAccount = adoptAccount
+
 -- Tie this character to our account (Q) once we're a member, so our alts can join.
 function Sync:EnsureAccount()
     local f, fid = ns.Store:Active()
     if not f or f.pendingFrom then return end
     local m = ns.Store:Roster(fid)[ns.meKey]
     if m and m.account ~= ns.account.id then
+        if adoptAccount(fid, m.account) then return end
         self:Publish("Q", { ns.account.id, ns.account.secret })
     end
 end
@@ -287,6 +308,17 @@ end
 -- Logged into a character that isn't in a fellowship, but this account is: join it.
 function Sync:AutoJoinAlt()
     if ns.Store:ActiveId() then return end
+    for fid in pairs(ns.Store.db.fellowships) do
+        local roster, _, state = ns.Store:Roster(fid)
+        if not state.accounts[ns.account.id] then
+            -- maybe one of the characters played on this computer is a member under another
+            -- account code (it was restored here): use that one
+            for name in pairs(ns.Store.db.chars or {}) do
+                local m = name ~= ns.me and roster[ns.Key(name)]
+                if m and adoptAccount(fid, m.account) then break end
+            end
+        end
+    end
     for fid, f in pairs(ns.Store.db.fellowships) do
         local roster, _, state = ns.Store:Roster(fid)
         local acct = state.accounts[ns.account.id]

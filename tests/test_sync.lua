@@ -2248,5 +2248,47 @@ test("new PC: a member without the fellowship's data is offered a one-click rest
     eq(y.ns.Store:ActiveId(), nil, "joined after No")
 end)
 
+test("new PC: after a restore, new characters there join with the rest of the account", function()
+    local w, anna, bob, cara = setup()
+    w:advance(30)
+    bob:logout(); w:advance(5)
+    bob.saved = nil -- fresh install
+    local bobalt = w:client("Bobalt"); bobalt:sameAccountAs(bob)
+    bob.popups = {}
+    bob:login(); w:advance(150)
+    local pop
+    for _, p in ipairs(bob.popups) do if p.which == "FELLOWSHIP_RESTORE" then pop = p end end
+    assert(pop, "no restore offer")
+    bob.env.StaticPopupDialogs.FELLOWSHIP_RESTORE.OnAccept(nil, pop.data); w:advance(30)
+    assert(bob.ns.Store:IsMember(bob.ns.Store:ActiveId(), "Bob-Silvermoon"), "not restored")
+    local accountsBefore = accounts(anna)
+    bob:logout(); w:advance(5)
+    bobalt:login(); w:advance(30)
+    assert(bobalt.ns.Store:ActiveId(), "new character on the new PC didn't join")
+    w:advance(10)
+    assert(anna.ns.Store:SameAccount(anna.ns.Store:ActiveId(), "Bob-Silvermoon", "Bobalt-Silvermoon"), "alt not on bob's account")
+    eq(accounts(anna), accountsBefore, "an extra account appeared")
+end)
+
+test("new PC: restored on an older version, a new character still finds the account", function()
+    local w, anna, bob = setup()
+    w:advance(30)
+    bob:logout(); w:advance(5)
+    bob.saved = nil
+    local bobalt = w:client("Bobalt"); bobalt:sameAccountAs(bob)
+    bob.popups = {}
+    bob:login(); w:advance(150)
+    local pop
+    for _, p in ipairs(bob.popups) do if p.which == "FELLOWSHIP_RESTORE" then pop = p end end
+    bob.env.StaticPopupDialogs.FELLOWSHIP_RESTORE.OnAccept(nil, pop.data); w:advance(30)
+    -- as 0.21.0 left it: this install still has its own new account code
+    bob.env.FellowshipDB.account = { id = "anewpccode1", secret = "zzzzzzzzzzzzzzzz" }
+    bob:logout(); w:advance(5)
+    bobalt:login(); w:advance(30)
+    assert(bobalt.ns.Store:ActiveId(), "new character didn't join")
+    w:advance(10)
+    assert(anna.ns.Store:SameAccount(anna.ns.Store:ActiveId(), "Bob-Silvermoon", "Bobalt-Silvermoon"), "alt not on bob's account")
+end)
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
