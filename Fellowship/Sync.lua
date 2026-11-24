@@ -15,6 +15,9 @@
 --   CL / CV                                      calendar events and sign-ups (see Calendar.lua)
 --   NL / NV                                      member notes (see Notes.lua)
 --   PL / PV                                      professions (see Professions.lua)
+--   RJ  fid proto                                "I don't have this fellowship" (a member on a new PC,
+--                                                or whose saved data was lost): answered with an INV
+--                                                marked "member", which they can accept in one click
 --
 -- Catch-up: whenever two members meet (login, periodic ping, new member) they swap HI
 -- vectors; each side REQuests only the ranges it is missing. Because every member keeps
@@ -508,6 +511,7 @@ function Sync:OnMessage(sender, records, viaChannel)
     if typ == "DEC" then return self:OnDecline(sender, fid, h[4], records) end
 
     local f = ns.Store:Get(fid)
+    if not f and typ == "HI" and not viaChannel then return self:AskToRejoin(sender, fid) end
     if not f or ns.Store:ActiveId() ~= fid then return end
     if typ == "LNK" then return self:OnLink(sender, fid, records) end
     if not self:Trusted(fid, f, key) then
@@ -519,7 +523,9 @@ function Sync:OnMessage(sender, records, viaChannel)
     self:NoteVersion(h[5])
     if viaChannel then ns.Channel:PeerHeard(key) end
 
-    if typ == "CH" then
+    if typ == "RJ" then
+        if not viaChannel then self:OnRejoinAsk(sender, fid, f) end
+    elseif typ == "CH" then
         if viaChannel then ns.Channel:OnAnnounce(key, h[4] == "1") end
     elseif typ == "HI" then
         self:OnHello(sender, fid, f, h[4] == "1", records)
@@ -690,9 +696,45 @@ function Sync:Invite(target)
     ns.Print("Invitation sent to " .. ns.Short(name) .. ". They need Fellowship installed to see it.")
 end
 
+---------------------------------------------------------------------------
+-- Rejoining: a member who installs Fellowship on a new PC (or loses its saved data) has no
+-- fellowship, but the others still have them on the roster and keep saying HI. Answer the
+-- first HI with RJ; the member replies with an invitation marked "member", shown as
+-- "restore your membership". Accepting goes through the usual join, which finishes at once
+-- because they're already on the roster, and then the history catches up.
+---------------------------------------------------------------------------
+local rejoinAsked = {}    -- fid -> GetTime() we last asked
+local rejoinDeclined = {} -- fid -> true when the restore was turned down this session
+function Sync:AskToRejoin(sender, fid)
+    if ns.Store:ActiveId() or rejoinDeclined[fid] then return end
+    local now = GetTime()
+    if rejoinAsked[fid] and now - rejoinAsked[fid] < 60 then return end
+    rejoinAsked[fid] = now
+    send(sender, { header("RJ", fid) })
+end
+
+local rejoinAnswered = {} -- key -> GetTime()
+function Sync:OnRejoinAsk(sender, fid, f)
+    local key = ns.Key(sender)
+    if not ns.Store:IsMember(fid, sender) then return end
+    local now = GetTime()
+    if rejoinAnswered[key] and now - rejoinAnswered[key] < 60 then return end
+    rejoinAnswered[key] = now
+    ns.Debug(sender .. " is a member without the fellowship's data: offering a restore")
+    send(sender, { header("INV", fid, f.name), { "", ns.VERSION, "member" } })
+end
+
 function Sync:OnInvite(sender, fid, name, records)
     local extra = records and records[2] or {}
     local token, version = extra[1], extra[2]
+    if extra[3] == "member" then
+        -- "you're already one of us": only when we have no fellowship, never a "busy" reply
+        if ns.Store:ActiveId() or rejoinDeclined[fid] then return end
+        if ns.UI.inviteShown then return end
+        name = ns.Truncate(tostring(name or "?"), 48)
+        ns.UI:ShowInvite({ fid = fid, name = name, from = sender, token = "", restore = true })
+        return
+    end
     if ns.Store:ActiveId() then
         send(sender, { header("DEC", fid, "busy"), { token or "", ns.VERSION } })
         return
@@ -764,6 +806,13 @@ function Sync:CheckJoined(fid)
 end
 
 function Sync:DeclineInvite(data, reason)
+    if data.restore then
+        rejoinDeclined[data.fid] = true
+        if reason ~= "timeout" then
+            ns.Print("You can restore it later by asking a member to /fship invite you.")
+        end
+        return
+    end
     send(data.from, { header("DEC", data.fid, reason == "timeout" and "timeout" or "declined"), { data.token or "", ns.VERSION } })
 end
 

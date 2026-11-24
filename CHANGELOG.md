@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.21.0
+
+- **Restore your fellowship on a new PC.** If you install Fellowship on another computer, or your saved data is lost, you no longer need to be removed and invited again. Within a couple of minutes of logging in, an online member's Fellowship notices, and you get a "Restore" popup. Click it and you're back in with the full history. Nobody gets a "joined" message, and your roles and notes stay as they were.
+- If you click No, you won't be asked again until you next log in.
+- The person on the new PC and at least one online member need 0.21.0.
+
 ## 0.20.5
 
 - **Fix: messages often arrived a minute or two late, marked "(1m ago)".** If someone dropped out of the fellowship's hidden channel (after a disconnect, for example), everyone else kept sending to the channel only. That person then got messages only from the catch-up that runs every couple of minutes. Now:

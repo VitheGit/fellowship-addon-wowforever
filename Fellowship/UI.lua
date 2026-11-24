@@ -958,6 +958,19 @@ function UI:Init()
         whileDead = true,
         hideOnEscape = true,
     }
+    StaticPopupDialogs["FELLOWSHIP_RESTORE"] = {
+        text = "You're a member of the Fellowship [%s], but it isn't on this computer yet (%s noticed). Restore it and catch up on history?",
+        button1 = "Restore",
+        button2 = NO or "No",
+        OnAccept = function(_, data) UI.inviteShown = nil; ns.Sync:AcceptInvite(data) end,
+        OnCancel = function(_, data, reason)
+            UI.inviteShown = nil
+            if reason ~= "override" then ns.Sync:DeclineInvite(data, reason) end
+        end,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
+    }
     StaticPopupDialogs["FELLOWSHIP_ADMIN_OFFER"] = {
         text = "%s wants to make you the Admin of the Fellowship [%s]. Do you accept?",
         button1 = YES or "Yes",
@@ -1114,6 +1127,13 @@ function UI:Init()
 end
 
 function UI:ShowInvite(data)
+    if data.restore then
+        UI.inviteShown = true
+        StaticPopup_Show("FELLOWSHIP_RESTORE", ns.Escape(data.name), ns.ColorName(data.from), data)
+        ns.Print("You're a member of the Fellowship [" .. ns.Escape(data.name) .. "], but this computer doesn't have it yet. "
+            .. "Click Restore to rejoin and catch up.")
+        return
+    end
     StaticPopup_Show("FELLOWSHIP_INVITE", ns.ColorName(data.from), ns.Escape(data.name), data)
     if PlaySound and SOUNDKIT and SOUNDKIT.IG_PLAYER_INVITE then PlaySound(SOUNDKIT.IG_PLAYER_INVITE) end
     ns.Print(ns.ColorName(data.from) .. " has invited you to the Fellowship [" .. ns.Escape(data.name) .. "].")

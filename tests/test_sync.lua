@@ -2206,5 +2206,47 @@ test("hidden channel: someone who silently drops out of it still gets messages, 
     assert(bob:logContains("still reaches bob"), "message lost while bob was off the channel")
 end)
 
+test("new PC: a member without the fellowship's data is offered a one-click restore", function()
+    local w, anna, bob, cara = setup()
+    w:advance(30)
+    anna:slash("/fs before the new PC"); w:advance(2)
+    bob:logout(); w:advance(5)
+    bob.saved = nil -- fresh install
+    bob.popups = {}
+    bob:login(); w:advance(150) -- members say HI every couple of minutes
+    local pop
+    for _, p in ipairs(bob.popups) do if p.which == "FELLOWSHIP_RESTORE" then pop = p end end
+    assert(pop, "no restore offer")
+    eq(pop.a, "Friday Night Crew")
+    local n = 0
+    for _, p in ipairs(bob.popups) do if p.which == "FELLOWSHIP_RESTORE" then n = n + 1 end end
+    eq(n, 1, "offered more than once")
+    bob.env.StaticPopupDialogs.FELLOWSHIP_RESTORE.OnAccept(nil, pop.data); w:advance(20)
+    eq(bob.ns.Store:ActiveId(), anna.ns.Store:ActiveId(), "not restored")
+    assert(not bob.ns.Store:Active().pendingFrom, "still joining")
+    assert(bob.ns.Store:IsMember(bob.ns.Store:ActiveId(), "Bob-Silvermoon"), "not a member")
+    -- history is back, and nobody saw him "join" again
+    local found = false
+    for _, e in ipairs(bob.ns.Store:Sorted(bob.ns.Store:ActiveId())) do
+        if e.k == "C" and e.d[1] == "before the new PC" then found = true end
+    end
+    assert(found, "history not caught up")
+    bob:slash("/fs back on the new PC"); w:advance(2)
+    assert(anna:logContains("back on the new PC"), "his messages don't reach anna")
+    -- declining: asked once, not again this session
+    local w2, x, y = setup()
+    w2:advance(30)
+    y:logout(); w2:advance(5); y.saved = nil; y.popups = {}
+    y:login(); w2:advance(150)
+    local p2
+    for _, p in ipairs(y.popups) do if p.which == "FELLOWSHIP_RESTORE" then p2 = p end end
+    assert(p2, "no restore offer for y")
+    y.env.StaticPopupDialogs.FELLOWSHIP_RESTORE.OnCancel(nil, p2.data, "clicked")
+    y.popups = {}
+    w2:advance(400)
+    for _, p in ipairs(y.popups) do assert(p.which ~= "FELLOWSHIP_RESTORE", "asked again after No") end
+    eq(y.ns.Store:ActiveId(), nil, "joined after No")
+end)
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
