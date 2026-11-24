@@ -22,7 +22,12 @@ local MAX_TRIES = 5
 local JOIN_CHECK = 3   -- seconds to wait before checking that a join worked
 
 local state = {}       -- { fid, base, password, try, name, id, joining, failed }
-local peers = {}       -- member key -> true once we've heard them on the channel
+local peers = {}       -- member key -> GetTime() we last heard them on the channel
+-- Someone we haven't heard on the channel for this long gets whispers again: they may have
+-- dropped out of it (a disconnect or loading screen) without us noticing. Everyone says
+-- "I'm here" on the channel every ANNOUNCE_EVERY seconds, so active members never expire.
+Ch.PEER_TTL = 200
+Ch.ANNOUNCE_EVERY = 60
 local lastReply = 0
 
 ---------------------------------------------------------------------------
@@ -169,11 +174,12 @@ end
 -- Who is listening
 ---------------------------------------------------------------------------
 function Ch:HasPeer(key)
-    return peers[key] == true and self:Ready()
+    local t = peers[key]
+    return t ~= nil and GetTime() - t < Ch.PEER_TTL and self:Ready()
 end
 
 function Ch:PeerHeard(key)
-    peers[key] = true
+    peers[key] = GetTime()
 end
 
 function Ch:PeerGone(key)
@@ -194,7 +200,7 @@ function Ch:Announce(wantReply)
 end
 
 function Ch:OnAnnounce(key, wantReply)
-    peers[key] = true
+    peers[key] = GetTime()
     if wantReply and GetTime() - lastReply > 5 then
         lastReply = GetTime()
         self:Announce(false)
@@ -220,6 +226,20 @@ function Ch:Init()
         addFilter("CHAT_MSG_CHANNEL_NOTICE_USER", noticeFilter)
         addFilter("CHAT_MSG_CHANNEL_JOIN", noticeFilter)
         addFilter("CHAT_MSG_CHANNEL_LEAVE", noticeFilter)
+    end
+    -- someone leaving our channel: whisper them until we hear them on it again
+    ns.On("CHAT_MSG_CHANNEL_LEAVE", function(_, sender, _, channelName, _, _, _, localID, baseName)
+        if state.name and sender and (Ch:IsOurs(baseName, localID) or Ch:IsOurs(channelName, localID)) then
+            local name = ns.NormalizeName(sender)
+            if name then Ch:PeerGone(ns.Key(name)) end
+        end
+    end)
+    -- now and then: rejoin if we dropped out of the channel, and say we're still on it
+    if C_Timer.NewTicker then
+        C_Timer.NewTicker(Ch.ANNOUNCE_EVERY, function()
+            Ch:Refresh()
+            Ch:Announce(false)
+        end)
     end
     -- the game joins its own channels first at login; ours after that
     C_Timer.After(6, function() Ch:Refresh() end)

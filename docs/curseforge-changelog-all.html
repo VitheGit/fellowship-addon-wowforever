@@ -1,3 +1,10 @@
+<h2>0.20.5</h2>
+<ul>
+<li><strong>Fix: messages often arrived a minute or two late, marked "(1m ago)".</strong> If someone dropped out of the fellowship's hidden channel (after a disconnect, for example), everyone else kept sending to the channel only. That person then got messages only from the catch-up that runs every couple of minutes. Now:</li>
+</ul>
+<p>  - Fellowship rejoins the channel by itself within a minute if you drop out.</p>
+<p>  - Everyone says "still here" on the channel once a minute. Anyone who goes quiet on it for a few minutes gets messages by whisper instead.</p>
+<p>  - Someone who leaves the channel or goes offline is switched to whispers straight away.</p>
 <h2>0.20.4</h2>
 <ul>
 <li><strong>Fix: messages from someone who lost their Fellowship data never reached anyone.</strong> Each person's messages are numbered. After losing their saved data (for example by disabling the addon and being removed and re-added), Fellowship started counting again from 1, and everyone else thought they already had those messages. Now it continues from the highest number the fellowship has seen. Any message that went missing this way is sent again automatically once they catch up.</li>

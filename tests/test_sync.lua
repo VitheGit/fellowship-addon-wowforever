@@ -2185,5 +2185,26 @@ test("'While you were away' is shown once, not once per catch-up batch", functio
     assert(n <= 1, "summary shown " .. n .. " times")
 end)
 
+test("hidden channel: someone who silently drops out of it still gets messages, and rejoins", function()
+    local w, anna, bob = setup()
+    w:advance(30)
+    local name = chan(anna):Name()
+    assert(chan(bob):Ready(), "setup")
+    -- bob falls out of the channel without anyone being told (disconnect, loading screen...)
+    bob.env.LeaveChannelByName(name)
+    assert(not chan(bob):Ready())
+    anna:slash("/fs right away"); w:advance(2)
+    -- within a minute bob is back on the channel by himself
+    w:advance(65)
+    assert(chan(bob):Ready(), "bob didn't rejoin the channel")
+    -- and while someone is quiet on the channel for a long time, they get whispers again
+    bob.channelSlotsFull = true -- and this time he can't get back on it
+    bob.env.LeaveChannelByName(name)
+    w:advance(250) -- past PEER_TTL since bob was last heard on it
+    anna:slash("/fs still reaches bob")
+    w:advance(1)
+    assert(bob:logContains("still reaches bob"), "message lost while bob was off the channel")
+end)
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

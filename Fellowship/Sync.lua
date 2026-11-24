@@ -171,6 +171,7 @@ function Sync:MarkOnline(key)
 end
 
 function Sync:MarkOffline(key)
+    ns.Channel:PeerGone(key)
     if online[key] ~= false then
         local was = online[key]
         online[key] = false
