@@ -535,6 +535,12 @@ function Sync:OnMessage(sender, records, viaChannel)
     if proto ~= ns.PROTOCOL or not fid or fid == "" then return end
     local key = ns.Key(sender)
     if key == ns.meKey then return end
+    -- "/fship restore <you>" from someone who doesn't know which fellowship it is
+    if typ == "RJ" and fid == "*" and not viaChannel then
+        local af = ns.Store:Active()
+        if af and not af.pendingFrom then return self:OnRejoinAsk(sender, ns.Store:ActiveId(), af) end
+        return
+    end
 
     ns.Debug("<- " .. tostring(typ) .. " from " .. sender)
     if viaChannel and (typ == "INV" or typ == "ACC" or typ == "DEC" or typ == "LNK") then return end
@@ -735,14 +741,30 @@ end
 -- "restore your membership". Accepting goes through the usual join, which finishes at once
 -- because they're already on the roster, and then the history catches up.
 ---------------------------------------------------------------------------
-local rejoinAsked = {}    -- fid -> GetTime() we last asked
+local rejoinAsked = {}    -- fid|member -> GetTime() we last asked them
 local rejoinDeclined = {} -- fid -> true when the restore was turned down this session
 function Sync:AskToRejoin(sender, fid)
     if ns.Store:ActiveId() or rejoinDeclined[fid] then return end
-    local now = GetTime()
-    if rejoinAsked[fid] and now - rejoinAsked[fid] < 60 then return end
-    rejoinAsked[fid] = now
+    -- per member: one of them may be on an older version that doesn't answer
+    local k, now = fid .. "|" .. ns.Key(sender), GetTime()
+    if rejoinAsked[k] and now - rejoinAsked[k] < 60 then return end
+    rejoinAsked[k] = now
     send(sender, { header("RJ", fid) })
+end
+
+-- /fship restore <member>: ask a member straight away instead of waiting for their HI.
+function Sync:RequestRestore(target)
+    if ns.Store:ActiveId() then
+        ns.Print("This character is already in a fellowship.")
+        return
+    end
+    local name = ns.NormalizeName(ns.Trim(target or ""))
+    if not name or not name:find("-", 1, true) then
+        ns.Print("Usage: /fship restore <first name> <last name> of a member who is online.")
+        return
+    end
+    send(name, { header("RJ", "*") })
+    ns.Print("Asked " .. ns.Short(name) .. ". If this character is in their fellowship, you'll get a Restore popup in a moment.")
 end
 
 local rejoinAnswered = {} -- key -> GetTime()
@@ -762,7 +784,7 @@ function Sync:OnInvite(sender, fid, name, records)
     if extra[3] == "member" then
         -- "you're already one of us": only when we have no fellowship, never a "busy" reply
         if ns.Store:ActiveId() or rejoinDeclined[fid] then return end
-        if ns.UI.inviteShown then return end
+        if ns.UI.inviteShown and GetTime() - ns.UI.inviteShown < 300 then return end
         name = ns.Truncate(tostring(name or "?"), 48)
         ns.UI:ShowInvite({ fid = fid, name = name, from = sender, token = "", restore = true })
         return

@@ -2290,5 +2290,24 @@ test("new PC: restored on an older version, a new character still finds the acco
     assert(anna.ns.Store:SameAccount(anna.ns.Store:ActiveId(), "Bob-Silvermoon", "Bobalt-Silvermoon"), "alt not on bob's account")
 end)
 
+test("new PC: /fship restore asks a member right away; members on old versions don't block it", function()
+    local w, anna, bob, cara = setup()
+    w:advance(30)
+    bob:logout(); w:advance(5)
+    bob.saved = nil
+    bob.popups = {}
+    bob:login(); w:advance(3)
+    bob:slash("/fship restore Cara Area52"); w:advance(3)
+    local pop
+    for _, p in ipairs(bob.popups) do if p.which == "FELLOWSHIP_RESTORE" then pop = p end end
+    assert(pop, "no restore offer after /fship restore")
+    bob.env.StaticPopupDialogs.FELLOWSHIP_RESTORE.OnAccept(nil, pop.data); w:advance(20)
+    assert(bob.ns.Store:IsMember(bob.ns.Store:ActiveId(), "Bob-Silvermoon"), "not restored")
+    -- a stranger asking gets nothing
+    local x = w:client("Xan"); x:login(); w:advance(2)
+    x:slash("/fship restore Anna Silvermoon"); w:advance(3)
+    for _, p in ipairs(x.popups) do assert(p.which ~= "FELLOWSHIP_RESTORE", "stranger offered a restore") end
+end)
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.21.1"
+ns.VERSION = "0.21.2"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -736,6 +736,7 @@ local HELP = {
     "|cffffd100/fship unwish <item>|r - take an item off your wishlist",
     "|cffffd100/fship note <text>|r - set the note everyone sees next to your name in Members (/fship note clear)",
     "|cffffd100/fship dungeons|r - recent boss kills and why a run did or didn't count",
+    "|cffffd100/fship restore <member>|r - on a new PC: ask an online member to restore your membership",
     "|cffffd100/fship blocked|r - anything the game stopped Fellowship from doing (for bug reports)",
 }
 
@@ -818,6 +819,8 @@ function ns.HandleSlash(input)
         ns.Notes:Slash(rest)
     elseif cmd == "blocked" then
         ns.PrintBlocked()
+    elseif cmd == "restore" or cmd == "rejoin" then
+        ns.Sync:RequestRestore(rest)
     elseif cmd == "items" then
         ns.ItemSearch:PrintStatus()
     elseif cmd == "unwish" then

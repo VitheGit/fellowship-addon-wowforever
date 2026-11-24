@@ -1128,8 +1128,9 @@ end
 
 function UI:ShowInvite(data)
     if data.restore then
-        UI.inviteShown = true
-        StaticPopup_Show("FELLOWSHIP_RESTORE", ns.Escape(data.name), ns.ColorName(data.from), data)
+        UI.inviteShown = GetTime()
+        local shown = StaticPopup_Show("FELLOWSHIP_RESTORE", ns.Escape(data.name), ns.ColorName(data.from), data)
+        if shown == false then UI.inviteShown = nil end
         ns.Print("You're a member of the Fellowship [" .. ns.Escape(data.name) .. "], but this computer doesn't have it yet. "
             .. "Click Restore to rejoin and catch up.")
         return

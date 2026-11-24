@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.21.2
+
+- **More reliable restore on a new PC.** The restore offer could get stuck if the first member to notice you was on an older Fellowship version. Fellowship now asks each member separately, so anyone on 0.21 or newer can answer.
+- **New: /fship restore <member>.** On a new PC, type for example /fship restore Vithe Valestrider to ask an online member straight away instead of waiting a couple of minutes.
+- A brand-new character on a PC where none of your fellowship characters has logged in yet can't be recognized. Log in once on a character that's already in the fellowship and restore it, and your other characters on that PC will join by themselves.
+
 ## 0.21.1
 
 - **Fix: new characters on a restored PC didn't join the fellowship.** Alts join automatically using a code saved on your computer. A new PC made a new code, which the fellowship didn't recognize, so new characters there weren't let in. A restored PC now takes over your original code, and characters made there join with the rest of your account as usual.
