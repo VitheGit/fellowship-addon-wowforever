@@ -178,7 +178,9 @@ function Store:NewLocalEvent(fid, kind, data, minTime)
     local me = ns.me
     -- mySeen: the highest number of ours any member says they have. If our saved data was lost,
     -- numbering must carry on from there, or members would think they already have our new lines.
-    local max = math.max(f.hwm[me] or 0, f.floor[me] or 0, f.mySeen or 0)
+    -- (per character: alts share this saved data, but each numbers its own events)
+    if type(f.mySeen) ~= "table" then f.mySeen = {} end -- 0.20.4-0.21.2 kept one number for all
+    local max = math.max(f.hwm[me] or 0, f.floor[me] or 0, f.mySeen[me] or 0)
     for s in pairs(f.events[me] or {}) do
         if s > max then max = s end
     end
@@ -191,7 +193,27 @@ end
 -- A member told us how many of our own events they have.
 function Store:NoteMySeq(fid, n)
     local f = self:Get(fid)
-    if f and type(n) == "number" and n > (f.mySeen or 0) then f.mySeen = n end
+    if not f or type(n) ~= "number" then return end
+    if type(f.mySeen) ~= "table" then f.mySeen = {} end
+    if n > (f.mySeen[ns.me] or 0) then f.mySeen[ns.me] = n end
+end
+
+-- 0.20.4-0.21.2 could start an alt's numbering high (it borrowed its main's count), leaving a
+-- gap below its first event that never had anything in it. Members stop counting at the gap,
+-- so catch-up for that alt stalls. Given what a member has of ours, return the floor to tell
+-- them (the number just below our next event) if there's an empty gap after theirs.
+function Store:OwnGapAbove(fid, theirs)
+    local f = self:Get(fid)
+    local me = ns.me
+    if not f or not me or type(theirs) ~= "number" then return nil end
+    local evs = f.events[me] or {}
+    if evs[theirs + 1] then return nil end
+    local nextHave
+    for s in pairs(evs) do
+        if s > theirs and (not nextHave or s < nextHave) then nextHave = s end
+    end
+    if nextHave and nextHave - 1 > theirs and nextHave - 1 > (f.floor[me] or 0) then return nextHave - 1 end
+    return nil
 end
 
 -- Our own event number `e.s` came back from a member with different contents: after our saved

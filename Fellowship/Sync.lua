@@ -35,6 +35,7 @@ ns.online = online
 
 local HELLO_INTERVAL = 120 -- also the longest a missed message can stay missing
 local PING_INTERVAL = 60
+local OFFLINE_HELLO_INTERVAL = 30
 local REQ_TIMEOUT = 60
 
 ---------------------------------------------------------------------------
@@ -107,6 +108,9 @@ function Sync:Init()
     self:AutoJoinAlt()
     C_Timer.NewTicker(HELLO_INTERVAL, function() Sync:HelloAll() end)
     C_Timer.NewTicker(PING_INTERVAL, function() Sync:PingOnline() end)
+    -- members we think are offline get a HI more often, so someone logging in on a new PC
+    -- (who can't say hello first: they don't know the fellowship yet) is noticed quickly
+    C_Timer.NewTicker(OFFLINE_HELLO_INTERVAL, function() Sync:HelloOffline() end)
     -- remind about a newer Fellowship version at most once an hour (first check after login settles)
     C_Timer.After(30, function() Sync:UpdateReminder() end)
     C_Timer.NewTicker(60, function() Sync:UpdateReminder() end)
@@ -263,6 +267,14 @@ function Sync:HelloAll()
     end
 end
 
+function Sync:HelloOffline()
+    local f, fid = ns.Store:Active()
+    if not f or f.pendingFrom then return end
+    for _, name in ipairs(otherMembers(fid)) do
+        if online[ns.Key(name)] ~= true then self:Hello(fid, name, true) end
+    end
+end
+
 ---------------------------------------------------------------------------
 -- Accounts: alts join automatically
 ---------------------------------------------------------------------------
@@ -384,7 +396,7 @@ function Sync:OnHello(sender, fid, f, wantReply, records)
     pendingReq[fid] = pendingReq[fid] or {}
     local pend = pendingReq[fid]
     local wants = { header("REQ", fid) }
-    local classesChanged = false
+    local classesChanged, listedMe = false, false
     for i = 2, #records do
         local author, theirs = records[i][1], tonumber(records[i][2])
         local class = records[i][3]
@@ -393,13 +405,23 @@ function Sync:OnHello(sender, fid, f, wantReply, records)
             if ns.Store:SetClass(author, class) then classesChanged = true end
         end
         if author and author ~= "" and theirs then
-            if author == ns.me then ns.Store:NoteMySeq(fid, theirs) end
+            if author == ns.me then
+                listedMe = true
+                ns.Store:NoteMySeq(fid, theirs)
+                -- they're stuck below a gap in our numbering that never had events in it
+                local gap = ns.Store:OwnGapAbove(fid, theirs)
+                if gap then send(sender, { header("FL", fid), { ns.me, gap } }) end
+            end
             local mine = f.hwm[author] or 0
             if theirs > mine and not (pend[author] and pend[author] > now) then
                 wants[#wants + 1] = { author, mine }
                 pend[author] = now + REQ_TIMEOUT
             end
         end
+    end
+    if not listedMe then -- they have none of ours (a HI only lists authors it has something from)
+        local gap = ns.Store:OwnGapAbove(fid, 0)
+        if gap then send(sender, { header("FL", fid), { ns.me, gap } }) end
     end
     if #wants > 1 then send(sender, wants) end
     if classesChanged then ns.Fire("PRESENCE") end -- repaint names
@@ -420,7 +442,14 @@ function Sync:OnRequest(sender, fid, records)
         end
     end
     if #floors > 1 then send(sender, floors, true) end
-    if #events > 0 then sendEvents(sender, fid, events, false, true) end
+    -- membership first, ahead of the chat backlog: someone joining or restoring on a new PC
+    -- needs the member list to be let in, and it's a few dozen events at most
+    local membership, rest = {}, {}
+    for _, e in ipairs(events) do
+        if ns.MEMBERSHIP_KINDS[e.k] then membership[#membership + 1] = e else rest[#rest + 1] = e end
+    end
+    if #membership > 0 then sendEvents(sender, fid, membership, false, false) end
+    if #rest > 0 then sendEvents(sender, fid, rest, false, true) end
 end
 
 function Sync:OnFloor(fid, records)

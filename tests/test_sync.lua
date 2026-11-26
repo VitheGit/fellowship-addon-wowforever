@@ -2309,5 +2309,33 @@ test("new PC: /fship restore asks a member right away; members on old versions d
     for _, p in ipairs(x.popups) do assert(p.which ~= "FELLOWSHIP_RESTORE", "stranger offered a restore") end
 end)
 
+test("alts: numbering starts at 1 for each character; an old gap (0.20.4-0.21.2) is closed", function()
+    local w, anna, bob, cara = setup()
+    w:advance(30)
+    -- as 0.20.4-0.21.2 did: the alt borrows its main's count and starts at 98
+    bob:logout(); w:advance(5)
+    local bobalt = w:client("Bobalt"); bobalt:sameAccountAs(bob)
+    local fid
+    for id in pairs(bob.saved.fellowships) do fid = id end
+    bob.saved.fellowships[fid].mySeen = { ["Bobalt-Silvermoon"] = 97 }
+    bobalt:login(); w:advance(30)
+    assert(bobalt.ns.Store:ActiveId(), "alt didn't join")
+    bobalt:slash("/fs alt line"); w:advance(2)
+    assert(anna:logContains("alt line"), "live line lost")
+    -- members' count for the alt was stuck at 0; after a HI exchange it moves past the gap
+    w:advance(150)
+    assert((anna.ns.Store:Get(fid).hwm["Bobalt-Silvermoon"] or 0) >= 99, "anna still stuck below the gap: "
+        .. tostring(anna.ns.Store:Get(fid).hwm["Bobalt-Silvermoon"]))
+    -- a fresh alt today starts at 1
+    local bobalt2 = w:client("Bobthird"); bobalt2:sameAccountAs(bob)
+    bobalt:logout(); w:advance(5)
+    bobalt2:login(); w:advance(30)
+    local first
+    for s in pairs(anna.ns.Store:Get(fid).events["Bobthird-Silvermoon"] or {}) do
+        if not first or s < first then first = s end
+    end
+    eq(first, 1, "new alt's first event number")
+end)
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

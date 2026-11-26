@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.21.3
+
+- **Restoring on a new PC finishes in seconds.** The member list used to arrive mixed in with the whole chat history, so a restored player could sit for minutes with an empty member list while nobody saw them online. Fellowship now sends the member list first, then the history.
+- **New PCs are noticed sooner.** Members check on anyone who looks offline every 30 seconds instead of every 2 minutes, so the Restore popup shows up faster.
+- **Fix: catch-up could stall for alts.** Since 0.20.4, a character logging in after another character on the same account could number its messages as if continuing from the first one. Members then lost count of that alt's messages. Each character now numbers its own messages, and alts affected by this fix themselves the next time they log in.
+- Everyone should update to 0.21.3, especially anyone playing alts.
+
 ## 0.21.2
 
 - **More reliable restore on a new PC.** The restore offer could get stuck if the first member to notice you was on an older Fellowship version. Fellowship now asks each member separately, so anyone on 0.21 or newer can answer.
