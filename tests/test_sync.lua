@@ -74,7 +74,7 @@ test("solo founder sees their own /fsay and a hint", function()
     solo:slash("/fship create Just Me")
     solo:slash("/fsay Hi!")
     w:advance(1)
-    assert(solo:logContains("Solo Silvermoon|r: |cff4fd1b5Hi!|r"), "own message not echoed in chat color")
+    assert(solo:logContains("Solo|r: |cff4fd1b5Hi!|r"), "own message not echoed in chat color")
     solo:slash("/fship color #FF00AA")
     assert(solo.ns.FormatEvent({ a = "Solo-Silvermoon", k = "C", d = { "x" } }):find("|cffff00aax|r", 1, true), "custom color")
     solo:slash("/fship color reset")
@@ -102,8 +102,8 @@ test("names use class colors, learned for members who are offline", function()
     dan:acceptPopup("FELLOWSHIP_INVITE"); w:advance(60)
     eq(dan.ns.Store:GetClass("Bob-Silvermoon"), "MAGE")
     eq(anna.ns.Store:GetClass("Dan-Silvermoon"), "WARRIOR")
-    assert(anna:logContains("|cffaad372Anna Silvermoon|r: |cff4fd1b5hi from anna"), "anna's own line not hunter green")
-    assert(dan.ns.FormatEvent({ a = "Bob-Silvermoon", k = "C", d = { "x" } }):find("|cff3fc7ebBob Silvermoon|r", 1, true), "bob not mage blue")
+    assert(anna:logContains("|cffaad372Anna|r: |cff4fd1b5hi from anna"), "anna's own line not hunter green")
+    assert(dan.ns.FormatEvent({ a = "Bob-Silvermoon", k = "C", d = { "x" } }):find("|cff3fc7ebBob|r", 1, true), "bob not mage blue")
 end)
 
 test("/fs <message> chats, /fs alone opens the window, /fship runs commands", function()
@@ -496,6 +496,19 @@ test("accounts: an alt joins automatically and shares its main's role", function
     local list, n = anna.ns.Sync:MemberList(anna.ns.Store:ActiveId())
     eq(#list, 3); eq(n, 3, "bob's account counts as online via the alt")
     sameHistory(anna, bobalt)
+    -- the "Full names in chat" setting shows "First Last" for both the alt and its main
+    anna.ns.settings.fullNames = true
+    bobalt:slash("/fs full names now"); w:advance(2)
+    assert(anna:logContains("Bobalt Silvermoon|r |cff808080(Bob Silvermoon)|r: "), "full names setting ignored")
+    anna:slash("/fs main full"); w:advance(2)
+    assert(anna:logContains("Anna Silvermoon|r: |cff4fd1b5main full"), "full name for main not shown")
+    anna.ns.settings.fullNames = false
+    anna:slash("/fs main short"); w:advance(2)
+    assert(anna:logContains("Anna|r: |cff4fd1b5main short"), "first name not back after turning setting off")
+    -- member lists always keep full names
+    local shown = {}
+    for _, m in ipairs(anna.ns.Sync:MemberList(anna.ns.Store:ActiveId())) do shown[#shown + 1] = m.display end
+    assert(table.concat(shown, ","):find("Anna Silvermoon", 1, true), "member list lost full names")
 end)
 
 test("accounts: leaving on an alt takes the whole account out", function()
@@ -822,8 +835,8 @@ for _, style in ipairs({ "space", "camel", "hyphen" }) do
         assert(not valtri.ns.Store:Get(fid).pendingFrom, "still joining")
         assert(vithe.ns.Store:IsMember(fid, "Valtri Brinkforge"), "vithe doesn't see valtri")
         valtri:slash("/fs hello from valtri"); vithe:slash("/fs hi valtri"); w:advance(3)
-        assert(vithe:logContains("Valtri Brinkforge|r: |cff4fd1b5hello from valtri"), "vithe missed valtri's line")
-        assert(valtri:logContains("Vithe Valestrider|r: |cff4fd1b5hi valtri"), "valtri missed vithe's line")
+        assert(vithe:logContains("Valtri|r: |cff4fd1b5hello from valtri"), "vithe missed valtri's line")
+        assert(valtri:logContains("Vithe|r: |cff4fd1b5hi valtri"), "valtri missed vithe's line")
     end)
 end
 
@@ -979,7 +992,7 @@ test("rare mobs: found from minimap markers, nameplates and target; announced on
     bob:acceptPopup("FELLOWSHIP_INVITE"); w:advance(20)
 
     anna:fire("VIGNETTE_MINIMAP_UPDATED", "V-1", true); w:advance(2)
-    local line = "Anna Silvermoon|r has encountered |cffff9933RareMob01|r! in Elwynn Forest |cffffff00|Hworldmap:37:4520:6010|h[Map Pin]|h|r"
+    local line = "Anna|r has encountered |cffff9933RareMob01|r! in Elwynn Forest |cffffff00|Hworldmap:37:4520:6010|h[Map Pin]|h|r"
     assert(bob:logContains(line), "bob didn't see the rare")
     anna:fire("VIGNETTE_MINIMAP_UPDATED", "V-2", true)          -- a treasure, not a rare
     anna:fire("VIGNETTES_UPDATED")                              -- the same rare again
@@ -1501,7 +1514,7 @@ test("wishlist: loot pings the wanter, a one-time wish is granted, always-wanted
     anna:fire("CHAT_MSG_LOOT", "You receive loot: " .. BOW .. ".")
     w:advance(2)
     assert(chatMatch(anna, "Wish granted!"), "anna told")
-    assert(chatMatch(bob, "Anna Silvermoon.*looted .*Epic Bow.*Wish granted!"), "bob sees it")
+    assert(chatMatch(bob, "Anna|r.*looted .*Epic Bow.*Wish granted!"), "bob sees it")
     assert(not anna.ns.Wishlist:Find(900), "bow off the list")
     assert(anna.ns.Wishlist:Find(2770), "ore still on the list")
     eq(tooltip(bob, 900), "", "bob no longer sees the bow wanted")

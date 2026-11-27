@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.21.4"
+ns.VERSION = "0.21.5"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -21,6 +21,7 @@ ns.defaults = {
     shareDeaths = true,       showDeaths = true,
     shareRares = true,        showRares = true,        -- rare mobs spotted
     showPresence = true,      -- "Bob came online / went offline"
+    fullNames = false,        -- chat shows "Bob Smith" instead of just "Bob"
     mentionAlert = true,      -- sound + alert when someone @mentions you
     shareLocation = true,     -- zone and level in other members' Members tab
     -- minimap button
@@ -265,17 +266,19 @@ function ns.ClassColorHex(token)
 end
 
 -- "Bradalt (Brad)": a character's name, plus its account's main name when it's an alt.
-function ns.WhoName(name, main)
+function ns.WhoName(name, main, forceFull)
     if not main then
         local f, fid = ns.Store:Active()
         local m = f and ns.Store:Roster(fid)[ns.Key(name)]
         main = m and m.main
     end
     if main and ns.Key(main) ~= ns.Key(name) then
-        -- an alt: first names only, "Pocketsize (Vithe)", so the line doesn't get too long
-        return ns.ColorName(name, true) .. " |cff808080(" .. ns.FirstName(main) .. ")|r"
+        -- an alt: "Pocketsize (Vithe)"
+        local full = forceFull or (ns.settings and ns.settings.fullNames)
+        return ns.ColorName(name, not full) .. " |cff808080(" .. (full and ns.Short(main) or ns.FirstName(main)) .. ")|r"
     end
-    return ns.ColorName(name)
+    -- first names by default so lines stay short; the "Full names" setting shows "First Last"
+    return ns.ColorName(name, not (forceFull or (ns.settings and ns.settings.fullNames)))
 end
 
 -- "Vithe-Valestrider" -> "Vithe"

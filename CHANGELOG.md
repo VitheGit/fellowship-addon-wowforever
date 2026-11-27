@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.21.5
+
+- **First names in chat.** Fellowship chat and announcements now show first names only, like "Vithe: MORNIN" or "Pocketsize (Vithe): MORNIN" for an alt, so lines stay short.
+- **New setting: Full names in chat.** Prefer "Vithe Valestrider"? Open settings (gear icon or /fship settings) and tick "Full names in chat (first and last)". It only changes what you see.
+- The Members tab and /fship who still show full names.
+
 ## 0.21.4
 
 - **Shorter names for alts in chat.** Messages from an alt now show first names only, like "Pocketsize (Vithe): MORNIN" instead of "Pocketsize Colossus (Vithe Valestrider): MORNIN". Messages from someone's main character still show their full name.

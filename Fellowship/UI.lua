@@ -1166,6 +1166,7 @@ UI.SETTINGS_ROWS = {
     { "Deaths", "shareDeaths", "showDeaths" },
     { "Rare mobs spotted", "shareRares", "showRares" },
     { "Online / offline notices", nil, "showPresence" },
+    { "Full names in chat (first and last)", nil, "fullNames" },
     { "Sound and alert when someone @mentions you", nil, "mentionAlert" },
     { "Zone and level (Members tab)", "shareLocation", nil },
 }
@@ -1189,7 +1190,7 @@ function UI:BuildSettings()
     local f = CreateFrame("Frame", "FellowshipSettingsFrame", UIParent, "BasicFrameTemplateWithInset")
     fixCloseButton(f)
     settingsFrame = f
-    f:SetSize(470, 532)
+    f:SetSize(470, 558)
     f:SetPoint("CENTER", 40, -20)
     f:SetMovable(true)
     f:EnableMouse(true)

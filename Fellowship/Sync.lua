@@ -1131,7 +1131,7 @@ function Sync:MemberList(fid)
             since = acct.since, role = acct.role, online = on, status = status, where = where, isMe = isMe,
             level = st and tonumber(st.level), zone = st and st.zone, seen = seen,
             achievements = count, roleLabel = ns.ROLE_LABEL[acct.role] or "Member",
-            display = ns.WhoName(shown, acct.main) }
+            display = ns.WhoName(shown, acct.main, true) } -- member lists keep full names
     end
     table.sort(list, function(a, b)
         if a.online ~= b.online then return a.online end
