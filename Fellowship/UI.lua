@@ -169,6 +169,7 @@ local NAV = {
     { "wishlist", "Wishlist", "Interface\\Icons\\INV_Misc_Bag_10" },
     { "feats", "Achievements", "Interface\\Icons\\INV_Misc_Head_Dragon_01" },
     { "members", "Members", "Interface\\Icons\\INV_Misc_GroupLooking" },
+    { "options", "Options", "Interface\\Icons\\INV_Misc_Gear_01" },
 }
 local NAV_W = 140
 local MIN_W, MIN_H = 820, 480
@@ -904,6 +905,7 @@ function UI:Build()
     panels.wishlist = wl
 
     panels.calendar = UI:BuildCalendar(panel(), makeButton, makeInput)
+    panels.options = UI:BuildOptions(panel())
 
     -- No fellowship yet: a "Create Fellowship" screen
     local none = panel()
@@ -1153,7 +1155,6 @@ end
 ---------------------------------------------------------------------------
 -- Settings window
 ---------------------------------------------------------------------------
-local settingsFrame
 UI.settingsChecks = {}
 
 UI.SETTINGS_ROWS = {
@@ -1185,27 +1186,8 @@ local function qualityLabel()
     return "Epic and better"
 end
 
-function UI:BuildSettings()
-    if settingsFrame then return end
-    local f = CreateFrame("Frame", "FellowshipSettingsFrame", UIParent, "BasicFrameTemplateWithInset")
-    fixCloseButton(f)
-    settingsFrame = f
-    f:SetSize(470, 558)
-    f:SetPoint("CENTER", 40, -20)
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", f.StopMovingOrSizing)
-    f:SetClampedToScreen(true)
-    f:SetFrameStrata("DIALOG")
-    f:Hide()
-    table.insert(UISpecialFrames, "FellowshipSettingsFrame")
-
-    local title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    title:SetPoint("TOP", 0, -6)
-    title:SetText("Fellowship Settings")
-
+-- The Options page in the window's sidebar: announcements on the left, general options on the right.
+function UI:BuildOptions(f)
     local function label(text, x, y, font)
         local fs = f:CreateFontString(nil, "OVERLAY", font or "GameFontHighlightSmall")
         fs:SetPoint("TOPLEFT", x, y)
@@ -1213,10 +1195,10 @@ function UI:BuildSettings()
         return fs
     end
 
-    local SHARE_X, SHOW_X = 300, 380
-    label("|cffffd100Announcements|r", 20, -36, "GameFontNormal")
-    label("Share mine", SHARE_X - 8, -38)
-    label("Show others'", SHOW_X - 12, -38)
+    local SHARE_X, SHOW_X = 292, 362
+    label("|cffffd100Announcements|r", 8, -4, "GameFontNormal")
+    label("Share mine", SHARE_X - 8, -6)
+    label("Show others'", SHOW_X - 12, -6)
 
     local function check(key, x, y)
         local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
@@ -1230,16 +1212,18 @@ function UI:BuildSettings()
         return cb
     end
 
-    local y = -60
+    local y = -28
     for _, row in ipairs(UI.SETTINGS_ROWS) do
-        label(row[1], 24, y)
+        label(row[1], 12, y)
         if row[2] then check(row[2], SHARE_X + 14, y) end
         if row[3] then check(row[3], SHOW_X + 14, y) end
-        y = y - 26
+        y = y - 25
     end
 
-    y = y - 8
-    label("Loot to show:", 24, y - 4)
+    -- right column
+    local RX = 450
+    label("|cffffd100General|r", RX, -4, "GameFontNormal")
+    label("Loot to show:", RX, -30)
     f.quality = makeButton(f, qualityLabel(), 170, function(self)
         local q = ns.settings.lootMinQuality or 4
         q = q + 1
@@ -1248,46 +1232,52 @@ function UI:BuildSettings()
         self:SetText(qualityLabel())
         UI:QueueRefresh()
     end)
-    f.quality:SetPoint("TOPLEFT", 150, y)
+    f.quality:SetPoint("TOPLEFT", RX, -46)
 
-    y = y - 32
-    label("Chat text color:", 24, y - 4)
+    label("Chat text color:", RX, -84)
     f.color = makeInput(f, 7, function(text) ns.HandleSlash("color " .. text); UI:RefreshSettings() end)
-    f.color:SetPoint("TOPLEFT", 156, y)
+    f.color:SetPoint("TOPLEFT", RX + 6, -100)
     f.color:SetWidth(80)
-    f.colorPreview = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    f.colorPreview:SetPoint("LEFT", f.color, "RIGHT", 10, 0)
     f.colorReset = makeButton(f, "Reset", 60, function() ns.HandleSlash("color reset"); UI:RefreshSettings() end)
-    f.colorReset:SetPoint("TOPRIGHT", -20, y)
+    f.colorReset:SetPoint("LEFT", f.color, "RIGHT", 8, 0)
+    f.colorPreview = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    f.colorPreview:SetPoint("TOPLEFT", RX, -128)
 
-    y = y - 32
     f.minimap = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     f.minimap:SetSize(24, 24)
-    f.minimap:SetPoint("TOPLEFT", 20, y + 5)
+    f.minimap:SetPoint("TOPLEFT", RX - 4, -152)
     f.minimap:SetScript("OnClick", function(self) ns.MinimapButton:SetShown(self:GetChecked() and true or false) end)
-    label("Show minimap button", 48, y)
+    label("Show minimap button", RX + 24, -157)
 
-    y = y - 30
-    local tip = label("|cff808080To pick which chat tabs show Fellowship, right-click a chat tab and tick\n"
-        .. "\"Show Fellowship\" (or type /fship tab in that tab). \"Share mine\" controls what your\n"
-        .. "friends see from you; \"Show others'\" controls what you see.|r", 20, y)
+    local tip = label("|cff808080\"Share mine\" controls what your friends see from you; \"Show others'\" "
+        .. "controls what you see.\n\nTo pick which chat tabs show Fellowship, right-click a chat tab and tick "
+        .. "\"Show Fellowship\" (or type /fship tab in that tab).|r", RX, -190)
+    tip:SetWidth(190)
     tip:SetJustifyH("LEFT")
-
-    f:SetScript("OnShow", function() UI:RefreshSettings() end)
+    return f
 end
 
 function UI:RefreshSettings()
-    if not settingsFrame then return end
+    local f = panels.options
+    if not f then return end
     for key, cb in pairs(self.settingsChecks) do cb:SetChecked(ns.settings[key] and true or false) end
-    settingsFrame.quality:SetText(qualityLabel())
-    settingsFrame.minimap:SetChecked(ns.settings.minimapShow ~= false)
-    settingsFrame.color:SetText(ns.TextColor())
-    settingsFrame.colorPreview:SetText("|cff" .. ns.TextColor() .. "Hello, fellowship!|r")
+    f.quality:SetText(qualityLabel())
+    f.minimap:SetChecked(ns.settings.minimapShow ~= false)
+    f.color:SetText(ns.TextColor())
+    f.colorPreview:SetText("|cff" .. ns.TextColor() .. "Hello, fellowship!|r")
 end
 
+-- Gear button, /fship settings and the minimap menu open the window on Options;
+-- doing it again while Options is showing goes back to the page you were on.
+local beforeOptions
 function UI:ToggleSettings()
-    self:BuildSettings()
-    if settingsFrame:IsShown() then settingsFrame:Hide() else settingsFrame:Show() end
+    self:Build()
+    if frame:IsShown() and activeTab == "options" then
+        self:SelectTab(beforeOptions or "chat")
+    else
+        if activeTab ~= "options" then beforeOptions = activeTab end
+        self:Show("options")
+    end
 end
 
 function UI:Toggle()
@@ -1296,6 +1286,7 @@ function UI:Toggle()
 end
 
 function UI.WishlistPanelForTest() return panels.wishlist end
+function UI.ActiveTabForTest() return activeTab end
 
 function UI:UpdateSuggestions(text)
     local wl = panels.wishlist
@@ -1801,7 +1792,12 @@ function UI:Refresh()
         frame.title:SetText("Fellowship")
         frame.subtitle:SetText("")
         frame.nav:Hide()
-        panels.none:Show()
+        if activeTab == "options" then -- settings still work before joining a fellowship
+            panels.options:Show()
+            self:RefreshSettings()
+        else
+            panels.none:Show()
+        end
         return
     end
     frame.nav:Show()
@@ -1848,6 +1844,8 @@ function UI:Refresh()
         renderWishlist(p, fid)
     elseif activeTab == "calendar" then
         UI:RenderCalendar(p, fid)
+    elseif activeTab == "options" then
+        self:RefreshSettings()
     else
         renderMembers(p, fid)
     end

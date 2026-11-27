@@ -2094,12 +2094,31 @@ test("UI builds and renders without errors", function()
     w:advance(2)
     anna:slash("/fs")
     anna.ns.Wishlist:Add("|cffa335ee|Hitem:900:4::|h[Epic Bow]|h|r")
-    for _, tab in ipairs({ "chat", "feats", "members", "wishlist", "calendar" }) do anna.ns.UI:SelectTab(tab) end
+    for _, tab in ipairs({ "chat", "feats", "members", "wishlist", "calendar", "options" }) do anna.ns.UI:SelectTab(tab) end
     anna.ns.UI.panelsForTest = nil
     anna:slash("/fship wish")
     w:advance(1)
     anna:slash("/fship who")
     anna:slash("/fship help")
+end)
+
+test("Options tab: settings live in the window; gear and /fship settings open it and go back", function()
+    local w, anna = setup()
+    local UI = anna.ns.UI
+    anna:slash("/fs"); UI:SelectTab("members")
+    anna:slash("/fship settings")
+    eq(UI.ActiveTabForTest(), "options", "settings opens the Options tab")
+    eq(UI.settingsChecks.fullNames:GetChecked(), false, "full names off by default")
+    UI.settingsChecks.fullNames:SetChecked(true); UI.settingsChecks.fullNames:Click()
+    eq(anna.ns.settings.fullNames, true, "checkbox sets the option")
+    anna:slash("/fship settings")
+    eq(UI.ActiveTabForTest(), "members", "second time goes back to the page you were on")
+    -- works before joining a fellowship too
+    local w2 = World.new()
+    local solo = w2:client("Solo"); solo:login(); w2:advance(1)
+    solo:slash("/fship settings")
+    eq(solo.ns.UI.ActiveTabForTest(), "options")
+    assert(solo.ns.UI.settingsChecks.showLevels, "options built without a fellowship")
 end)
 
 test("death counter: game statistic, in the death message, shared to the Members tab", function()

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.21.6
+
+- **Options tab.** Settings now live in the Fellowship window, on a new Options tab at the bottom of the sidebar, instead of a separate pop-up window. Announcements are on the left; loot level, chat color, the minimap button and tips are on the right.
+- The gear icon, /fship settings and the minimap menu open the Options tab. Clicking the gear again takes you back to the page you were on.
+- Options also work before you've joined a fellowship.
+
 ## 0.21.5
 
 - **First names in chat.** Fellowship chat and announcements now show first names only, like "Vithe: MORNIN" or "Pocketsize (Vithe): MORNIN" for an alt, so lines stay short.
