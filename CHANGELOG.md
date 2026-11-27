@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.21.4
+
+- **Shorter names for alts in chat.** Messages from an alt now show first names only, like "Pocketsize (Vithe): MORNIN" instead of "Pocketsize Colossus (Vithe Valestrider): MORNIN". Messages from someone's main character still show their full name.
+
 ## 0.21.3
 
 - **Restoring on a new PC finishes in seconds.** The member list used to arrive mixed in with the whole chat history, so a restored player could sit for minutes with an empty member list while nobody saw them online. Fellowship now sends the member list first, then the history.

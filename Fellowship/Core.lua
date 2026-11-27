@@ -3,7 +3,7 @@
 local ADDON_NAME, ns = ...
 Fellowship = ns -- exposed for debugging (/dump Fellowship.Store:Active())
 
-ns.VERSION = "0.21.3"
+ns.VERSION = "0.21.4"
 ns.PREFIX = "Fellowship" -- addon message prefix (max 16 chars)
 ns.PROTOCOL = "1"
 
@@ -272,15 +272,22 @@ function ns.WhoName(name, main)
         main = m and m.main
     end
     if main and ns.Key(main) ~= ns.Key(name) then
-        return ns.ColorName(name) .. " |cff808080(" .. ns.Short(main) .. ")|r"
+        -- an alt: first names only, "Pocketsize (Vithe)", so the line doesn't get too long
+        return ns.ColorName(name, true) .. " |cff808080(" .. ns.FirstName(main) .. ")|r"
     end
     return ns.ColorName(name)
 end
 
+-- "Vithe-Valestrider" -> "Vithe"
+function ns.FirstName(full)
+    if not full then return "?" end
+    return (tostring(full):match("^[^%-%s]+")) or ns.Short(full)
+end
+
 -- Short name in the member's class color (gold if we don't know their class yet).
-function ns.ColorName(full)
+function ns.ColorName(full, firstOnly)
     local hex = ns.ClassColorHex(ns.Store:GetClass(full))
-    return (hex and ("|c" .. hex) or GOLD) .. ns.Short(full) .. "|r"
+    return (hex and ("|c" .. hex) or GOLD) .. (firstOnly and ns.FirstName(full) or ns.Short(full)) .. "|r"
 end
 
 function ns.TextColor()

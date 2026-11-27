@@ -492,7 +492,7 @@ test("accounts: an alt joins automatically and shares its main's role", function
         eq(c.ns.Store:Role(c.ns.Store:ActiveId(), "Bobalt-Silvermoon"), "inviter", c.name .. " alt role")
     end
     bobalt:slash("/fs hi from my alt"); w:advance(2)
-    assert(anna:logContains("Bobalt Silvermoon|r |cff808080(Bob Silvermoon)|r: "), "alt name not shown with main")
+    assert(anna:logContains("Bobalt|r |cff808080(Bob)|r: "), "alt name not shown with main")
     local list, n = anna.ns.Sync:MemberList(anna.ns.Store:ActiveId())
     eq(#list, 3); eq(n, 3, "bob's account counts as online via the alt")
     sameHistory(anna, bobalt)
